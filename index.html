@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Contabilidad Premium</title>
+    <link rel="stylesheet" href="style.css">
+    <!-- Font Awesome for Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script>
+        window.onerror = function (msg, url, line, col, error) {
+            alert("Error: " + msg + "\nEn: " + url + ":" + line);
+        };
+    </script>
+</head>
+
+<body>
+    <div class="app-container">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <div class="brand">
+                <i class="fa-solid fa-wallet"></i>
+                <span>Finanzas</span>
+            </div>
+            <nav class="nav-menu">
+                <button class="nav-btn active" data-target="dashboard">
+                    <i class="fa-solid fa-chart-pie"></i> Dashboard
+                </button>
+                <button class="nav-btn" data-target="transaction-form">
+                    <i class="fa-solid fa-circle-plus"></i> Registrar
+                </button>
+                <button class="nav-btn" data-target="transactions">
+                    <i class="fa-solid fa-list-ul"></i> Movimientos
+                </button>
+                <button class="nav-btn" data-target="concepts">
+                    <i class="fa-solid fa-tags"></i> Conceptos
+                </button>
+                <button class="nav-btn" data-target="clients">
+                    <i class="fa-solid fa-users"></i> Clientes
+                </button>
+            </nav>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Header -->
+            <header class="top-bar">
+                <h1 id="page-title">Dashboard</h1>
+                <div class="user-profile">
+                    <span>Usuario</span>
+                    <div class="avatar"><i class="fa-solid fa-user"></i></div>
+                </div>
+            </header>
+
+            <!-- Views (SPA Sections) -->
+
+            <!-- DASHBOARD VIEW -->
+            <section id="dashboard" class="view-section active">
+                <div class="stats-grid">
+                    <div class="stat-card balance">
+                        <h3>Saldo Total</h3>
+                        <p class="amount" id="total-balance">$0.00</p>
+                    </div>
+                    <div class="stat-card income">
+                        <h3>Ingresos del Mes</h3>
+                        <p class="amount" id="month-income">$0.00</p>
+                    </div>
+                    <div class="stat-card expense">
+                        <h3>Gastos del Mes</h3>
+                        <p class="amount" id="month-expense">$0.00</p>
+                    </div>
+                </div>
+    </div>
+
+    <!-- Annual Summary Table -->
+    <div class="card mt-4">
+        <h3>Resumen Anual (${new Date().getFullYear()})</h3>
+        <div class="table-responsive">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Mes</th>
+                        <th>Ingresos</th>
+                        <th>Egresos</th>
+                        <th>Saldo Mensual</th>
+                        <th>Saldo Acumulado</th>
+                    </tr>
+                </thead>
+                <tbody id="monthly-summary-body">
+                    <!-- JS Injected -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+    </section>
+
+    <!-- TRANSACTION FORM VIEW -->
+    <section id="transaction-form" class="view-section">
+        <!-- Form will be injected here -->
+        <div class="card form-card">
+            <h2>Registrar Movimiento</h2>
+            <form id="add-transaction-form">
+                <div class="form-group type-toggle-group">
+                    <label>Tipo de Movimiento</label>
+                    <div class="type-toggle">
+                        <input type="radio" name="type" id="type-income" value="income" checked>
+                        <label for="type-income" class="toggle-btn income">Ingreso</label>
+
+                        <input type="radio" name="type" id="type-expense" value="expense">
+                        <label for="type-expense" class="toggle-btn expense">Egreso</label>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="amount">Monto</label>
+                    <input type="number" id="amount" name="amount" placeholder="0.00" step="0.01" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="concept">Concepto</label>
+                    <select id="concept" name="concept" required>
+                        <option value="">Seleccionar Concepto</option>
+                        <!-- Concepts injected by JS -->
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="client">Cliente (Opcional)</label>
+                    <select id="client" name="client">
+                        <option value="">Seleccionar Cliente</option>
+                        <!-- Clients injected by JS -->
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="date">Fecha</label>
+                    <input type="date" id="date" name="date" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="observation">Observación (Opcional)</label>
+                    <textarea id="observation" name="observation" rows="3"
+                        placeholder="Detalles adicionales..."></textarea>
+                </div>
+
+                <button type="submit" class="btn-primary">Guardar Movimiento</button>
+            </form>
+        </div>
+    </section>
+
+    <!-- TRANSACTIONS LIST VIEW -->
+    <section id="transactions" class="view-section">
+        <div class="card">
+            <div class="card-header">
+                <h2>Historial de Movimientos</h2>
+            </div>
+            <div class="table-responsive">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Fecha</th>
+                            <th>Tipo</th>
+                            <th>Concepto</th>
+                            <th>Cliente</th>
+                            <th>Obs.</th>
+                            <th>Monto</th>
+                            <th>Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody id="transactions-list-body">
+                        <!-- Transactions injected by JS -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </section>
+
+    <!-- CONCEPTS VIEW -->
+    <section id="concepts" class="view-section">
+        <div class="card form-card">
+            <h2>Crear Concepto</h2>
+            <form id="add-concept-form">
+                <div class="grid-2">
+                    <div class="form-group">
+                        <label>Nombre del Concepto</label>
+                        <input type="text" name="name" required placeholder="Ej: Venta de Servicios">
+                    </div>
+                    <div class="form-group">
+                        <label>Tipo</label>
+                        <select name="type" required>
+                            <option value="income">Ingreso</option>
+                            <option value="expense">Egreso</option>
+                        </select>
+                    </div>
+                </div>
+                <button type="submit" class="btn-secondary">Agregar Concepto</button>
+            </form>
+        </div>
+
+        <div class="card mt-4">
+            <h3>Lista de Conceptos</h3>
+            <ul class="simple-list" id="concepts-list">
+                <!-- Concepts injected JS -->
+            </ul>
+        </div>
+    </section>
+
+    <!-- CLIENTS VIEW -->
+    <section id="clients" class="view-section">
+        <div class="card form-card">
+            <h2>Crear Cliente</h2>
+            <form id="add-client-form">
+                <div class="form-group">
+                    <label>Nombre del Cliente</label>
+                    <input type="text" name="name" required placeholder="Ej: Juan Pérez">
+                </div>
+                <button type="submit" class="btn-secondary">Agregar Cliente</button>
+            </form>
+        </div>
+
+        <div class="card mt-4">
+            <h3>Lista de Clientes</h3>
+            <ul class="simple-list" id="clients-list">
+                <!-- Clients injected JS -->
+            </ul>
+        </div>
+    </section>
+
+    </main>
+    </div>
+
+    <!-- Scripts -->
+    <script src="storage.js"></script>
+    <script src="app.js"></script>
+</body>
+
+</html>
