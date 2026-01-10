@@ -23,9 +23,11 @@ const UI = {
             this.loadData();
             this.setupEventListeners();
             this.renderDashboard(); // Initial render
+            this.renderDashboard(); // Initial render
             this.renderConcepts();
             this.renderClients();
-            this.renderTransactionFormOptions();
+            this.setupCustomDropdowns(); // Init click listeners for toggles
+            this.renderTransactionFormOptions(); // Populates form AND filters
 
             // Set date input to today
             const dateInput = document.getElementById('date');
@@ -70,6 +72,8 @@ const UI = {
 
         const clientForm = document.getElementById('add-client-form');
         if (clientForm) clientForm.addEventListener('submit', (e) => this.handleClientSubmit(e));
+
+        // Filters (Native select listeners removed, using custom logic)
     },
 
     switchView(viewName) {
@@ -136,6 +140,10 @@ const UI = {
         if (elIncome) elIncome.textContent = formatCurrency(income);
         if (elExpense) elExpense.textContent = formatCurrency(expense);
 
+        // Update Year Overlay
+        const yearEl = document.getElementById('current-year');
+        if (yearEl) yearEl.textContent = currentYear;
+
         // --- Annual Summary Table ---
         const monthNames = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
 
@@ -190,10 +198,30 @@ const UI = {
         if (!tbody) return;
         tbody.innerHTML = '';
 
-        // Sort by date desc
-        const sorted = [...state.transactions].sort((a, b) => new Date(b.date) - new Date(a.date));
+        // Get Filter Values (Custom Dropdowns)
+        const selectedConcepts = Array.from(document.querySelectorAll('#menu-dropdown-concept input:checked')).map(cb => cb.value);
+        const selectedClients = Array.from(document.querySelectorAll('#menu-dropdown-client input:checked')).map(cb => cb.value);
+
+        // Filter and Sort
+        let displayedTransactions = state.transactions;
+
+        if (selectedConcepts.length > 0) {
+            displayedTransactions = displayedTransactions.filter(t => selectedConcepts.includes(t.conceptId));
+        }
+
+        if (selectedClients.length > 0) {
+            displayedTransactions = displayedTransactions.filter(t => t.clientId && selectedClients.includes(t.clientId));
+        }
+
+        const sorted = [...displayedTransactions].sort((a, b) => new Date(b.date) - new Date(a.date));
+
+        let totalSum = 0;
 
         sorted.forEach(t => {
+            const amount = parseFloat(t.amount);
+            if (t.type === 'income') totalSum += amount;
+            else totalSum -= amount;
+
             const row = document.createElement('tr');
             const conceptName = state.concepts.find(c => c.id === t.conceptId)?.name || 'Desconocido';
             const clientName = state.clients.find(c => c.id === t.clientId)?.name || '-';
@@ -207,18 +235,30 @@ const UI = {
                 <td style="font-weight: bold; color: ${t.type === 'income' ? 'var(--secondary-color)' : 'var(--danger-color)'}">
                     ${t.type === 'income' ? '+' : '-'} ${formatCurrency(t.amount)}
                 </td>
-                <td>
-                    <!-- Future: Edit/Delete -->
-                </td>
             `;
             tbody.appendChild(row);
         });
+
+        // Render Footer Total
+        const tfoot = document.getElementById('transactions-list-footer');
+        if (tfoot) {
+            tfoot.innerHTML = `
+                <tr>
+                    <td colspan="5" style="text-align: right; font-weight: bold; color: var(--text-muted); padding-right: 1rem;">Total:</td>
+                    <td style="font-weight: bold; font-size: 1.1rem; color: ${totalSum >= 0 ? 'var(--secondary-color)' : 'var(--danger-color)'}">
+                        ${formatCurrency(Math.abs(totalSum))}
+                    </td>
+                </tr>
+            `;
+        }
     },
 
     renderTransactionFormOptions() {
+        // 1. Transaction Form Dropdowns (Native Selects)
         const conceptSelect = document.getElementById('concept');
         const clientSelect = document.getElementById('client');
 
+        // --- Concepts Form ---
         if (conceptSelect) {
             conceptSelect.innerHTML = '<option value="">Seleccionar Concepto</option>';
             state.concepts.forEach(c => {
@@ -229,6 +269,7 @@ const UI = {
             });
         }
 
+        // --- Clients Form ---
         if (clientSelect) {
             clientSelect.innerHTML = '<option value="">Seleccionar Cliente</option>';
             state.clients.forEach(c => {
@@ -237,6 +278,101 @@ const UI = {
                 option.textContent = c.name;
                 clientSelect.appendChild(option);
             });
+        }
+
+        // 2. Custom Filter Dropdowns
+        this.renderCustomDropdownOptions('concept', state.concepts, 'name');
+        this.renderCustomDropdownOptions('client', state.clients, 'name');
+    },
+
+    // --- CUSTOM DROPDOWNS HELPERS ---
+
+    setupCustomDropdowns() {
+        // Toggle Listeners
+        ['concept', 'client'].forEach(type => {
+            const btn = document.getElementById(`btn-dropdown-${type}`);
+            const menu = document.getElementById(`menu-dropdown-${type}`);
+
+            if (btn && menu) {
+                btn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    // Close others
+                    document.querySelectorAll('.dropdown-menu').forEach(m => {
+                        if (m !== menu) m.classList.remove('active');
+                    });
+                    menu.classList.toggle('active');
+                });
+            }
+        });
+
+        // Close on click outside
+        document.addEventListener('click', () => {
+            document.querySelectorAll('.dropdown-menu').forEach(m => m.classList.remove('active'));
+        });
+
+        // Prevent closing when clicking inside menu
+        document.querySelectorAll('.dropdown-menu').forEach(menu => {
+            menu.addEventListener('click', (e) => e.stopPropagation());
+        });
+    },
+
+    renderCustomDropdownOptions(type, data, displayField) {
+        const menu = document.getElementById(`menu-dropdown-${type}`);
+        const btn = document.getElementById(`btn-dropdown-${type}`);
+        if (!menu || !btn) return;
+
+        // Preserve selection
+        const checkedValues = Array.from(menu.querySelectorAll('input:checked')).map(cb => cb.value);
+
+        menu.innerHTML = '';
+
+        if (data.length === 0) {
+            menu.innerHTML = '<div style="padding:0.5rem; color:var(--text-muted)">No hay opciones</div>';
+            return;
+        }
+
+        data.forEach(item => {
+            const div = document.createElement('div');
+            div.className = 'dropdown-item';
+
+            const checkbox = document.createElement('input');
+            checkbox.type = 'checkbox';
+            checkbox.value = item.id;
+            checkbox.id = `cb-${type}-${item.id}`;
+            if (checkedValues.includes(item.id)) checkbox.checked = true;
+
+            // Trigger re-render on change
+            checkbox.addEventListener('change', () => {
+                this.updateDropdownButtonText(type);
+                this.renderTransactionsList();
+            });
+
+            const label = document.createElement('label');
+            label.htmlFor = `cb-${type}-${item.id}`;
+            label.style.flex = '1';
+            label.style.cursor = 'pointer';
+            label.textContent = item[displayField];
+
+            div.appendChild(checkbox);
+            div.appendChild(label);
+            menu.appendChild(div);
+        });
+
+        this.updateDropdownButtonText(type);
+    },
+
+    updateDropdownButtonText(type) {
+        const btn = document.getElementById(`btn-dropdown-${type}`);
+        const menu = document.getElementById(`menu-dropdown-${type}`);
+        if (!btn || !menu) return;
+
+        const count = menu.querySelectorAll('input:checked').length;
+        const baseTitle = type === 'concept' ? 'Conceptos' : 'Clientes';
+
+        if (count === 0) {
+            btn.innerHTML = baseTitle; // Reset to default
+        } else {
+            btn.innerHTML = `${baseTitle} (${count})`;
         }
     },
 

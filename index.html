@@ -73,163 +73,186 @@
                         <p class="amount" id="month-expense">$0.00</p>
                     </div>
                 </div>
-    </div>
 
-    <!-- Annual Summary Table -->
-    <div class="card mt-4">
-        <h3>Resumen Anual (${new Date().getFullYear()})</h3>
-        <div class="table-responsive">
-            <table class="data-table">
-                <thead>
-                    <tr>
-                        <th>Mes</th>
-                        <th>Ingresos</th>
-                        <th>Egresos</th>
-                        <th>Saldo Mensual</th>
-                        <th>Saldo Acumulado</th>
-                    </tr>
-                </thead>
-                <tbody id="monthly-summary-body">
-                    <!-- JS Injected -->
-                </tbody>
-            </table>
-        </div>
-    </div>
-    </section>
-
-    <!-- TRANSACTION FORM VIEW -->
-    <section id="transaction-form" class="view-section">
-        <!-- Form will be injected here -->
-        <div class="card form-card">
-            <h2>Registrar Movimiento</h2>
-            <form id="add-transaction-form">
-                <div class="form-group type-toggle-group">
-                    <label>Tipo de Movimiento</label>
-                    <div class="type-toggle">
-                        <input type="radio" name="type" id="type-income" value="income" checked>
-                        <label for="type-income" class="toggle-btn income">Ingreso</label>
-
-                        <input type="radio" name="type" id="type-expense" value="expense">
-                        <label for="type-expense" class="toggle-btn expense">Egreso</label>
+                <!-- Annual Summary Table -->
+                <div class="card mt-4">
+                    <h3>Resumen Anual (<span id="current-year"></span>)</h3>
+                    <div class="table-responsive">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Mes</th>
+                                    <th>Ingresos</th>
+                                    <th>Egresos</th>
+                                    <th>Saldo Mensual</th>
+                                    <th>Saldo Acumulado</th>
+                                </tr>
+                            </thead>
+                            <tbody id="monthly-summary-body">
+                                <!-- JS Injected -->
+                            </tbody>
+                        </table>
                     </div>
                 </div>
+            </section>
 
-                <div class="form-group">
-                    <label for="amount">Monto</label>
-                    <input type="number" id="amount" name="amount" placeholder="0.00" step="0.01" required>
+            <!-- TRANSACTION FORM VIEW -->
+            <section id="transaction-form" class="view-section">
+                <!-- Form will be injected here -->
+                <div class="card form-card">
+                    <h2>Registrar Movimiento</h2>
+                    <form id="add-transaction-form">
+                        <div class="form-group type-toggle-group">
+                            <label>Tipo de Movimiento</label>
+                            <div class="type-toggle">
+                                <input type="radio" name="type" id="type-income" value="income" checked>
+                                <label for="type-income" class="toggle-btn income">Ingreso</label>
+
+                                <input type="radio" name="type" id="type-expense" value="expense">
+                                <label for="type-expense" class="toggle-btn expense">Egreso</label>
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="amount">Monto</label>
+                            <input type="number" id="amount" name="amount" placeholder="0.00" step="0.01" required>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="concept">Concepto</label>
+                            <select id="concept" name="concept" required>
+                                <option value="">Seleccionar Concepto</option>
+                                <!-- Concepts injected by JS -->
+                            </select>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="client">Cliente (Opcional)</label>
+                            <select id="client" name="client">
+                                <option value="">Seleccionar Cliente</option>
+                                <!-- Clients injected by JS -->
+                            </select>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="date">Fecha</label>
+                            <input type="date" id="date" name="date" required>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="observation">Observación (Opcional)</label>
+                            <textarea id="observation" name="observation" rows="3"
+                                placeholder="Detalles adicionales..."></textarea>
+                        </div>
+
+                        <button type="submit" class="btn-primary">Guardar Movimiento</button>
+                    </form>
                 </div>
+            </section>
 
-                <div class="form-group">
-                    <label for="concept">Concepto</label>
-                    <select id="concept" name="concept" required>
-                        <option value="">Seleccionar Concepto</option>
-                        <!-- Concepts injected by JS -->
-                    </select>
-                </div>
+            <!-- TRANSACTIONS LIST VIEW -->
+            <section id="transactions" class="view-section">
+                <div class="card">
+                    <div class="card-header"
+                        style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
+                        <h2>Historial de Movimientos</h2>
+                        <div class="filters" style="display: flex; gap: 0.5rem; align-items: flex-start;">
+                            <!-- Custom Concept Dropdown -->
+                            <div class="custom-dropdown" id="dropdown-concept-container">
+                                <button type="button" class="dropdown-toggle" id="btn-dropdown-concept">
+                                    Conceptos
+                                </button>
+                                <div class="dropdown-menu" id="menu-dropdown-concept">
+                                    <!-- Checkboxes injected by JS -->
+                                </div>
+                            </div>
 
-                <div class="form-group">
-                    <label for="client">Cliente (Opcional)</label>
-                    <select id="client" name="client">
-                        <option value="">Seleccionar Cliente</option>
-                        <!-- Clients injected by JS -->
-                    </select>
-                </div>
-
-                <div class="form-group">
-                    <label for="date">Fecha</label>
-                    <input type="date" id="date" name="date" required>
-                </div>
-
-                <div class="form-group">
-                    <label for="observation">Observación (Opcional)</label>
-                    <textarea id="observation" name="observation" rows="3"
-                        placeholder="Detalles adicionales..."></textarea>
-                </div>
-
-                <button type="submit" class="btn-primary">Guardar Movimiento</button>
-            </form>
-        </div>
-    </section>
-
-    <!-- TRANSACTIONS LIST VIEW -->
-    <section id="transactions" class="view-section">
-        <div class="card">
-            <div class="card-header">
-                <h2>Historial de Movimientos</h2>
-            </div>
-            <div class="table-responsive">
-                <table class="data-table">
-                    <thead>
-                        <tr>
-                            <th>Fecha</th>
-                            <th>Tipo</th>
-                            <th>Concepto</th>
-                            <th>Cliente</th>
-                            <th>Obs.</th>
-                            <th>Monto</th>
-                            <th>Acciones</th>
-                        </tr>
-                    </thead>
-                    <tbody id="transactions-list-body">
-                        <!-- Transactions injected by JS -->
-                    </tbody>
-                </table>
-            </div>
-        </div>
-    </section>
-
-    <!-- CONCEPTS VIEW -->
-    <section id="concepts" class="view-section">
-        <div class="card form-card">
-            <h2>Crear Concepto</h2>
-            <form id="add-concept-form">
-                <div class="grid-2">
-                    <div class="form-group">
-                        <label>Nombre del Concepto</label>
-                        <input type="text" name="name" required placeholder="Ej: Venta de Servicios">
+                            <!-- Custom Client Dropdown -->
+                            <div class="custom-dropdown" id="dropdown-client-container">
+                                <button type="button" class="dropdown-toggle" id="btn-dropdown-client">
+                                    Clientes
+                                </button>
+                                <div class="dropdown-menu" id="menu-dropdown-client">
+                                    <!-- Checkboxes injected by JS -->
+                                </div>
+                            </div>
+                        </div>
                     </div>
-                    <div class="form-group">
-                        <label>Tipo</label>
-                        <select name="type" required>
-                            <option value="income">Ingreso</option>
-                            <option value="expense">Egreso</option>
-                        </select>
+                    <div class="table-responsive">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Fecha</th>
+                                    <th>Tipo</th>
+                                    <th>Concepto</th>
+                                    <th>Cliente</th>
+                                    <th>Obs.</th>
+                                    <th>Monto</th>
+                                </tr>
+                            </thead>
+                            <tbody id="transactions-list-body">
+                                <!-- Transactions injected by JS -->
+                            </tbody>
+                            <tfoot id="transactions-list-footer">
+                                <!-- Total injected by JS -->
+                            </tfoot>
+                        </table>
                     </div>
                 </div>
-                <button type="submit" class="btn-secondary">Agregar Concepto</button>
-            </form>
-        </div>
+            </section>
 
-        <div class="card mt-4">
-            <h3>Lista de Conceptos</h3>
-            <ul class="simple-list" id="concepts-list">
-                <!-- Concepts injected JS -->
-            </ul>
-        </div>
-    </section>
-
-    <!-- CLIENTS VIEW -->
-    <section id="clients" class="view-section">
-        <div class="card form-card">
-            <h2>Crear Cliente</h2>
-            <form id="add-client-form">
-                <div class="form-group">
-                    <label>Nombre del Cliente</label>
-                    <input type="text" name="name" required placeholder="Ej: Juan Pérez">
+            <!-- CONCEPTS VIEW -->
+            <section id="concepts" class="view-section">
+                <div class="card form-card">
+                    <h2>Crear Concepto</h2>
+                    <form id="add-concept-form">
+                        <div class="grid-2">
+                            <div class="form-group">
+                                <label>Nombre del Concepto</label>
+                                <input type="text" name="name" required placeholder="Ej: Venta de Servicios">
+                            </div>
+                            <div class="form-group">
+                                <label>Tipo</label>
+                                <select name="type" required>
+                                    <option value="income">Ingreso</option>
+                                    <option value="expense">Egreso</option>
+                                </select>
+                            </div>
+                        </div>
+                        <button type="submit" class="btn-secondary">Agregar Concepto</button>
+                    </form>
                 </div>
-                <button type="submit" class="btn-secondary">Agregar Cliente</button>
-            </form>
-        </div>
 
-        <div class="card mt-4">
-            <h3>Lista de Clientes</h3>
-            <ul class="simple-list" id="clients-list">
-                <!-- Clients injected JS -->
-            </ul>
-        </div>
-    </section>
+                <div class="card mt-4">
+                    <h3>Lista de Conceptos</h3>
+                    <ul class="simple-list" id="concepts-list">
+                        <!-- Concepts injected JS -->
+                    </ul>
+                </div>
+            </section>
 
-    </main>
+            <!-- CLIENTS VIEW -->
+            <section id="clients" class="view-section">
+                <div class="card form-card">
+                    <h2>Crear Cliente</h2>
+                    <form id="add-client-form">
+                        <div class="form-group">
+                            <label>Nombre del Cliente</label>
+                            <input type="text" name="name" required placeholder="Ej: Juan Pérez">
+                        </div>
+                        <button type="submit" class="btn-secondary">Agregar Cliente</button>
+                    </form>
+                </div>
+
+                <div class="card mt-4">
+                    <h3>Lista de Clientes</h3>
+                    <ul class="simple-list" id="clients-list">
+                        <!-- Clients injected JS -->
+                    </ul>
+                </div>
+            </section>
+
+        </main>
     </div>
 
     <!-- Scripts -->

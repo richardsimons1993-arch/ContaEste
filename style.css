@@ -364,3 +364,76 @@ input[value="expense"]:checked+.toggle-btn.expense {
 .text-danger {
     color: var(--danger-color);
 }
+
+/* Custom Dropdowns */
+.custom-dropdown {
+    position: relative;
+    min-width: 200px;
+}
+
+.dropdown-toggle {
+    width: 100%;
+    padding: 0.75rem 1rem;
+    background-color: var(--background-dark);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius);
+    color: var(--text-main);
+    text-align: left;
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    transition: var(--transition);
+}
+
+.dropdown-toggle::after {
+    content: '\25BC';
+    font-size: 0.8em;
+    color: var(--text-muted);
+}
+
+.dropdown-toggle:hover {
+    border-color: var(--primary-color);
+}
+
+.dropdown-menu {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    width: 100%;
+    background-color: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius);
+    margin-top: 0.5rem;
+    padding: 0.5rem;
+    z-index: 1000;
+    display: none;
+    max-height: 300px;
+    overflow-y: auto;
+    box-shadow: var(--shadow);
+}
+
+.dropdown-menu.active {
+    display: block;
+    animation: fadeIn 0.2s ease;
+}
+
+.dropdown-item {
+    display: flex;
+    align-items: center;
+    padding: 0.5rem;
+    cursor: pointer;
+    border-radius: 4px;
+    transition: var(--transition);
+    color: var(--text-main);
+}
+
+.dropdown-item:hover {
+    background-color: var(--border-color);
+}
+
+.dropdown-item input[type="checkbox"] {
+    width: auto;
+    margin-right: 0.75rem;
+    cursor: pointer;
+}
