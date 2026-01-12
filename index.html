@@ -6,34 +6,60 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Contabilidad Premium</title>
     <link rel="stylesheet" href="style.css">
-    <!-- Font Awesome for Icons -->
+    <!-- Font Awesome para Iconos -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <!-- Google Fonts -->
+    <!-- Fuentes de Google -->
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <script>
         window.onerror = function (msg, url, line, col, error) {
-            alert("Error: " + msg + "\nEn: " + url + ":" + line);
+            console.error("Error: " + msg + "\nEn: " + url + ":" + line);
         };
     </script>
 </head>
 
-<body>
+<body class="login-pending">
+    <!-- VISTA LOGIN (Capa Superior) -->
+    <div id="login-overlay" class="login-overlay">
+        <div class="login-card">
+            <div class="login-header">
+                <img src="logo.png" alt="Simons Logo" class="login-logo">
+                <h2>Bienvenido</h2>
+                <p>Ingresa tus credenciales para continuar</p>
+            </div>
+            <form id="login-form">
+                <div class="form-group">
+                    <label for="username">Usuario</label>
+                    <div class="input-with-icon">
+                        <i class="fa-solid fa-user"></i>
+                        <input type="text" id="username" name="username" required placeholder="Nombre de usuario">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="password">Contraseña</label>
+                    <div class="input-with-icon">
+                        <i class="fa-solid fa-lock"></i>
+                        <input type="password" id="password" name="password" required placeholder="••••••••">
+                    </div>
+                </div>
+                <button type="submit" class="btn-primary btn-block">
+                    Entrar <i class="fa-solid fa-arrow-right"></i>
+                </button>
+                <div id="login-error" class="login-error" style="display: none;">
+                    Credenciales incorrectas. Intente de nuevo.
+                </div>
+            </form>
+        </div>
+    </div>
+
     <div class="app-container">
-        <!-- Sidebar -->
+        <!-- Barra Lateral -->
         <aside class="sidebar">
             <div class="brand">
-                <i class="fa-solid fa-wallet"></i>
-                <span>Finanzas</span>
+                <img src="logo.png" alt="Simons Logo" class="logo-img">
             </div>
             <nav class="nav-menu">
-                <button class="nav-btn active" data-target="dashboard">
-                    <i class="fa-solid fa-chart-pie"></i> Dashboard
-                </button>
-                <button class="nav-btn" data-target="transaction-form">
+                <button class="nav-btn active" data-target="transaction-form">
                     <i class="fa-solid fa-circle-plus"></i> Registrar
-                </button>
-                <button class="nav-btn" data-target="transactions">
-                    <i class="fa-solid fa-list-ul"></i> Movimientos
                 </button>
                 <button class="nav-btn" data-target="concepts">
                     <i class="fa-solid fa-tags"></i> Conceptos
@@ -41,23 +67,50 @@
                 <button class="nav-btn" data-target="clients">
                     <i class="fa-solid fa-users"></i> Clientes
                 </button>
+                <button class="nav-btn" data-target="transactions">
+                    <i class="fa-solid fa-list-ul"></i> Movimientos
+                </button>
+                <button class="nav-btn" data-target="dashboard">
+                    <i class="fa-solid fa-chart-pie"></i> Balance
+                </button>
+                <button class="nav-btn" data-target="activity">
+                    <i class="fa-solid fa-clock-rotate-left"></i> Actividad
+                </button>
+                <button class="nav-btn" data-target="users" id="nav-users-btn" style="display: none;">
+                    <i class="fa-solid fa-user-gear"></i> Usuarios
+                </button>
             </nav>
         </aside>
 
-        <!-- Main Content -->
+        <!-- Contenido Principal -->
         <main class="main-content">
-            <!-- Header -->
+            <!-- Barra Superior -->
             <header class="top-bar">
-                <h1 id="page-title">Dashboard</h1>
-                <div class="user-profile">
-                    <span>Usuario</span>
-                    <div class="avatar"><i class="fa-solid fa-user"></i></div>
+                <h1 id="page-title">Registrar</h1>
+                <div class="header-actions" style="display: flex; align-items: center; gap: 1rem;">
+                    <button id="theme-toggle" class="btn-icon theme-toggle" title="Cambiar Tema">
+                        <i class="fa-solid fa-moon"></i>
+                    </button>
+                    <div class="user-profile" id="user-menu-btn">
+                        <span id="display-username">Cargando...</span>
+                        <div class="avatar"><i class="fa-solid fa-user"></i></div>
+                        <div class="user-dropdown" id="user-dropdown-menu">
+                            <div class="user-info-header">
+                                <strong id="header-user-name">Usuario</strong>
+                                <span id="header-user-role">Rol</span>
+                            </div>
+                            <hr>
+                            <button id="logout-btn" class="dropdown-item text-danger">
+                                <i class="fa-solid fa-right-from-bracket"></i> Cerrar Sesión
+                            </button>
+                        </div>
+                    </div>
                 </div>
             </header>
 
-            <!-- Views (SPA Sections) -->
+            <!-- Vistas (Secciones SPA) -->
 
-            <!-- DASHBOARD VIEW -->
+            <!-- VISTA DASHBOARD -->
             <section id="dashboard" class="view-section active">
                 <div class="stats-grid">
                     <div class="stat-card balance">
@@ -74,7 +127,7 @@
                     </div>
                 </div>
 
-                <!-- Annual Summary Table -->
+                <!-- Tabla Resumen Anual -->
                 <div class="card mt-4">
                     <h3>Resumen Anual (<span id="current-year"></span>)</h3>
                     <div class="table-responsive">
@@ -89,19 +142,23 @@
                                 </tr>
                             </thead>
                             <tbody id="monthly-summary-body">
-                                <!-- JS Injected -->
+                                <!-- Inyectado por JS -->
                             </tbody>
+                            <tfoot id="monthly-summary-footer">
+                                <!-- Inyectado por JS -->
+                            </tfoot>
                         </table>
                     </div>
                 </div>
             </section>
 
-            <!-- TRANSACTION FORM VIEW -->
+            <!-- VISTA FORMULARIO DE TRANSACCIÓN -->
             <section id="transaction-form" class="view-section">
-                <!-- Form will be injected here -->
+                <!-- El formulario se inyectará aquí -->
                 <div class="card form-card">
-                    <h2>Registrar Movimiento</h2>
+                    <h2 id="transaction-form-title">Registrar Movimiento</h2>
                     <form id="add-transaction-form">
+                        <input type="hidden" name="id" id="transaction-id">
                         <div class="form-group type-toggle-group">
                             <label>Tipo de Movimiento</label>
                             <div class="type-toggle">
@@ -115,14 +172,18 @@
 
                         <div class="form-group">
                             <label for="amount">Monto</label>
-                            <input type="number" id="amount" name="amount" placeholder="0.00" step="0.01" required>
+                            <input type="number" id="amount" name="amount" placeholder="0.00" step="0.01" required
+                                oninvalid="this.setCustomValidity('Por favor, ingrese el monto')"
+                                oninput="this.setCustomValidity('')">
                         </div>
 
                         <div class="form-group">
                             <label for="concept">Concepto</label>
-                            <select id="concept" name="concept" required>
+                            <select id="concept" name="concept" required
+                                oninvalid="this.setCustomValidity('Por favor, seleccione un concepto')"
+                                oninput="this.setCustomValidity('')">
                                 <option value="">Seleccionar Concepto</option>
-                                <!-- Concepts injected by JS -->
+                                <!-- Conceptos inyectados por JS -->
                             </select>
                         </div>
 
@@ -130,13 +191,15 @@
                             <label for="client">Cliente (Opcional)</label>
                             <select id="client" name="client">
                                 <option value="">Seleccionar Cliente</option>
-                                <!-- Clients injected by JS -->
+                                <!-- Clientes inyectados por JS -->
                             </select>
                         </div>
 
                         <div class="form-group">
                             <label for="date">Fecha</label>
-                            <input type="date" id="date" name="date" required>
+                            <input type="date" id="date" name="date" required
+                                oninvalid="this.setCustomValidity('Por favor, seleccione una fecha')"
+                                oninput="this.setCustomValidity('')">
                         </div>
 
                         <div class="form-group">
@@ -145,35 +208,40 @@
                                 placeholder="Detalles adicionales..."></textarea>
                         </div>
 
-                        <button type="submit" class="btn-primary">Guardar Movimiento</button>
+                        <div class="form-actions" style="display: flex; gap: 1rem; margin-top: 1.5rem;">
+                            <button type="submit" class="btn-primary" id="btn-save-transaction">Guardar
+                                Movimiento</button>
+                            <button type="button" id="cancel-transaction-edit" class="btn-text"
+                                style="display: none;">Cancelar Edición</button>
+                        </div>
                     </form>
                 </div>
             </section>
 
-            <!-- TRANSACTIONS LIST VIEW -->
+            <!-- VISTA LISTADO DE TRANSACCIONES -->
             <section id="transactions" class="view-section">
                 <div class="card">
                     <div class="card-header"
                         style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
-                        <h2>Historial de Movimientos</h2>
+                        <h2>Movimientos</h2>
                         <div class="filters" style="display: flex; gap: 0.5rem; align-items: flex-start;">
-                            <!-- Custom Concept Dropdown -->
+                            <!-- Desplegable de Conceptos Personalizado -->
                             <div class="custom-dropdown" id="dropdown-concept-container">
                                 <button type="button" class="dropdown-toggle" id="btn-dropdown-concept">
                                     Conceptos
                                 </button>
                                 <div class="dropdown-menu" id="menu-dropdown-concept">
-                                    <!-- Checkboxes injected by JS -->
+                                    <!-- Checkboxes inyectados por JS -->
                                 </div>
                             </div>
 
-                            <!-- Custom Client Dropdown -->
+                            <!-- Desplegable de Clientes Personalizado -->
                             <div class="custom-dropdown" id="dropdown-client-container">
                                 <button type="button" class="dropdown-toggle" id="btn-dropdown-client">
                                     Clientes
                                 </button>
                                 <div class="dropdown-menu" id="menu-dropdown-client">
-                                    <!-- Checkboxes injected by JS -->
+                                    <!-- Checkboxes inyectados por JS -->
                                 </div>
                             </div>
                         </div>
@@ -188,20 +256,21 @@
                                     <th>Cliente</th>
                                     <th>Obs.</th>
                                     <th>Monto</th>
+                                    <th>Acciones</th>
                                 </tr>
                             </thead>
                             <tbody id="transactions-list-body">
-                                <!-- Transactions injected by JS -->
+                                <!-- Transacciones inyectadas por JS -->
                             </tbody>
                             <tfoot id="transactions-list-footer">
-                                <!-- Total injected by JS -->
+                                <!-- Total inyectado por JS -->
                             </tfoot>
                         </table>
                     </div>
                 </div>
             </section>
 
-            <!-- CONCEPTS VIEW -->
+            <!-- VISTA CONCEPTOS -->
             <section id="concepts" class="view-section">
                 <div class="card form-card">
                     <h2>Crear Concepto</h2>
@@ -209,11 +278,15 @@
                         <div class="grid-2">
                             <div class="form-group">
                                 <label>Nombre del Concepto</label>
-                                <input type="text" name="name" required placeholder="Ej: Venta de Servicios">
+                                <input type="text" name="name" required placeholder="Ej: Venta de Servicios"
+                                    oninvalid="this.setCustomValidity('Por favor, ingrese el nombre del concepto')"
+                                    oninput="this.setCustomValidity('')">
                             </div>
                             <div class="form-group">
                                 <label>Tipo</label>
-                                <select name="type" required>
+                                <select name="type" required
+                                    oninvalid="this.setCustomValidity('Por favor, seleccione el tipo')"
+                                    oninput="this.setCustomValidity('')">
                                     <option value="income">Ingreso</option>
                                     <option value="expense">Egreso</option>
                                 </select>
@@ -225,35 +298,171 @@
 
                 <div class="card mt-4">
                     <h3>Lista de Conceptos</h3>
-                    <ul class="simple-list" id="concepts-list">
-                        <!-- Concepts injected JS -->
-                    </ul>
+                    <div class="table-responsive">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Nombre</th>
+                                    <th>Tipo</th>
+                                    <th>Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody id="concepts-list-body">
+                                <!-- Conceptos inyectados por JS -->
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             </section>
 
-            <!-- CLIENTS VIEW -->
+            <!-- VISTA CLIENTES -->
             <section id="clients" class="view-section">
                 <div class="card form-card">
-                    <h2>Crear Cliente</h2>
+                    <h2 id="client-form-title">Crear Cliente</h2>
                     <form id="add-client-form">
-                        <div class="form-group">
-                            <label>Nombre del Cliente</label>
-                            <input type="text" name="name" required placeholder="Ej: Juan Pérez">
+                        <input type="hidden" name="id" id="client-id">
+                        <div class="grid-2">
+                            <div class="form-group">
+                                <label>Razón Social / Nombre</label>
+                                <input type="text" name="razonSocial" required placeholder="Ej: Inversiones S.A."
+                                    oninvalid="this.setCustomValidity('Por favor, ingrese la razón social')"
+                                    oninput="this.setCustomValidity('')">
+                            </div>
+                            <div class="form-group">
+                                <label>Nombre de Fantasía</label>
+                                <input type="text" name="nombreFantasia" placeholder="Ej: TechStore">
+                            </div>
+                            <div class="form-group">
+                                <label>RUT</label>
+                                <input type="text" name="rut" placeholder="Ej: 12.345.678-9">
+                            </div>
+                            <div class="form-group">
+                                <label>Encargado</label>
+                                <input type="text" name="encargado" placeholder="Nombre de contacto">
+                            </div>
+                            <div class="form-group">
+                                <label>Teléfono</label>
+                                <input type="tel" name="telefono" placeholder="+56 9 ...">
+                            </div>
+                            <div class="form-group">
+                                <label>Correo Electrónico</label>
+                                <input type="email" name="correo" placeholder="cliente@correo.com">
+                            </div>
                         </div>
-                        <button type="submit" class="btn-secondary">Agregar Cliente</button>
+                        <div class="form-group mt-2">
+                            <label>Dirección</label>
+                            <input type="text" name="direccion" placeholder="Calle, Número, Ciudad">
+                        </div>
+                        <div class="form-actions mt-3">
+                            <button type="submit" class="btn-secondary">Guardar Cliente</button>
+                            <button type="button" id="cancel-client-edit" class="btn-text"
+                                style="display: none;">Cancelar</button>
+                        </div>
                     </form>
                 </div>
 
                 <div class="card mt-4">
                     <h3>Lista de Clientes</h3>
-                    <ul class="simple-list" id="clients-list">
-                        <!-- Clients injected JS -->
-                    </ul>
+                    <div class="table-responsive">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Razón Social</th>
+                                    <th>N. Fantasía</th>
+                                    <th>RUT</th>
+                                    <th>Contacto</th>
+                                    <th>Teléfono</th>
+                                    <th>Correo</th>
+                                    <th>Dirección</th>
+                                    <th>Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody id="clients-list-body">
+                                <!-- Clientes inyectados por JS -->
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             </section>
 
+            <!-- VISTA ACTIVIDAD -->
+            <section id="activity" class="view-section">
+                <div class="card">
+                    <div
+                        style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;">
+                        <h2>Registro de Actividad</h2>
+                    </div>
+                    <div id="activity-log-container" class="activity-timeline">
+                        <!-- Logs inyectados por JS -->
+                        <div class="empty-state">No hay registros de actividad aún.</div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- VISTA USUARIOS -->
+            <section id="users" class="view-section">
+                <div class="card form-card">
+                    <h2>Administrar Usuarios</h2>
+                    <form id="add-user-form">
+                        <input type="hidden" id="edit-user-id" name="id">
+                        <div class="grid-2">
+                            <div class="form-group">
+                                <label>Nombre Real</label>
+                                <input type="text" id="user-real-name" name="name" required
+                                    placeholder="Ej: Juan Perez">
+                            </div>
+                            <div class="form-group">
+                                <label>Nombre de Usuario</label>
+                                <input type="text" id="user-username" name="username" required placeholder="Ej: juanp">
+                            </div>
+                        </div>
+                        <div class="grid-2">
+                            <div class="form-group">
+                                <label>Contraseña</label>
+                                <input type="password" id="user-password" name="password" required
+                                    placeholder="••••••••">
+                            </div>
+                            <div class="form-group">
+                                <label>Rol / Privilegios</label>
+                                <select id="user-role" name="role" required>
+                                    <option value="administrador">Administrador</option>
+                                    <option value="operador">Operador (Registro)</option>
+                                    <option value="visualización">Visualización (Lectura)</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="form-actions">
+                            <button type="submit" class="btn-primary" id="btn-save-user">Crear Usuario</button>
+                            <button type="button" class="btn-secondary" id="cancel-user-edit"
+                                style="display: none;">Cancelar</button>
+                        </div>
+                    </form>
+                </div>
+
+                <div class="card mt-4">
+                    <h3>Listado de Usuarios</h3>
+                    <div class="table-responsive">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Nombre</th>
+                                    <th>Usuario</th>
+                                    <th>Rol</th>
+                                    <th>Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody id="users-list-body">
+                                <!-- Usuarios inyectados por JS -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
         </main>
     </div>
+
+    <!-- Contenedor de Toasts (Notificaciones) -->
+    <div id="toast-container" class="toast-container"></div>
 
     <!-- Scripts -->
     <script src="storage.js"></script>
