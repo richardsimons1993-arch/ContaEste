@@ -58,27 +58,44 @@
                 <img src="logo.png" alt="Simons Logo" class="logo-img">
             </div>
             <nav class="nav-menu">
-                <button class="nav-btn active" data-target="transaction-form">
-                    <i class="fa-solid fa-circle-plus"></i> Registrar
-                </button>
-                <button class="nav-btn" data-target="concepts">
-                    <i class="fa-solid fa-tags"></i> Conceptos
-                </button>
-                <button class="nav-btn" data-target="clients">
-                    <i class="fa-solid fa-users"></i> Clientes
-                </button>
-                <button class="nav-btn" data-target="transactions">
-                    <i class="fa-solid fa-list-ul"></i> Movimientos
-                </button>
-                <button class="nav-btn" data-target="dashboard">
-                    <i class="fa-solid fa-chart-pie"></i> Balance
-                </button>
-                <button class="nav-btn" data-target="activity">
-                    <i class="fa-solid fa-clock-rotate-left"></i> Actividad
-                </button>
-                <button class="nav-btn" data-target="users" id="nav-users-btn" style="display: none;">
-                    <i class="fa-solid fa-user-gear"></i> Usuarios
-                </button>
+                <!-- Módulo Finanzas -->
+                <div class="nav-section" data-module="finanzas">
+                    <div class="nav-section-header">FINANZAS</div>
+                    <button class="nav-btn active" data-target="transaction-form">
+                        <i class="fa-solid fa-circle-plus"></i> Registrar
+                    </button>
+                    <button class="nav-btn" data-target="concepts">
+                        <i class="fa-solid fa-tags"></i> Conceptos
+                    </button>
+                    <button class="nav-btn" data-target="clients">
+                        <i class="fa-solid fa-users"></i> Clientes
+                    </button>
+                    <button class="nav-btn" data-target="transactions">
+                        <i class="fa-solid fa-list-ul"></i> Movimientos
+                    </button>
+                    <button class="nav-btn" data-target="dashboard">
+                        <i class="fa-solid fa-chart-pie"></i> Balance
+                    </button>
+                    <button class="nav-btn" data-target="activity">
+                        <i class="fa-solid fa-clock-rotate-left"></i> Actividad
+                    </button>
+                </div>
+
+                <!-- Módulo CRM -->
+                <div class="nav-section" data-module="crm">
+                    <div class="nav-section-header">CRM</div>
+                    <button class="nav-btn" data-target="crm-dashboard">
+                        <i class="fa-solid fa-handshake"></i> Dashboard CRM
+                    </button>
+                </div>
+
+                <!-- Módulo Usuarios (Admin only) -->
+                <div class="nav-section" data-module="usuarios" style="display: none;">
+                    <div class="nav-section-header">ADMINISTRACIÓN</div>
+                    <button class="nav-btn" data-target="users" id="nav-users-btn">
+                        <i class="fa-solid fa-user-gear"></i> Usuarios
+                    </button>
+                </div>
             </nav>
         </aside>
 
@@ -431,6 +448,24 @@
                                 </select>
                             </div>
                         </div>
+                        <div class="form-group">
+                            <label>Módulos Permitidos</label>
+                            <div class="checkbox-group">
+                                <label class="checkbox-label">
+                                    <input type="checkbox" name="modules" value="finanzas" class="module-checkbox">
+                                    <span>Finanzas</span>
+                                </label>
+                                <label class="checkbox-label">
+                                    <input type="checkbox" name="modules" value="crm" class="module-checkbox">
+                                    <span>CRM</span>
+                                </label>
+                                <label class="checkbox-label">
+                                    <input type="checkbox" name="modules" value="usuarios" class="module-checkbox"
+                                        id="module-usuarios">
+                                    <span>Usuarios (Solo Administradores)</span>
+                                </label>
+                            </div>
+                        </div>
                         <div class="form-actions">
                             <button type="submit" class="btn-primary" id="btn-save-user">Crear Usuario</button>
                             <button type="button" class="btn-secondary" id="cancel-user-edit"
@@ -448,6 +483,7 @@
                                     <th>Nombre</th>
                                     <th>Usuario</th>
                                     <th>Rol</th>
+                                    <th>Módulos</th>
                                     <th>Acciones</th>
                                 </tr>
                             </thead>
@@ -455,6 +491,24 @@
                                 <!-- Usuarios inyectados por JS -->
                             </tbody>
                         </table>
+                    </div>
+                </div>
+            </section>
+
+            <!-- VISTA CRM DASHBOARD -->
+            <section id="crm-dashboard" class="view-section">
+                <div class="card">
+                    <h2><i class="fa-solid fa-handshake"></i> CRM - Gestión de Relaciones con Clientes</h2>
+                    <div class="empty-state" style="padding: 4rem 2rem;">
+                        <i class="fa-solid fa-handshake fa-4x"
+                            style="color: var(--text-muted); margin-bottom: 1.5rem;"></i>
+                        <h3 style="color: var(--text-main); margin-bottom: 0.5rem;">Módulo CRM</h3>
+                        <p style="color: var(--text-muted); font-size: 1rem; max-width: 500px; margin: 0 auto;">
+                            Gestión integral de leads, contactos, oportunidades y pipeline de ventas.
+                        </p>
+                        <p style="color: var(--text-muted); font-size: 0.9rem; margin-top: 1rem;">
+                            <i class="fa-solid fa-code"></i> En desarrollo
+                        </p>
                     </div>
                 </div>
             </section>

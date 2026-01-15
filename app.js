@@ -18,9 +18,9 @@ const ROLES = {
 };
 
 const DEFAULT_USERS = [
-    { id: '1', username: 'administrador', password: 'S0p0rt3!!2025', role: ROLES.ADMIN, name: 'Admin Simons' },
-    { id: '2', username: 'operador', password: 'operador123', role: ROLES.OPERATOR, name: 'Operador Ventas' },
-    { id: '3', username: 'lector', password: 'lector123', role: ROLES.VIEWER, name: 'Invitado' }
+    { id: '1', username: 'administrador', password: 'S0p0rt3!!2025', role: ROLES.ADMIN, name: 'Admin Simons', modules: ['finanzas', 'crm', 'usuarios'] },
+    { id: '2', username: 'operador', password: 'operador123', role: ROLES.OPERATOR, name: 'Operador Ventas', modules: ['finanzas', 'crm'] },
+    { id: '3', username: 'lector', password: 'lector123', role: ROLES.VIEWER, name: 'Invitado', modules: ['finanzas'] }
 ];
 
 // Ayudante de Formateo de Moneda
@@ -76,6 +76,24 @@ const UI = {
             const admin = state.users.find(u => u.username === 'administrador');
             if (admin && admin.password !== 'S0p0rt3!!2025') {
                 admin.password = 'S0p0rt3!!2025';
+                window.StorageAPI.saveUsers(state.users);
+            }
+
+            // Migración: añadir módulos a usuarios existentes que no los tengan
+            let needsSave = false;
+            state.users.forEach(user => {
+                if (!user.modules) {
+                    if (user.role === ROLES.ADMIN) {
+                        user.modules = ['finanzas', 'crm', 'usuarios'];
+                    } else if (user.role === ROLES.OPERATOR) {
+                        user.modules = ['finanzas', 'crm'];
+                    } else {
+                        user.modules = ['finanzas'];
+                    }
+                    needsSave = true;
+                }
+            });
+            if (needsSave) {
                 window.StorageAPI.saveUsers(state.users);
             }
         }
@@ -154,6 +172,22 @@ const UI = {
             cancelUserEditBtn.addEventListener('click', () => this.resetUserForm());
         }
 
+        // Listener para cambio de rol (deshabilitar módulo usuarios si no es admin)
+        const roleSelect = document.getElementById('user-role');
+        if (roleSelect) {
+            roleSelect.addEventListener('change', (e) => {
+                const moduleUsuariosCheckbox = document.getElementById('module-usuarios');
+                if (moduleUsuariosCheckbox) {
+                    if (e.target.value !== ROLES.ADMIN) {
+                        moduleUsuariosCheckbox.checked = false;
+                        moduleUsuariosCheckbox.disabled = true;
+                    } else {
+                        moduleUsuariosCheckbox.disabled = false;
+                    }
+                }
+            });
+        }
+
         // Cerrar dropdown de usuario al hacer clic fuera
         document.addEventListener('click', () => {
             const menu = document.getElementById('user-dropdown-menu');
@@ -164,11 +198,23 @@ const UI = {
     // --- AUTENTICACIÓN ---
 
     checkSession() {
-        const savedUser = localStorage.getItem('contabilidad_session');
-        if (savedUser) {
-            state.currentUser = JSON.parse(savedUser);
+        const savedSession = localStorage.getItem('contabilidad_session');
+        if (savedSession) {
+            const sessionUser = JSON.parse(savedSession);
+            // Sincronizar con datos actuales para obtener módulos actualizados
+            const freshUser = state.users.find(u => u.id === sessionUser.id);
+
+            if (freshUser) {
+                state.currentUser = freshUser;
+                // Actualizar sesión almacenada
+                localStorage.setItem('contabilidad_session', JSON.stringify(freshUser));
+            } else {
+                state.currentUser = sessionUser;
+            }
+
             document.body.classList.remove('login-pending');
             this.updateUserUI();
+            this.applyModuleAccess(); // Aplicar acceso por módulos al cargar sesión
         } else {
             document.body.classList.add('login-pending');
         }
@@ -211,7 +257,8 @@ const UI = {
             id: user.id,
             username: user.username,
             role: user.role,
-            name: user.name
+            name: user.name,
+            modules: user.modules || []
         };
         localStorage.setItem('contabilidad_session', JSON.stringify(state.currentUser));
         document.body.classList.remove('login-pending');
@@ -220,7 +267,9 @@ const UI = {
 
         this.updateUserUI();
         this.applyPrivileges();
-        this.switchView('transaction-form');
+        this.applyModuleAccess(); // Aplicar acceso por módulos
+        const firstView = this.getFirstAvailableView(state.currentUser.modules);
+        this.switchView(firstView);
         this.recordActivity('Login', 'Sistema', `Usuario ${username} inició sesión`);
     },
 
@@ -290,11 +339,52 @@ const UI = {
             });
         });
 
-        // 3. Mostrar/Ocultar botón Usuarios
-        const navUsersBtn = document.getElementById('nav-users-btn');
-        if (navUsersBtn) {
-            navUsersBtn.style.display = (role === ROLES.ADMIN) ? 'flex' : 'none';
+        // 3. Mostrar/Ocultar botón Usuarios (deprecated - ahora se maneja por módulos)
+        // La visibilidad se controla en applyModuleAccess()
+    },
+
+    applyModuleAccess() {
+        const userModules = state.currentUser?.modules || [];
+        console.log("Aplicando acceso a módulos:", userModules);
+
+        // Ocultar/mostrar secciones de navegación según módulos
+        document.querySelectorAll('.nav-section').forEach(section => {
+            const module = section.dataset.module;
+            if (module) {
+                if (userModules.includes(module)) {
+                    section.style.display = 'block';
+                } else {
+                    section.style.display = 'none';
+                }
+            }
+        });
+
+        // Proteger vistas: si el usuario intenta acceder a una vista no permitida
+        const currentView = state.currentView;
+        const viewModuleMap = {
+            'transaction-form': 'finanzas',
+            'concepts': 'finanzas',
+            'clients': 'finanzas',
+            'transactions': 'finanzas',
+            'dashboard': 'finanzas',
+            'activity': 'finanzas',
+            'crm-dashboard': 'crm',
+            'users': 'usuarios'
+        };
+
+        const requiredModule = viewModuleMap[currentView];
+        if (requiredModule && !userModules.includes(requiredModule)) {
+            // Redirigir a la primera vista disponible
+            const firstAvailableView = this.getFirstAvailableView(userModules);
+            this.switchView(firstAvailableView);
         }
+    },
+
+    getFirstAvailableView(modules) {
+        if (modules.includes('finanzas')) return 'transaction-form';
+        if (modules.includes('crm')) return 'crm-dashboard';
+        if (modules.includes('usuarios')) return 'users';
+        return 'transaction-form'; // Fallback
     },
 
     switchView(viewName) {
@@ -326,7 +416,8 @@ const UI = {
             'concepts': 'Conceptos',
             'clients': 'Clientes',
             'activity': 'Actividad',
-            'users': 'Usuarios'
+            'users': 'Usuarios',
+            'crm-dashboard': 'CRM'
         };
 
         const pageTitle = document.getElementById('page-title');
@@ -1003,10 +1094,12 @@ const UI = {
 
         state.users.forEach(u => {
             const tr = document.createElement('tr');
+            const modulesDisplay = (u.modules || []).join(', ') || 'Ninguno';
             tr.innerHTML = `
                 <td>${u.name}</td>
                 <td>${u.username}</td>
                 <td><span class="tag ${u.role === 'administrador' ? 'income' : 'expense'}">${u.role}</span></td>
+                <td><small style="color: var(--text-muted);">${modulesDisplay}</small></td>
                 <td>
                     <button class="btn-icon" onclick="UI.editUser('${u.id}')"><i class="fa-solid fa-pen"></i></button>
                     ${u.username !== 'administrador' ? `<button class="btn-icon text-danger" onclick="UI.deleteUser('${u.id}')"><i class="fa-solid fa-trash"></i></button>` : ''}
@@ -1029,12 +1122,18 @@ const UI = {
             return;
         }
 
+        // Capturar módulos seleccionados
+        const selectedModules = Array.from(
+            document.querySelectorAll('.module-checkbox:checked')
+        ).map(cb => cb.value);
+
         const user = {
             id: id || Date.now().toString(),
             name: formData.get('name'),
             username: username,
             password: formData.get('password'),
-            role: formData.get('role')
+            role: formData.get('role'),
+            modules: selectedModules
         };
 
         if (id) {
@@ -1060,6 +1159,15 @@ const UI = {
         document.getElementById('user-username').value = user.username;
         document.getElementById('user-password').value = user.password;
         document.getElementById('user-role').value = user.role;
+
+        // Marcar módulos
+        document.querySelectorAll('.module-checkbox').forEach(cb => {
+            cb.checked = (user.modules || []).includes(cb.value);
+            // Deshabilitar "usuarios" si no es admin
+            if (cb.id === 'module-usuarios' && user.role !== ROLES.ADMIN) {
+                cb.disabled = true;
+            }
+        });
 
         document.getElementById('btn-save-user').textContent = 'Actualizar Usuario';
         document.getElementById('cancel-user-edit').style.display = 'inline-block';
