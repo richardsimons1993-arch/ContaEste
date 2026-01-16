@@ -3,8 +3,7 @@ const DATA_KEYS = {
     CONCEPTS: 'contabilidad_concepts',
     CLIENTS: 'contabilidad_clients',
     LOGS: 'contabilidad_activity_logs',
-    USERS: 'contabilidad_users',
-    CRM_LEADS: 'contabilidad_crm_leads'
+    USERS: 'contabilidad_users'
 };
 
 // Conceptos por Defecto
@@ -115,30 +114,7 @@ const Storage = {
         this.save(DATA_KEYS.USERS, users);
     },
 
-    // --- CRM ---
 
-    getLeads() {
-        return this.getAll(DATA_KEYS.CRM_LEADS) || [];
-    },
-
-    saveLead(lead) {
-        const leads = this.getLeads();
-        const index = leads.findIndex(l => l.id === lead.id);
-        if (index > -1) {
-            leads[index] = lead;
-        } else {
-            leads.push(lead);
-        }
-        this.save(DATA_KEYS.CRM_LEADS, leads);
-        return leads;
-    },
-
-    deleteLead(id) {
-        let leads = this.getLeads();
-        leads = leads.filter(l => l.id !== id);
-        this.save(DATA_KEYS.CRM_LEADS, leads);
-        return leads;
-    }
 };
 
 window.StorageAPI = Storage;

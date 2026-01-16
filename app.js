@@ -18,8 +18,8 @@ const ROLES = {
 };
 
 const DEFAULT_USERS = [
-    { id: '1', username: 'administrador', password: 'S0p0rt3!!2025', role: ROLES.ADMIN, name: 'Admin Simons', modules: ['finanzas', 'crm', 'usuarios'] },
-    { id: '2', username: 'operador', password: 'operador123', role: ROLES.OPERATOR, name: 'Operador Ventas', modules: ['finanzas', 'crm'] },
+    { id: '1', username: 'administrador', password: 'S0p0rt3!!2025', role: ROLES.ADMIN, name: 'Admin Simons', modules: ['finanzas', 'usuarios'] },
+    { id: '2', username: 'operador', password: 'operador123', role: ROLES.OPERATOR, name: 'Operador Ventas', modules: ['finanzas'] },
     { id: '3', username: 'lector', password: 'lector123', role: ROLES.VIEWER, name: 'Invitado', modules: ['finanzas'] }
 ];
 
@@ -84,9 +84,9 @@ const UI = {
             state.users.forEach(user => {
                 if (!user.modules) {
                     if (user.role === ROLES.ADMIN) {
-                        user.modules = ['finanzas', 'crm', 'usuarios'];
+                        user.modules = ['finanzas', 'usuarios'];
                     } else if (user.role === ROLES.OPERATOR) {
-                        user.modules = ['finanzas', 'crm'];
+                        user.modules = ['finanzas'];
                     } else {
                         user.modules = ['finanzas'];
                     }
@@ -368,7 +368,6 @@ const UI = {
             'transactions': 'finanzas',
             'dashboard': 'finanzas',
             'activity': 'finanzas',
-            'crm-dashboard': 'crm',
             'users': 'usuarios'
         };
 
@@ -382,7 +381,6 @@ const UI = {
 
     getFirstAvailableView(modules) {
         if (modules.includes('finanzas')) return 'transaction-form';
-        if (modules.includes('crm')) return 'crm-dashboard';
         if (modules.includes('usuarios')) return 'users';
         return 'transaction-form'; // Fallback
     },
@@ -416,8 +414,7 @@ const UI = {
             'concepts': 'Conceptos',
             'clients': 'Clientes',
             'activity': 'Actividad',
-            'users': 'Usuarios',
-            'crm-dashboard': 'CRM'
+            'users': 'Usuarios'
         };
 
         const pageTitle = document.getElementById('page-title');
