@@ -10,6 +10,11 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <!-- Fuentes de Google -->
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- SheetJS (Excel) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <!-- jsPDF & AutoTable (PDF) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.1/jspdf.plugin.autotable.min.js"></script>
     <script>
         window.onerror = function (msg, url, line, col, error) {
             console.error("Error: " + msg + "\nEn: " + url + ":" + line);
@@ -140,7 +145,19 @@
 
                 <!-- Tabla Resumen Anual -->
                 <div class="card mt-4">
-                    <h3>Resumen Anual (<span id="current-year"></span>)</h3>
+                    <div
+                        style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem; margin-bottom: 1rem;">
+                        <h3 style="margin: 0;">Resumen Anual (<span id="current-year"></span>)</h3>
+                        <div class="actions" style="display: flex; gap: 0.5rem;">
+                            <button class="btn-sm btn-outline-success" id="btn-export-balance-excel"
+                                title="Exportar Excel">
+                                <i class="fa-solid fa-file-excel"></i> Excel
+                            </button>
+                            <button class="btn-sm btn-outline-danger" id="btn-export-balance-pdf" title="Exportar PDF">
+                                <i class="fa-solid fa-file-pdf"></i> PDF
+                            </button>
+                        </div>
+                    </div>
                     <div class="table-responsive">
                         <table class="data-table">
                             <thead>
@@ -235,10 +252,35 @@
                     <div class="card-header"
                         style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
                         <h2>Movimientos</h2>
-                        <div class="filters" style="display: flex; gap: 0.5rem; align-items: flex-start;">
+                        <div class="filters"
+                            style="display: flex; gap: 0.5rem; align-items: flex-end; flex-wrap: wrap;">
+                            <!-- Filtro Tipo -->
+                            <div class="form-group" style="margin-bottom: 0;">
+                                <label style="font-size: 0.8rem; margin-bottom: 2px;">Tipo</label>
+                                <select id="filter-type" class="form-control"
+                                    style="padding: 4px 8px; height: 32px; min-width: 100px;">
+                                    <option value="all">Todos</option>
+                                    <option value="income">Ingresos</option>
+                                    <option value="expense">Egresos</option>
+                                </select>
+                            </div>
+
+                            <!-- Filtro Fechas -->
+                            <div class="form-group" style="margin-bottom: 0;">
+                                <label style="font-size: 0.8rem; margin-bottom: 2px;">Desde</label>
+                                <input type="date" id="filter-date-start" class="form-control"
+                                    style="padding: 4px 8px; height: 32px;">
+                            </div>
+                            <div class="form-group" style="margin-bottom: 0;">
+                                <label style="font-size: 0.8rem; margin-bottom: 2px;">Hasta</label>
+                                <input type="date" id="filter-date-end" class="form-control"
+                                    style="padding: 4px 8px; height: 32px;">
+                            </div>
+
                             <!-- Desplegable de Conceptos Personalizado -->
-                            <div class="custom-dropdown" id="dropdown-concept-container">
-                                <button type="button" class="dropdown-toggle" id="btn-dropdown-concept">
+                            <div class="custom-dropdown" id="dropdown-concept-container" style="margin-bottom: 0;">
+                                <button type="button" class="dropdown-toggle" id="btn-dropdown-concept"
+                                    style="height: 32px;">
                                     Conceptos
                                 </button>
                                 <div class="dropdown-menu" id="menu-dropdown-concept">
@@ -247,14 +289,25 @@
                             </div>
 
                             <!-- Desplegable de Clientes Personalizado -->
-                            <div class="custom-dropdown" id="dropdown-client-container">
-                                <button type="button" class="dropdown-toggle" id="btn-dropdown-client">
+                            <div class="custom-dropdown" id="dropdown-client-container" style="margin-bottom: 0;">
+                                <button type="button" class="dropdown-toggle" id="btn-dropdown-client"
+                                    style="height: 32px;">
                                     Clientes
                                 </button>
                                 <div class="dropdown-menu" id="menu-dropdown-client">
                                     <!-- Checkboxes inyectados por JS -->
                                 </div>
                             </div>
+                        </div>
+                        <div class="actions" style="display: flex; gap: 0.5rem;">
+                            <button class="btn-sm btn-outline-success" id="btn-export-transactions-excel"
+                                title="Exportar Excel">
+                                <i class="fa-solid fa-file-excel"></i> Excel
+                            </button>
+                            <button class="btn-sm btn-outline-danger" id="btn-export-transactions-pdf"
+                                title="Exportar PDF">
+                                <i class="fa-solid fa-file-pdf"></i> PDF
+                            </button>
                         </div>
                     </div>
                     <div class="table-responsive">

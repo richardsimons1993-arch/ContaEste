@@ -139,6 +139,30 @@ const UI = {
             });
         }
 
+
+
+        // --- FILTROS ADICIONALES ---
+        const filterType = document.getElementById('filter-type');
+        const filterDateStart = document.getElementById('filter-date-start');
+        const filterDateEnd = document.getElementById('filter-date-end');
+
+        if (filterType) filterType.addEventListener('change', () => this.renderTransactionsList());
+        if (filterDateStart) filterDateStart.addEventListener('change', () => this.renderTransactionsList());
+        if (filterDateEnd) filterDateEnd.addEventListener('change', () => this.renderTransactionsList());
+
+        // --- EXPORTAR ---
+        const btnExportTxExcel = document.getElementById('btn-export-transactions-excel');
+        if (btnExportTxExcel) btnExportTxExcel.addEventListener('click', () => this.exportTransactionsToExcel());
+
+        const btnExportTxPDF = document.getElementById('btn-export-transactions-pdf');
+        if (btnExportTxPDF) btnExportTxPDF.addEventListener('click', () => this.exportTransactionsToPDF());
+
+        const btnExportBalExcel = document.getElementById('btn-export-balance-excel');
+        if (btnExportBalExcel) btnExportBalExcel.addEventListener('click', () => this.exportBalanceToExcel());
+
+        const btnExportBalPDF = document.getElementById('btn-export-balance-pdf');
+        if (btnExportBalPDF) btnExportBalPDF.addEventListener('click', () => this.exportBalanceToPDF());
+
         // Filtros (Oyentes nativos eliminados, usando lógica personalizada)
 
         // --- LOGIN ---
@@ -547,26 +571,50 @@ const UI = {
         }
     },
 
+    getFilteredTransactions() {
+        let displayedTransactions = state.transactions;
+
+        // 1. Filtro Tipo
+        const filterType = document.getElementById('filter-type');
+        if (filterType && filterType.value !== 'all') {
+            displayedTransactions = displayedTransactions.filter(t => t.type === filterType.value);
+        }
+
+        // 2. Filtro Fechas
+        const filterDateStart = document.getElementById('filter-date-start');
+        const filterDateEnd = document.getElementById('filter-date-end');
+
+        if (filterDateStart && filterDateStart.value) {
+            displayedTransactions = displayedTransactions.filter(t => t.date >= filterDateStart.value);
+        }
+        if (filterDateEnd && filterDateEnd.value) {
+            displayedTransactions = displayedTransactions.filter(t => t.date <= filterDateEnd.value);
+        }
+
+        // 3. Filtro Conceptos (Checkboxes)
+        const selectedConcepts = Array.from(document.querySelectorAll('#menu-dropdown-concept input:checked')).map(cb => cb.value);
+        if (selectedConcepts.length > 0) {
+            displayedTransactions = displayedTransactions.filter(t => selectedConcepts.includes(t.conceptId));
+        }
+
+        // 4. Filtro Clientes (Checkboxes)
+        const selectedClients = Array.from(document.querySelectorAll('#menu-dropdown-client input:checked')).map(cb => cb.value);
+        if (selectedClients.length > 0) {
+            displayedTransactions = displayedTransactions.filter(t => t.clientId && selectedClients.includes(t.clientId));
+        }
+
+        return displayedTransactions;
+    },
+
     renderTransactionsList() {
         const tbody = document.getElementById('transactions-list-body');
         if (!tbody) return;
         tbody.innerHTML = '';
 
-        // Obtener valores de filtros (Desplegables personalizados)
-        const selectedConcepts = Array.from(document.querySelectorAll('#menu-dropdown-concept input:checked')).map(cb => cb.value);
-        const selectedClients = Array.from(document.querySelectorAll('#menu-dropdown-client input:checked')).map(cb => cb.value);
+        // Obtener Transacciones Filtradas
+        const displayedTransactions = this.getFilteredTransactions();
 
-        // Filtrar y Ordenar
-        let displayedTransactions = state.transactions;
-
-        if (selectedConcepts.length > 0) {
-            displayedTransactions = displayedTransactions.filter(t => selectedConcepts.includes(t.conceptId));
-        }
-
-        if (selectedClients.length > 0) {
-            displayedTransactions = displayedTransactions.filter(t => t.clientId && selectedClients.includes(t.clientId));
-        }
-
+        // Ordenar
         const sorted = [...displayedTransactions].sort((a, b) => new Date(b.date) - new Date(a.date));
 
         let totalSum = 0;
@@ -1183,12 +1231,234 @@ const UI = {
 
     resetUserForm() {
         const form = document.getElementById('add-user-form');
-        if (form) {
-            form.reset();
-            document.getElementById('edit-user-id').value = '';
-            document.getElementById('btn-save-user').textContent = 'Crear Usuario';
-            document.getElementById('cancel-user-edit').style.display = 'none';
+        if (form) form.reset();
+        document.getElementById('edit-user-id').value = '';
+        document.getElementById('btn-save-user').textContent = 'Crear Usuario';
+        document.getElementById('cancel-user-edit').style.display = 'none';
+
+        // Re-habilitar selector de rol si estaba deshabilitado (no debería, pero por si acaso)
+        // Y resetear checkboxes
+        const roleSelect = document.getElementById('user-role');
+        if (roleSelect) roleSelect.dispatchEvent(new Event('change'));
+    },
+
+    // --- EXPORTACIÓN ---
+
+    exportTransactionsToExcel() {
+        if (!window.XLSX) {
+            this.showToast('Error: Librería Excel no cargada. Verifique su conexión internet.', 'error');
+            return;
         }
+
+        if (!state.transactions || state.transactions.length === 0) {
+            this.showToast('No hay movimientos para exportar', 'warning');
+            return;
+        }
+
+
+
+        // Usar método centralizado de filtrado
+        const dataToExport = this.getFilteredTransactions();
+
+        // Mapear datos a formato amigable
+        const exportData = dataToExport.map(t => {
+            const conceptName = state.concepts.find(c => c.id === t.conceptId)?.name || 'Desconocido';
+            const clientName = state.clients.find(c => c.id === t.clientId)?.name || '-';
+            return {
+                Fecha: t.date,
+                Tipo: t.type === 'income' ? 'Ingreso' : 'Egreso',
+                Concepto: conceptName,
+                Cliente: clientName,
+                Observacion: t.observation || '',
+                Monto: parseFloat(t.amount)
+            };
+        });
+
+        // Crear Libro de Excel
+        const wb = XLSX.utils.book_new();
+        const ws = XLSX.utils.json_to_sheet(exportData);
+
+        // Ajustar ancho de columnas
+        const wscols = [
+            { wch: 12 }, // Fecha
+            { wch: 10 }, // Tipo
+            { wch: 25 }, // Concepto
+            { wch: 25 }, // Cliente
+            { wch: 30 }, // Obs
+            { wch: 15 }  // Monto
+        ];
+        ws['!cols'] = wscols;
+
+        XLSX.utils.book_append_sheet(wb, ws, "Movimientos");
+        XLSX.writeFile(wb, "Movimientos.xlsx");
+        this.showToast('Exportación a Excel completada', 'success');
+    },
+
+    exportTransactionsToPDF() {
+        if (!window.jspdf) {
+            this.showToast('Error cargando librería PDF', 'error');
+            return;
+        }
+
+        // Usar método centralizado de filtrado
+        const dataToExport = this.getFilteredTransactions();
+
+        // Ordenar por fecha
+        dataToExport.sort((a, b) => new Date(b.date) - new Date(a.date));
+
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF();
+
+        // Título
+        doc.setFontSize(18);
+        doc.text("Reporte de Movimientos", 14, 22);
+        doc.setFontSize(11);
+        doc.text(`Fecha de emisión: ${new Date().toLocaleDateString()}`, 14, 30);
+
+        // Datos para tabla
+        const tableBody = dataToExport.map(t => {
+            const conceptName = state.concepts.find(c => c.id === t.conceptId)?.name || 'Desconocido';
+            const clientName = state.clients.find(c => c.id === t.clientId)?.name || '-';
+            return [
+                t.date,
+                t.type === 'income' ? 'Ingreso' : 'Egreso',
+                conceptName,
+                clientName,
+                formatCurrency(t.amount)
+            ];
+        });
+
+        doc.autoTable({
+            startY: 40,
+            head: [['Fecha', 'Tipo', 'Concepto', 'Cliente', 'Monto']],
+            body: tableBody,
+            theme: 'grid',
+            headStyles: { fillColor: [66, 66, 66] },
+        });
+
+        doc.save("Movimientos.pdf");
+        this.showToast('Exportación a PDF completada', 'success');
+    },
+
+    exportBalanceToExcel() {
+        if (!window.XLSX) {
+            this.showToast('Error: Librería Excel no cargada. Verifique su conexión internet.', 'error');
+            return;
+        }
+
+        // Recalcular datos del Resumen Anual (logica duplicada de renderDashboard por necesidad de datos puros)
+        const transactions = state.transactions;
+        const currentYear = new Date().getFullYear();
+        const monthNames = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
+        const yearData = Array(12).fill(null).map(() => ({ income: 0, expense: 0 }));
+
+        // Saldo Inicial
+        let accumulatedBalance = 0;
+        transactions.forEach(t => {
+            const tDate = new Date(t.date + 'T00:00:00');
+            if (tDate.getFullYear() < currentYear) {
+                if (t.type === 'income') accumulatedBalance += parseFloat(t.amount);
+                if (t.type === 'expense') accumulatedBalance -= parseFloat(t.amount);
+            }
+        });
+
+        // Datos del año
+        transactions.forEach(t => {
+            const tDate = new Date(t.date + 'T00:00:00');
+            if (tDate.getFullYear() === currentYear) {
+                const m = tDate.getMonth();
+                if (t.type === 'income') yearData[m].income += parseFloat(t.amount);
+                if (t.type === 'expense') yearData[m].expense += parseFloat(t.amount);
+            }
+        });
+
+        // Construir array para Excel
+        const exportData = [];
+        // Fila inicial de saldo anterior si se desea (opcional, aqui pondremos solo la tabla anual)
+
+        yearData.forEach((data, index) => {
+            const monthlyNet = data.income - data.expense;
+            accumulatedBalance += monthlyNet;
+
+            exportData.push({
+                Mes: monthNames[index],
+                Ingresos: data.income,
+                Egresos: data.expense,
+                Saldo_Mensual: monthlyNet,
+                Saldo_Acumulado: accumulatedBalance
+            });
+        });
+
+        const wb = XLSX.utils.book_new();
+        const ws = XLSX.utils.json_to_sheet(exportData);
+
+        // Anchos
+        ws['!cols'] = [{ wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 18 }];
+
+        XLSX.utils.book_append_sheet(wb, ws, `Balance ${currentYear}`);
+        XLSX.writeFile(wb, `Balance_${currentYear}.xlsx`);
+        this.showToast('Exportación a Excel completada', 'success');
+    },
+
+    exportBalanceToPDF() {
+        if (!window.jspdf) {
+            this.showToast('Error cargando librería PDF', 'error');
+            return;
+        }
+
+        const transactions = state.transactions;
+        const currentYear = new Date().getFullYear();
+        const monthNames = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
+        const yearData = Array(12).fill(null).map(() => ({ income: 0, expense: 0 }));
+
+        let accumulatedBalance = 0;
+        transactions.forEach(t => {
+            const tDate = new Date(t.date + 'T00:00:00');
+            if (tDate.getFullYear() < currentYear) {
+                if (t.type === 'income') accumulatedBalance += parseFloat(t.amount);
+                if (t.type === 'expense') accumulatedBalance -= parseFloat(t.amount);
+            }
+        });
+
+        transactions.forEach(t => {
+            const tDate = new Date(t.date + 'T00:00:00');
+            if (tDate.getFullYear() === currentYear) {
+                const m = tDate.getMonth();
+                if (t.type === 'income') yearData[m].income += parseFloat(t.amount);
+                if (t.type === 'expense') yearData[m].expense += parseFloat(t.amount);
+            }
+        });
+
+        const tableBody = yearData.map((data, index) => {
+            const monthlyNet = data.income - data.expense;
+            accumulatedBalance += monthlyNet;
+            return [
+                monthNames[index],
+                formatCurrency(data.income),
+                formatCurrency(data.expense),
+                formatCurrency(monthlyNet),
+                formatCurrency(accumulatedBalance)
+            ];
+        });
+
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF();
+
+        doc.setFontSize(18);
+        doc.text(`Balance Anual - ${currentYear}`, 14, 22);
+        doc.setFontSize(11);
+        doc.text(`Fecha de emisión: ${new Date().toLocaleDateString()}`, 14, 30);
+
+        doc.autoTable({
+            startY: 40,
+            head: [['Mes', 'Ingresos', 'Egresos', 'Saldo Mes', 'Acumulado']],
+            body: tableBody,
+            theme: 'striped',
+            headStyles: { fillColor: [41, 128, 185] },
+        });
+
+        doc.save(`Balance_${currentYear}.pdf`);
+        this.showToast('Exportación a PDF completada', 'success');
     },
 
     handleConceptSubmit(e) {
