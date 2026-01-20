@@ -152,7 +152,15 @@ const UI = {
 
         // --- EXPORTAR ---
         const btnExportTxExcel = document.getElementById('btn-export-transactions-excel');
-        if (btnExportTxExcel) btnExportTxExcel.addEventListener('click', () => this.exportTransactionsToExcel());
+        if (btnExportTxExcel) {
+            console.log("Botón exportar excel encontrado, agregando listener");
+            btnExportTxExcel.addEventListener('click', () => {
+                alert("DEBUG: Listener de botón disparado");
+                this.exportTransactionsToExcel();
+            });
+        } else {
+            console.error("Botón exportar excel NO encontrado en el DOM");
+        }
 
         const btnExportTxPDF = document.getElementById('btn-export-transactions-pdf');
         if (btnExportTxPDF) btnExportTxPDF.addEventListener('click', () => this.exportTransactionsToPDF());
@@ -1245,53 +1253,61 @@ const UI = {
     // --- EXPORTACIÓN ---
 
     exportTransactionsToExcel() {
+        alert("DEBUG: Click reconocido. Iniciando exportación...");
+
         if (!window.XLSX) {
+            alert("DEBUG: Librería XLSX no encontrada.");
             this.showToast('Error: Librería Excel no cargada. Verifique su conexión internet.', 'error');
             return;
         }
 
-        if (!state.transactions || state.transactions.length === 0) {
-            this.showToast('No hay movimientos para exportar', 'warning');
-            return;
+        try {
+            alert("DEBUG: Librería encontrada. Filtrando datos...");
+            // Usar método centralizado de filtrado
+            const dataToExport = this.getFilteredTransactions();
+            alert("DEBUG: Datos filtrados: " + dataToExport.length + " filas.");
+
+            if (dataToExport.length === 0) {
+                this.showToast('No hay movimientos visibles para exportar (verifique los filtros)', 'warning');
+                return;
+            }
+
+            // Mapear datos a formato amigable
+            const exportData = dataToExport.map(t => {
+                const conceptName = state.concepts.find(c => c.id === t.conceptId)?.name || 'Desconocido';
+                const clientName = state.clients.find(c => c.id === t.clientId)?.name || '-';
+                return {
+                    Fecha: t.date,
+                    Tipo: t.type === 'income' ? 'Ingreso' : 'Egreso',
+                    Concepto: conceptName,
+                    Cliente: clientName,
+                    Observacion: t.observation || '',
+                    Monto: parseFloat(t.amount)
+                };
+            });
+
+            // Crear Libro de Excel
+            const wb = XLSX.utils.book_new();
+            const ws = XLSX.utils.json_to_sheet(exportData);
+
+            // Ajustar ancho de columnas
+            const wscols = [
+                { wch: 12 }, // Fecha
+                { wch: 10 }, // Tipo
+                { wch: 25 }, // Concepto
+                { wch: 25 }, // Cliente
+                { wch: 30 }, // Obs
+                { wch: 15 }  // Monto
+            ];
+            ws['!cols'] = wscols;
+
+            XLSX.utils.book_append_sheet(wb, ws, "Movimientos");
+            XLSX.writeFile(wb, "Movimientos.xlsx");
+            this.showToast('Exportación a Excel completada', 'success');
+        } catch (error) {
+            console.error(error);
+            this.showToast('Error al exportar Excel: ' + error.message, 'error');
         }
-
-
-
-        // Usar método centralizado de filtrado
-        const dataToExport = this.getFilteredTransactions();
-
-        // Mapear datos a formato amigable
-        const exportData = dataToExport.map(t => {
-            const conceptName = state.concepts.find(c => c.id === t.conceptId)?.name || 'Desconocido';
-            const clientName = state.clients.find(c => c.id === t.clientId)?.name || '-';
-            return {
-                Fecha: t.date,
-                Tipo: t.type === 'income' ? 'Ingreso' : 'Egreso',
-                Concepto: conceptName,
-                Cliente: clientName,
-                Observacion: t.observation || '',
-                Monto: parseFloat(t.amount)
-            };
-        });
-
-        // Crear Libro de Excel
-        const wb = XLSX.utils.book_new();
-        const ws = XLSX.utils.json_to_sheet(exportData);
-
-        // Ajustar ancho de columnas
-        const wscols = [
-            { wch: 12 }, // Fecha
-            { wch: 10 }, // Tipo
-            { wch: 25 }, // Concepto
-            { wch: 25 }, // Cliente
-            { wch: 30 }, // Obs
-            { wch: 15 }  // Monto
-        ];
-        ws['!cols'] = wscols;
-
-        XLSX.utils.book_append_sheet(wb, ws, "Movimientos");
-        XLSX.writeFile(wb, "Movimientos.xlsx");
-        this.showToast('Exportación a Excel completada', 'success');
     },
 
     exportTransactionsToPDF() {
