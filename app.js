@@ -4,6 +4,8 @@ const state = {
     transactions: [],
     concepts: [],
     clients: [],
+    debts: [],
+    debtors: [],
     logs: [],
     users: [],
     currentUser: null,
@@ -64,6 +66,8 @@ const UI = {
         state.transactions = window.StorageAPI.getTransactions();
         state.concepts = window.StorageAPI.getConcepts();
         state.clients = window.StorageAPI.getClients();
+        state.debts = window.StorageAPI.getDebts();
+        state.debtors = window.StorageAPI.getDebtors();
         state.logs = window.StorageAPI.getLogs();
 
         // Cargar usuarios o inicializar con por defecto
@@ -139,6 +143,37 @@ const UI = {
             });
         }
 
+        // --- DEUDAS & DEUDORES ---
+        const debtForm = document.getElementById('add-debt-form');
+        if (debtForm) debtForm.addEventListener('submit', (e) => this.handleDebtSubmit(e));
+
+        const cancelDebtEditBtn = document.getElementById('cancel-debt-edit');
+        if (cancelDebtEditBtn) {
+            cancelDebtEditBtn.addEventListener('click', () => this.resetDebtForm());
+        }
+
+        const debtorForm = document.getElementById('add-debtor-form');
+        if (debtorForm) debtorForm.addEventListener('submit', (e) => this.handleDebtorSubmit(e));
+
+        const cancelDebtorEditBtn = document.getElementById('cancel-debtor-edit');
+        if (cancelDebtorEditBtn) {
+            cancelDebtorEditBtn.addEventListener('click', () => this.resetDebtorForm());
+        }
+
+        // Exportar Deudas
+        const btnExportDebtExcel = document.getElementById('btn-export-debts-excel');
+        if (btnExportDebtExcel) btnExportDebtExcel.addEventListener('click', () => this.exportDebtsToExcel());
+
+        const btnExportDebtPDF = document.getElementById('btn-export-debts-pdf');
+        if (btnExportDebtPDF) btnExportDebtPDF.addEventListener('click', () => this.exportDebtsToPDF());
+
+        // Exportar Deudores
+        const btnExportDebtorExcel = document.getElementById('btn-export-debtors-excel');
+        if (btnExportDebtorExcel) btnExportDebtorExcel.addEventListener('click', () => this.exportDebtorsToExcel());
+
+        const btnExportDebtorPDF = document.getElementById('btn-export-debtors-pdf');
+        if (btnExportDebtorPDF) btnExportDebtorPDF.addEventListener('click', () => this.exportDebtorsToPDF());
+
 
 
         // --- FILTROS ADICIONALES ---
@@ -155,8 +190,12 @@ const UI = {
         if (btnExportTxExcel) {
             console.log("Botón exportar excel encontrado, agregando listener");
             btnExportTxExcel.addEventListener('click', () => {
-                alert("DEBUG: Listener de botón disparado");
-                this.exportTransactionsToExcel();
+                try {
+                    UI.exportTransactionsToExcel();
+                } catch (err) {
+                    console.error("Error al invocar exportación:", err);
+                    alert("Error interno al intentar exportar: " + err.message);
+                }
             });
         } else {
             console.error("Botón exportar excel NO encontrado en el DOM");
@@ -398,6 +437,8 @@ const UI = {
             'concepts': 'finanzas',
             'clients': 'finanzas',
             'transactions': 'finanzas',
+            'debts': 'finanzas',
+            'debtors': 'finanzas',
             'dashboard': 'finanzas',
             'activity': 'finanzas',
             'users': 'usuarios'
@@ -445,6 +486,8 @@ const UI = {
             'transactions': 'Movimientos',
             'concepts': 'Conceptos',
             'clients': 'Clientes',
+            'debts': 'Deudas',
+            'debtors': 'Deudores',
             'activity': 'Actividad',
             'users': 'Usuarios'
         };
@@ -458,12 +501,16 @@ const UI = {
         if (viewName === 'transactions') this.renderTransactionsList();
         if (viewName === 'concepts') this.renderConcepts();
         if (viewName === 'clients') this.renderClients();
+        if (viewName === 'debts') this.renderDebts();
+        if (viewName === 'debtors') this.renderDebtors();
         if (viewName === 'activity') this.renderActivity();
         if (viewName === 'users') this.renderUsers();
 
         // Resetear formularios si se sale de la sección
         if (viewName !== 'transaction-form') this.cancelTransactionEdit();
         if (viewName !== 'clients') this.resetClientForm();
+        if (viewName !== 'debts') this.resetDebtForm();
+        if (viewName !== 'debtors') this.resetDebtorForm();
         if (viewName !== 'users') this.resetUserForm();
 
         // Re-aplicar privilegios (por si se renderizaron botones nuevos)
@@ -911,6 +958,192 @@ const UI = {
         this.renderClients();
     },
 
+    // --- LOGICA DEUDAS ---
+
+    renderDebts() {
+        const tbody = document.getElementById('debts-list-body');
+        if (!tbody) return;
+        tbody.innerHTML = '';
+
+        state.debts.forEach(d => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td>${d.date}</td>
+                <td>${d.titular}</td>
+                <td>${d.description || '-'}</td>
+                <td style="font-weight:bold; color: var(--danger-color)">${formatCurrency(d.amount)}</td>
+                <td class="actions">
+                    <button class="btn-icon" title="Editar" onclick="UI.editDebt('${d.id}')">
+                        <i class="fa-solid fa-pen-to-square"></i>
+                    </button>
+                    <button class="btn-icon text-danger" title="Eliminar" onclick="UI.deleteDebt('${d.id}')">
+                        <i class="fa-solid fa-trash"></i>
+                    </button>
+                </td>
+            `;
+            tbody.appendChild(tr);
+        });
+        this.applyPrivileges();
+    },
+
+    handleDebtSubmit(e) {
+        e.preventDefault();
+        const formData = new FormData(e.target);
+        const id = formData.get('id');
+
+        const debt = {
+            id: id || Date.now().toString(),
+            titular: formData.get('titular'),
+            amount: parseFloat(formData.get('amount')),
+            date: formData.get('date'),
+            description: formData.get('description')
+        };
+
+        window.StorageAPI.saveDebt(debt);
+
+        if (id) {
+            const index = state.debts.findIndex(d => d.id === id);
+            state.debts[index] = debt;
+            this.recordActivity('Modificación', 'Deuda', `Actualizada deuda a ${debt.titular}`);
+        } else {
+            state.debts.push(debt);
+            this.recordActivity('Alta', 'Deuda', `Registrada deuda a ${debt.titular}`);
+        }
+
+        this.resetDebtForm();
+        this.renderDebts();
+    },
+
+    editDebt(id) {
+        const debt = state.debts.find(d => d.id === id);
+        if (!debt) return;
+
+        const form = document.getElementById('add-debt-form');
+        document.getElementById('debt-id').value = debt.id;
+        form.elements['titular'].value = debt.titular;
+        form.elements['amount'].value = debt.amount;
+        form.elements['date'].value = debt.date;
+        form.elements['description'].value = debt.description || '';
+
+        document.getElementById('debt-form-title').textContent = 'Editar Deuda';
+        const cancelBtn = document.getElementById('cancel-debt-edit');
+        if (cancelBtn) cancelBtn.style.display = 'inline-block';
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    },
+
+    resetDebtForm() {
+        const form = document.getElementById('add-debt-form');
+        if (form) {
+            form.reset();
+            document.getElementById('debt-id').value = '';
+            document.getElementById('debt-form-title').textContent = 'Registrar Deuda';
+            const cancelBtn = document.getElementById('cancel-debt-edit');
+            if (cancelBtn) cancelBtn.style.display = 'none';
+        }
+    },
+
+    deleteDebt(id) {
+        if (state.currentUser.role !== ROLES.ADMIN) return;
+        const debt = state.debts.find(d => d.id === id);
+        window.StorageAPI.deleteDebt(id);
+        state.debts = state.debts.filter(d => d.id !== id);
+        this.recordActivity('Baja', 'Deuda', `Eliminada deuda a ${debt?.titular}`);
+        this.renderDebts();
+    },
+
+    // --- LOGICA DEUDORES ---
+
+    renderDebtors() {
+        const tbody = document.getElementById('debtors-list-body');
+        if (!tbody) return;
+        tbody.innerHTML = '';
+
+        state.debtors.forEach(d => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td>${d.date}</td>
+                <td>${d.titular}</td>
+                <td>${d.description || '-'}</td>
+                <td style="font-weight:bold; color: var(--secondary-color)">${formatCurrency(d.amount)}</td>
+                <td class="actions">
+                    <button class="btn-icon" title="Editar" onclick="UI.editDebtor('${d.id}')">
+                        <i class="fa-solid fa-pen-to-square"></i>
+                    </button>
+                    <button class="btn-icon text-danger" title="Eliminar" onclick="UI.deleteDebtor('${d.id}')">
+                        <i class="fa-solid fa-trash"></i>
+                    </button>
+                </td>
+            `;
+            tbody.appendChild(tr);
+        });
+        this.applyPrivileges();
+    },
+
+    handleDebtorSubmit(e) {
+        e.preventDefault();
+        const formData = new FormData(e.target);
+        const id = formData.get('id');
+
+        const debtor = {
+            id: id || Date.now().toString(),
+            titular: formData.get('titular'),
+            amount: parseFloat(formData.get('amount')),
+            date: formData.get('date'),
+            description: formData.get('description')
+        };
+
+        window.StorageAPI.saveDebtor(debtor);
+
+        if (id) {
+            const index = state.debtors.findIndex(d => d.id === id);
+            state.debtors[index] = debtor;
+            this.recordActivity('Modificación', 'Deudor', `Actualizado deudor ${debtor.titular}`);
+        } else {
+            state.debtors.push(debtor);
+            this.recordActivity('Alta', 'Deudor', `Registrado deudor ${debtor.titular}`);
+        }
+
+        this.resetDebtorForm();
+        this.renderDebtors();
+    },
+
+    editDebtor(id) {
+        const debtor = state.debtors.find(d => d.id === id);
+        if (!debtor) return;
+
+        const form = document.getElementById('add-debtor-form');
+        document.getElementById('debtor-id').value = debtor.id;
+        form.elements['titular'].value = debtor.titular;
+        form.elements['amount'].value = debtor.amount;
+        form.elements['date'].value = debtor.date;
+        form.elements['description'].value = debtor.description || '';
+
+        document.getElementById('debtor-form-title').textContent = 'Editar Deudor';
+        const cancelBtn = document.getElementById('cancel-debtor-edit');
+        if (cancelBtn) cancelBtn.style.display = 'inline-block';
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    },
+
+    resetDebtorForm() {
+        const form = document.getElementById('add-debtor-form');
+        if (form) {
+            form.reset();
+            document.getElementById('debtor-id').value = '';
+            document.getElementById('debtor-form-title').textContent = 'Registrar Deudor';
+            const cancelBtn = document.getElementById('cancel-debtor-edit');
+            if (cancelBtn) cancelBtn.style.display = 'none';
+        }
+    },
+
+    deleteDebtor(id) {
+        if (state.currentUser.role !== ROLES.ADMIN) return;
+        const debtor = state.debtors.find(d => d.id === id);
+        window.StorageAPI.deleteDebtor(id);
+        state.debtors = state.debtors.filter(d => d.id !== id);
+        this.recordActivity('Baja', 'Deudor', `Eliminado deudor ${debtor?.titular}`);
+        this.renderDebtors();
+    },
+
     recordActivity(action, category, details, extraData = null) {
         const log = { action, category, details, extraData };
         window.StorageAPI.saveLog(log);
@@ -1056,6 +1289,32 @@ const UI = {
     },
 
     // --- SISTEMA DE DESHACER (UNDO) ---
+
+    showToast(message, type = 'info') {
+        const container = document.getElementById('toast-container');
+        if (!container) return;
+
+        const toast = document.createElement('div');
+        toast.className = `toast ${type}`;
+
+        let icon = '';
+        if (type === 'success') icon = '<i class="fa-solid fa-check-circle"></i>';
+        if (type === 'error') icon = '<i class="fa-solid fa-circle-exclamation"></i>';
+        if (type === 'warning') icon = '<i class="fa-solid fa-triangle-exclamation"></i>';
+
+        toast.innerHTML = `
+            ${icon}
+            <span class="toast-message">${message}</span>
+        `;
+
+        container.appendChild(toast);
+
+        // Auto-eliminar
+        setTimeout(() => {
+            toast.classList.add('hiding');
+            setTimeout(() => toast.remove(), 300);
+        }, 4000);
+    },
 
     showUndoToast(message) {
         const container = document.getElementById('toast-container');
@@ -1253,19 +1512,14 @@ const UI = {
     // --- EXPORTACIÓN ---
 
     exportTransactionsToExcel() {
-        alert("DEBUG: Click reconocido. Iniciando exportación...");
-
         if (!window.XLSX) {
-            alert("DEBUG: Librería XLSX no encontrada.");
             this.showToast('Error: Librería Excel no cargada. Verifique su conexión internet.', 'error');
             return;
         }
 
         try {
-            alert("DEBUG: Librería encontrada. Filtrando datos...");
             // Usar método centralizado de filtrado
             const dataToExport = this.getFilteredTransactions();
-            alert("DEBUG: Datos filtrados: " + dataToExport.length + " filas.");
 
             if (dataToExport.length === 0) {
                 this.showToast('No hay movimientos visibles para exportar (verifique los filtros)', 'warning');
@@ -1475,6 +1729,114 @@ const UI = {
 
         doc.save(`Balance_${currentYear}.pdf`);
         this.showToast('Exportación a PDF completada', 'success');
+    },
+
+    // --- EXPORTAR DEUDAS ---
+
+    exportDebtsToExcel() {
+        if (!window.XLSX) return this.showToast('Librería Excel no disponible', 'error');
+
+        if (state.debts.length === 0) return this.showToast('No hay deudas para exportar', 'warning');
+
+        const exportData = state.debts.map(d => ({
+            Fecha: d.date,
+            Titular: d.titular,
+            Descripcion: d.description || '',
+            Monto: d.amount
+        }));
+
+        const wb = XLSX.utils.book_new();
+        const ws = XLSX.utils.json_to_sheet(exportData);
+        ws['!cols'] = [{ wch: 12 }, { wch: 25 }, { wch: 30 }, { wch: 15 }];
+
+        XLSX.utils.book_append_sheet(wb, ws, "Deudas");
+        XLSX.writeFile(wb, "Deudas.xlsx");
+        this.showToast('Deudas exportadas a Excel', 'success');
+    },
+
+    exportDebtsToPDF() {
+        if (!window.jspdf) return this.showToast('Librería PDF no disponible', 'error');
+        if (state.debts.length === 0) return this.showToast('No hay deudas para exportar', 'warning');
+
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF();
+
+        doc.setFontSize(18);
+        doc.text("Listado de Deudas", 14, 22);
+        doc.setFontSize(11);
+        doc.text(`Fecha: ${new Date().toLocaleDateString()}`, 14, 30);
+
+        const tableBody = state.debts.map(d => [
+            d.date,
+            d.titular,
+            d.description || '',
+            formatCurrency(d.amount)
+        ]);
+
+        doc.autoTable({
+            startY: 40,
+            head: [['Fecha', 'Titular', 'Descripción', 'Monto']],
+            body: tableBody,
+            theme: 'grid',
+            headStyles: { fillColor: [220, 53, 69] } // Danger Colorish
+        });
+
+        doc.save("Deudas.pdf");
+        this.showToast('Deudas exportadas a PDF', 'success');
+    },
+
+    // --- EXPORTAR DEUDORES ---
+
+    exportDebtorsToExcel() {
+        if (!window.XLSX) return this.showToast('Librería Excel no disponible', 'error');
+
+        if (state.debtors.length === 0) return this.showToast('No hay deudores para exportar', 'warning');
+
+        const exportData = state.debtors.map(d => ({
+            Fecha: d.date,
+            Titular: d.titular,
+            Descripcion: d.description || '',
+            Monto: d.amount
+        }));
+
+        const wb = XLSX.utils.book_new();
+        const ws = XLSX.utils.json_to_sheet(exportData);
+        ws['!cols'] = [{ wch: 12 }, { wch: 25 }, { wch: 30 }, { wch: 15 }];
+
+        XLSX.utils.book_append_sheet(wb, ws, "Deudores");
+        XLSX.writeFile(wb, "Deudores.xlsx");
+        this.showToast('Deudores exportados a Excel', 'success');
+    },
+
+    exportDebtorsToPDF() {
+        if (!window.jspdf) return this.showToast('Librería PDF no disponible', 'error');
+        if (state.debtors.length === 0) return this.showToast('No hay deudores para exportar', 'warning');
+
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF();
+
+        doc.setFontSize(18);
+        doc.text("Listado de Deudores", 14, 22);
+        doc.setFontSize(11);
+        doc.text(`Fecha: ${new Date().toLocaleDateString()}`, 14, 30);
+
+        const tableBody = state.debtors.map(d => [
+            d.date,
+            d.titular,
+            d.description || '',
+            formatCurrency(d.amount)
+        ]);
+
+        doc.autoTable({
+            startY: 40,
+            head: [['Fecha', 'Titular', 'Descripción', 'Monto']],
+            body: tableBody,
+            theme: 'grid',
+            headStyles: { fillColor: [25, 135, 84] } // Success Colorish
+        });
+
+        doc.save("Deudores.pdf");
+        this.showToast('Deudores exportados a PDF', 'success');
     },
 
     handleConceptSubmit(e) {

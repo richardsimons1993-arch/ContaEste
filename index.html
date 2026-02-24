@@ -78,6 +78,12 @@
                     <button class="nav-btn" data-target="transactions">
                         <i class="fa-solid fa-list-ul"></i> Movimientos
                     </button>
+                    <button class="nav-btn" data-target="debts">
+                        <i class="fa-solid fa-hand-holding-dollar"></i> Deudas
+                    </button>
+                    <button class="nav-btn" data-target="debtors">
+                        <i class="fa-solid fa-hand-holding-hand"></i> Deudores
+                    </button>
                     <button class="nav-btn" data-target="dashboard">
                         <i class="fa-solid fa-chart-pie"></i> Balance
                     </button>
@@ -443,6 +449,148 @@
                             </thead>
                             <tbody id="clients-list-body">
                                 <!-- Clientes inyectados por JS -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <!-- VISTA DEUDAS (Lo que debo) -->
+            <section id="debts" class="view-section">
+                <div class="card form-card">
+                    <h2 id="debt-form-title">Registrar Deuda</h2>
+                    <form id="add-debt-form">
+                        <input type="hidden" name="id" id="debt-id">
+                        <div class="grid-2">
+                            <div class="form-group">
+                                <label>Titular (Quien me prestó)</label>
+                                <input type="text" name="titular" required placeholder="Ej: Banco Estado, Juan Perez..."
+                                    oninvalid="this.setCustomValidity('Por favor, ingrese el titular')"
+                                    oninput="this.setCustomValidity('')">
+                            </div>
+                            <div class="form-group">
+                                <label>Monto</label>
+                                <input type="number" name="amount" required placeholder="0.00" step="0.01"
+                                    oninvalid="this.setCustomValidity('Por favor, ingrese el monto')"
+                                    oninput="this.setCustomValidity('')">
+                            </div>
+                        </div>
+                        <div class="grid-2">
+                            <div class="form-group">
+                                <label>Fecha de Vencimiento / Registro</label>
+                                <input type="date" name="date" required>
+                            </div>
+                            <div class="form-group">
+                                <label>Descripción / Observación</label>
+                                <input type="text" name="description" placeholder="Detalles de la deuda...">
+                            </div>
+                        </div>
+                        <div class="form-actions mt-3">
+                            <button type="submit" class="btn-secondary">Guardar Deuda</button>
+                            <button type="button" id="cancel-debt-edit" class="btn-text"
+                                style="display: none;">Cancelar</button>
+                        </div>
+                    </form>
+                </div>
+
+                <div class="card mt-4">
+                    <div
+                        style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                        <h3 style="margin: 0;">Listado de Deudas</h3>
+                        <div class="actions" style="display: flex; gap: 0.5rem;">
+                            <button class="btn-sm btn-outline-success" id="btn-export-debts-excel"
+                                title="Exportar Excel">
+                                <i class="fa-solid fa-file-excel"></i> Excel
+                            </button>
+                            <button class="btn-sm btn-outline-danger" id="btn-export-debts-pdf" title="Exportar PDF">
+                                <i class="fa-solid fa-file-pdf"></i> PDF
+                            </button>
+                        </div>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Fecha</th>
+                                    <th>Titular</th>
+                                    <th>Descripción</th>
+                                    <th>Monto</th>
+                                    <th>Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody id="debts-list-body">
+                                <!-- Inyectado por JS -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <!-- VISTA DEUDORES (Quien me debe) -->
+            <section id="debtors" class="view-section">
+                <div class="card form-card">
+                    <h2 id="debtor-form-title">Registrar Deudor</h2>
+                    <form id="add-debtor-form">
+                        <input type="hidden" name="id" id="debtor-id">
+                        <div class="grid-2">
+                            <div class="form-group">
+                                <label>Titular (Quien me debe)</label>
+                                <input type="text" name="titular" required placeholder="Ej: Cliente X, Amigo Y..."
+                                    oninvalid="this.setCustomValidity('Por favor, ingrese el titular')"
+                                    oninput="this.setCustomValidity('')">
+                            </div>
+                            <div class="form-group">
+                                <label>Monto</label>
+                                <input type="number" name="amount" required placeholder="0.00" step="0.01"
+                                    oninvalid="this.setCustomValidity('Por favor, ingrese el monto')"
+                                    oninput="this.setCustomValidity('')">
+                            </div>
+                        </div>
+                        <div class="grid-2">
+                            <div class="form-group">
+                                <label>Fecha de Promesa / Registro</label>
+                                <input type="date" name="date" required>
+                            </div>
+                            <div class="form-group">
+                                <label>Descripción / Observación</label>
+                                <input type="text" name="description" placeholder="Detalles de la deuda...">
+                            </div>
+                        </div>
+                        <div class="form-actions mt-3">
+                            <button type="submit" class="btn-secondary">Guardar Deudor</button>
+                            <button type="button" id="cancel-debtor-edit" class="btn-text"
+                                style="display: none;">Cancelar</button>
+                        </div>
+                    </form>
+                </div>
+
+                <div class="card mt-4">
+                    <div
+                        style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                        <h3 style="margin: 0;">Listado de Deudores</h3>
+                        <div class="actions" style="display: flex; gap: 0.5rem;">
+                            <button class="btn-sm btn-outline-success" id="btn-export-debtors-excel"
+                                title="Exportar Excel">
+                                <i class="fa-solid fa-file-excel"></i> Excel
+                            </button>
+                            <button class="btn-sm btn-outline-danger" id="btn-export-debtors-pdf" title="Exportar PDF">
+                                <i class="fa-solid fa-file-pdf"></i> PDF
+                            </button>
+                        </div>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Fecha</th>
+                                    <th>Titular</th>
+                                    <th>Descripción</th>
+                                    <th>Monto</th>
+                                    <th>Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody id="debtors-list-body">
+                                <!-- Inyectado por JS -->
                             </tbody>
                         </table>
                     </div>
