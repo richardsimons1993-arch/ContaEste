@@ -5,6 +5,7 @@ const sql = require('mssql/msnodesqlv8');
 const app = express();
 app.use(cors());
 app.use(express.json());
+app.use(express.static(__dirname)); // Sirve HTML, JS y CSS automáticamente
 
 // Configuración de Conexión a SQL Server usando driver nativo (para evitar problemas de TCP/IP)
 const dbConfig = {
@@ -23,13 +24,15 @@ let poolPromise = new sql.ConnectionPool(dbConfig)
 const getApi = async (req, res, table) => {
     try {
         const pool = await poolPromise;
-        const result = await pool.request().query(`SELECT * FROM ${table}`);
+        let query = `SELECT * FROM ${table}`;
 
-        // Formatear las fechas para que no incluyan la hora si no es necesario o en formato correcto
-        // Esto depende de cómo lo consuma app.js
-        const records = result.recordset;
-        // Algunas transformaciones pueden ser necesarias...
-        res.json(records);
+        // Aliases para compatibilidad con el frontend
+        if (table === 'Clients') query = `SELECT *, name as razonSocial FROM Clients`;
+        if (table === 'Debts') query = `SELECT *, creditor as titular, dueDate as date FROM Debts`;
+        if (table === 'Debtors') query = `SELECT *, debtor as titular, dueDate as date FROM Debtors`;
+
+        const result = await pool.request().query(query);
+        res.json(result.recordset);
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
@@ -50,20 +53,26 @@ const deleteApi = async (req, res, table) => {
 // --- ENDPOINTS PARA TRANSACTIONS ---
 app.get('/api/transactions', (req, res) => getApi(req, res, 'Transactions'));
 app.delete('/api/transactions/:id', (req, res) => deleteApi(req, res, 'Transactions'));
+
 app.post('/api/transactions', async (req, res) => {
     try {
         const t = req.body;
         const pool = await poolPromise;
 
-        // Si editando (en Contabilidad, el app.js podría borrar y re-crear o simplemente pasar id existente)
-        // Usamos upsert
+        // Validar tipo según concepto (Seguridad extra)
+        const conceptCheck = await pool.request()
+            .input('cid', sql.VarChar, t.conceptId)
+            .query('SELECT type FROM Concepts WHERE id = @cid');
+
+        const finalType = conceptCheck.recordset.length > 0 ? conceptCheck.recordset[0].type : t.type;
+
         const check = await pool.request().input('id', sql.VarChar, t.id).query('SELECT id FROM Transactions WHERE id = @id');
 
         if (check.recordset.length > 0) {
             await pool.request()
                 .input('id', sql.VarChar, t.id)
                 .input('date', sql.Date, t.date)
-                .input('type', sql.VarChar, t.type)
+                .input('type', sql.VarChar, finalType)
                 .input('conceptId', sql.VarChar, t.conceptId)
                 .input('clientId', sql.VarChar, t.clientId)
                 .input('amount', sql.Decimal(18, 2), t.amount)
@@ -73,14 +82,14 @@ app.post('/api/transactions', async (req, res) => {
             await pool.request()
                 .input('id', sql.VarChar, t.id)
                 .input('date', sql.Date, t.date)
-                .input('type', sql.VarChar, t.type)
+                .input('type', sql.VarChar, finalType)
                 .input('conceptId', sql.VarChar, t.conceptId)
                 .input('clientId', sql.VarChar, t.clientId)
                 .input('amount', sql.Decimal(18, 2), t.amount)
                 .input('observation', sql.VarChar(sql.MAX), t.observation)
                 .query(`INSERT INTO Transactions (id, date, type, conceptId, clientId, amount, observation) VALUES (@id, @date, @type, @conceptId, @clientId, @amount, @observation)`);
         }
-        res.json(t);
+        res.json({ ...t, type: finalType });
     } catch (err) {
         console.error(err);
         res.status(500).json({ error: err.message });
@@ -115,31 +124,62 @@ app.post('/api/concepts', async (req, res) => {
 });
 
 // --- ENDPOINTS PARA CLIENTS ---
-app.get('/api/clients', (req, res) => getApi(req, res, 'Clients'));
+app.get('/api/clients', async (req, res) => {
+    try {
+        const pool = await poolPromise;
+        const result = await pool.request().query('SELECT * FROM Clients');
+        const clients = result.recordset.map(c => ({
+            id: c.id,
+            razonSocial: c.name,
+            nombreFantasia: c.nombreFantasia,
+            rut: c.rut,
+            encargado: c.encargado,
+            telefono: c.phone,
+            correo: c.email,
+            direccion: c.address
+        }));
+        res.json(clients);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 app.delete('/api/clients/:id', (req, res) => deleteApi(req, res, 'Clients'));
+
 app.post('/api/clients', async (req, res) => {
     try {
         const c = req.body;
         const pool = await poolPromise;
-        const check = await pool.request().input('id', sql.VarChar, c.id).query('SELECT id FROM Clients WHERE id = @id');
+        const clientId = c.id;
+
+        const check = await pool.request().input('id', sql.VarChar, clientId).query('SELECT id FROM Clients WHERE id = @id');
+
+        const clientName = c.razonSocial || c.name || 'Sin Nombre';
+
         if (check.recordset.length > 0) {
             await pool.request()
-                .input('id', sql.VarChar, c.id)
-                .input('name', sql.VarChar, c.name)
-                .input('phone', sql.VarChar, c.phone || null)
-                .input('email', sql.VarChar, c.email || null)
-                .input('address', sql.VarChar, c.address || null)
-                .query(`UPDATE Clients SET name=@name, phone=@phone, email=@email, address=@address WHERE id=@id`);
+                .input('id', sql.VarChar, clientId)
+                .input('name', sql.VarChar, clientName)
+                .input('nombreFantasia', sql.VarChar, c.nombreFantasia || null)
+                .input('rut', sql.VarChar, c.rut || null)
+                .input('encargado', sql.VarChar, c.encargado || null)
+                .input('phone', sql.VarChar, c.telefono || null)
+                .input('email', sql.VarChar, c.correo || null)
+                .input('address', sql.VarChar, c.direccion || null)
+                .query(`UPDATE Clients SET name=@name, nombreFantasia=@nombreFantasia, rut=@rut, encargado=@encargado, phone=@phone, email=@email, address=@address WHERE id=@id`);
         } else {
             await pool.request()
-                .input('id', sql.VarChar, c.id)
-                .input('name', sql.VarChar, c.name)
-                .input('phone', sql.VarChar, c.phone || null)
-                .input('email', sql.VarChar, c.email || null)
-                .input('address', sql.VarChar, c.address || null)
-                .query(`INSERT INTO Clients (id, name, phone, email, address) VALUES (@id, @name, @phone, @email, @address)`);
+                .input('id', sql.VarChar, clientId)
+                .input('name', sql.VarChar, clientName)
+                .input('nombreFantasia', sql.VarChar, c.nombreFantasia || null)
+                .input('rut', sql.VarChar, c.rut || null)
+                .input('encargado', sql.VarChar, c.encargado || null)
+                .input('phone', sql.VarChar, c.telefono || null)
+                .input('email', sql.VarChar, c.correo || null)
+                .input('address', sql.VarChar, c.direccion || null)
+                .query(`INSERT INTO Clients (id, name, nombreFantasia, rut, encargado, phone, email, address) VALUES (@id, @name, @nombreFantasia, @rut, @encargado, @phone, @email, @address)`);
         }
-        res.json(c);
+        res.json({ success: true, id: clientId });
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
@@ -227,14 +267,10 @@ app.get('/api/users', async (req, res) => {
 });
 app.delete('/api/users/:id', (req, res) => deleteApi(req, res, 'Users'));
 app.post('/api/users/batch', async (req, res) => {
-    // storage.js saveUsers guarda todos de una vez.
     try {
         const usersArray = req.body;
         const pool = await poolPromise;
-
-        // Limpiamos la tabla y volvemos a insertar (para simplificar la sincronización del array de users)
         await pool.request().query('DELETE FROM Users');
-
         for (let u of usersArray) {
             await pool.request()
                 .input('id', sql.VarChar, u.id)
@@ -255,9 +291,13 @@ app.post('/api/users/batch', async (req, res) => {
 app.get('/api/logs', async (req, res) => {
     try {
         const pool = await poolPromise;
-        // Obtenemos ordenados descendente
         const result = await pool.request().query('SELECT TOP 100 * FROM Logs ORDER BY timestamp DESC');
-        res.json(result.recordset);
+        const logs = result.recordset.map(l => ({
+            ...l,
+            category: l.module, // Alias para compatibilidad con código antiguo
+            extraData: l.extraData ? JSON.parse(l.extraData) : null
+        }));
+        res.json(logs);
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
@@ -270,10 +310,11 @@ app.post('/api/logs', async (req, res) => {
             .input('id', sql.VarChar, l.id)
             .input('action', sql.VarChar, l.action)
             .input('module', sql.VarChar, l.module)
+            .input('userName', sql.VarChar, l.userName || 'Sistema')
             .input('details', sql.VarChar(sql.MAX), l.details || '')
             .input('timestamp', sql.DateTime, new Date(l.timestamp))
-            .query(`INSERT INTO Logs (id, action, module, details, timestamp) VALUES (@id, @action, @module, @details, @timestamp)`);
-
+            .input('extraData', sql.VarChar(sql.MAX), l.extraData ? JSON.stringify(l.extraData) : null)
+            .query(`INSERT INTO Logs (id, action, module, userName, details, timestamp, extraData) VALUES (@id, @action, @module, @userName, @details, @timestamp, @extraData)`);
         res.json(l);
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -281,4 +322,8 @@ app.post('/api/logs', async (req, res) => {
 });
 
 const PORT = 3000;
-app.listen(PORT, () => console.log(`🚀 Servidor ejecutándose en el puerto ${PORT}`));
+app.listen(PORT, '0.0.0.0', () => {
+    console.log(`🚀 Servidor iniciado y accesible en red local`);
+    console.log(`🏠 Local: http://localhost:${PORT}`);
+    console.log(`🌐 Red:  http://192.168.130.129:${PORT}`);
+});

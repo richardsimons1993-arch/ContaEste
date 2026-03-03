@@ -1,4 +1,4 @@
-const API_BASE = 'http://localhost:3000/api';
+const API_BASE = `${window.location.origin}/api`;
 
 // Función auxiliar para hacer peticiones síncronas. 
 // Evita tener que reescribir todo app.js (1900 líneas) de síncrono a asíncrono.

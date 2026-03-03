@@ -193,7 +193,7 @@
                     <h2 id="transaction-form-title">Registrar Movimiento</h2>
                     <form id="add-transaction-form">
                         <input type="hidden" name="id" id="transaction-id">
-                        <div class="form-group type-toggle-group">
+                        <div class="form-group type-toggle-group" style="display: none;">
                             <label>Tipo de Movimiento</label>
                             <div class="type-toggle">
                                 <input type="radio" name="type" id="type-income" value="income" checked>
@@ -206,7 +206,7 @@
 
                         <div class="form-group">
                             <label for="amount">Monto</label>
-                            <input type="number" id="amount" name="amount" placeholder="0.00" step="0.01" required
+                            <input type="text" id="amount" name="amount" class="amount-input" placeholder="0" required
                                 oninvalid="this.setCustomValidity('Por favor, ingrese el monto')"
                                 oninput="this.setCustomValidity('')">
                         </div>
@@ -470,7 +470,7 @@
                             </div>
                             <div class="form-group">
                                 <label>Monto</label>
-                                <input type="number" name="amount" required placeholder="0.00" step="0.01"
+                                <input type="text" name="amount" class="amount-input" required placeholder="0"
                                     oninvalid="this.setCustomValidity('Por favor, ingrese el monto')"
                                     oninput="this.setCustomValidity('')">
                             </div>
@@ -541,7 +541,7 @@
                             </div>
                             <div class="form-group">
                                 <label>Monto</label>
-                                <input type="number" name="amount" required placeholder="0.00" step="0.01"
+                                <input type="text" name="amount" class="amount-input" required placeholder="0"
                                     oninvalid="this.setCustomValidity('Por favor, ingrese el monto')"
                                     oninput="this.setCustomValidity('')">
                             </div>

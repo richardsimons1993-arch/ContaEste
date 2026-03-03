@@ -27,7 +27,32 @@ const DEFAULT_USERS = [
 
 // Ayudante de Formateo de Moneda
 const formatCurrency = (amount) => {
-    return new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(amount);
+    return new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP' }).format(amount);
+};
+
+// Ayudante de Formateo de Fecha (DD/MM/YYYY)
+const formatDate = (dateStr) => {
+    if (!dateStr) return '-';
+    // Tomar solo la parte de la fecha (YYYY-MM-DD) si viene con hora
+    const cleanDate = dateStr.includes('T') ? dateStr.split('T')[0] : dateStr;
+    const parts = cleanDate.split('-');
+    if (parts.length !== 3) return dateStr;
+    return `${parts[2]}/${parts[1]}/${parts[0]}`;
+};
+
+// Formatear monto con puntos mientras se escribe
+const formatAmountInput = (input) => {
+    let value = input.value.replace(/\D/g, '');
+    if (value === "") {
+        input.value = "";
+        return;
+    }
+    input.value = new Intl.NumberFormat('es-CL').format(value);
+};
+
+// Limpiar formato para guardar (quitar puntos)
+const parseAmount = (formattedValue) => {
+    return parseFloat(formattedValue.replace(/\./g, '')) || 0;
 };
 
 // Controlador de la Interfaz de Usuario (UI)
@@ -63,15 +88,17 @@ const UI = {
     },
 
     loadData() {
-        state.transactions = window.StorageAPI.getTransactions();
-        state.concepts = window.StorageAPI.getConcepts();
-        state.clients = window.StorageAPI.getClients();
-        state.debts = window.StorageAPI.getDebts();
-        state.debtors = window.StorageAPI.getDebtors();
-        state.logs = window.StorageAPI.getLogs();
+        const cleanDate = (d) => (d && d.includes('T')) ? d.split('T')[0] : d;
+
+        state.transactions = (window.StorageAPI.getTransactions() || []).map(t => ({ ...t, date: cleanDate(t.date) }));
+        state.concepts = window.StorageAPI.getConcepts() || [];
+        state.clients = window.StorageAPI.getClients() || [];
+        state.debts = (window.StorageAPI.getDebts() || []).map(d => ({ ...d, date: cleanDate(d.date) }));
+        state.debtors = (window.StorageAPI.getDebtors() || []).map(d => ({ ...d, date: cleanDate(d.date) }));
+        state.logs = window.StorageAPI.getLogs() || [];
 
         // Cargar usuarios o inicializar con por defecto
-        state.users = window.StorageAPI.getUsers();
+        state.users = window.StorageAPI.getUsers() || [];
         if (state.users.length === 0) {
             state.users = [...DEFAULT_USERS];
             window.StorageAPI.saveUsers(state.users);
@@ -124,7 +151,24 @@ const UI = {
 
         // Formularios
         const txForm = document.getElementById('add-transaction-form');
-        if (txForm) txForm.addEventListener('submit', (e) => this.handleTransactionSubmit(e));
+        if (txForm) {
+            txForm.addEventListener('submit', (e) => this.handleTransactionSubmit(e));
+
+            // Sincronizar Tipo (Ingreso/Egreso) según concepto seleccionado
+            const conceptSelect = txForm.querySelector('#concept');
+            if (conceptSelect) {
+                conceptSelect.addEventListener('change', (e) => {
+                    const conceptId = e.target.value;
+                    if (!conceptId) return;
+
+                    const concept = state.concepts.find(c => c.id === conceptId);
+                    if (concept) {
+                        const typeRadio = txForm.querySelector(`input[name="type"][value="${concept.type}"]`);
+                        if (typeRadio) typeRadio.checked = true;
+                    }
+                });
+            }
+        }
 
         const conceptForm = document.getElementById('add-concept-form');
         if (conceptForm) conceptForm.addEventListener('submit', (e) => this.handleConceptSubmit(e));
@@ -263,6 +307,11 @@ const UI = {
         document.addEventListener('click', () => {
             const menu = document.getElementById('user-dropdown-menu');
             if (menu) menu.classList.remove('active');
+        });
+
+        // --- FORMATEO DE MONTOS EN TIEMPO REAL ---
+        document.querySelectorAll('.amount-input').forEach(input => {
+            input.addEventListener('input', (e) => formatAmountInput(e.target));
         });
     },
 
@@ -528,7 +577,9 @@ const UI = {
         const currentYear = now.getFullYear();
 
         transactions.forEach(t => {
-            const tDate = new Date(t.date + 'T00:00:00');
+            // Asegurar que solo tomamos la parte de fecha antes de añadir T00:00:00
+            const cleanDate = t.date.split('T')[0];
+            const tDate = new Date(cleanDate + 'T00:00:00');
 
             if (tDate.getMonth() === currentMonth && tDate.getFullYear() === currentYear) {
                 if (t.type === 'income') income += parseFloat(t.amount);
@@ -565,7 +616,8 @@ const UI = {
         // Calcular balance de años anteriores (Saldo Inicial)
         let accumulatedBalance = 0;
         transactions.forEach(t => {
-            const tDate = new Date(t.date + 'T00:00:00');
+            const cleanDate = t.date.split('T')[0];
+            const tDate = new Date(cleanDate + 'T00:00:00');
             if (tDate.getFullYear() < currentYear) {
                 if (t.type === 'income') accumulatedBalance += parseFloat(t.amount);
                 if (t.type === 'expense') accumulatedBalance -= parseFloat(t.amount);
@@ -574,7 +626,8 @@ const UI = {
 
         // Agregar datos del año actual
         transactions.forEach(t => {
-            const tDate = new Date(t.date + 'T00:00:00');
+            const cleanDate = t.date.split('T')[0];
+            const tDate = new Date(cleanDate + 'T00:00:00');
             if (tDate.getFullYear() === currentYear) {
                 const m = tDate.getMonth(); // 0-11
                 if (t.type === 'income') yearData[m].income += parseFloat(t.amount);
@@ -681,10 +734,11 @@ const UI = {
 
             const row = document.createElement('tr');
             const conceptName = state.concepts.find(c => c.id === t.conceptId)?.name || 'Desconocido';
-            const clientName = state.clients.find(c => c.id === t.clientId)?.name || '-';
+            const client = state.clients.find(c => c.id === t.clientId);
+            const clientName = client ? (client.razonSocial || client.name) : '-';
 
             row.innerHTML = `
-                <td>${t.date}</td>
+                <td>${formatDate(t.date)}</td>
                 <td><span class="tag ${t.type}">${t.type === 'income' ? 'Ingreso' : 'Egreso'}</span></td>
                 <td>${conceptName}</td>
                 <td>${clientName}</td>
@@ -741,14 +795,15 @@ const UI = {
             state.clients.forEach(c => {
                 const option = document.createElement('option');
                 option.value = c.id;
-                option.textContent = c.name;
+                // Usar razonSocial, si no existe usar name (del backend mapeado)
+                option.textContent = c.razonSocial || c.name || 'Sin Nombre';
                 clientSelect.appendChild(option);
             });
         }
 
         // 2. Desplegables de Filtros Personalizados
         this.renderCustomDropdownOptions('concept', state.concepts, 'name');
-        this.renderCustomDropdownOptions('client', state.clients, 'name');
+        this.renderCustomDropdownOptions('client', state.clients, 'razonSocial');
     },
 
     // --- AYUDANTES DE DESPLEGABLES PERSONALIZADOS ---
@@ -928,6 +983,8 @@ const UI = {
         document.getElementById('client-form-title').textContent = 'Editar Cliente';
         const cancelBtn = document.getElementById('cancel-client-edit');
         if (cancelBtn) cancelBtn.style.display = 'inline-block';
+
+        this.switchView('clients');
         window.scrollTo({ top: 0, behavior: 'smooth' });
     },
 
@@ -968,7 +1025,7 @@ const UI = {
         state.debts.forEach(d => {
             const tr = document.createElement('tr');
             tr.innerHTML = `
-                <td>${d.date}</td>
+                <td>${formatDate(d.date)}</td>
                 <td>${d.titular}</td>
                 <td>${d.description || '-'}</td>
                 <td style="font-weight:bold; color: var(--danger-color)">${formatCurrency(d.amount)}</td>
@@ -994,7 +1051,7 @@ const UI = {
         const debt = {
             id: id || Date.now().toString(),
             titular: formData.get('titular'),
-            amount: parseFloat(formData.get('amount')),
+            amount: parseAmount(formData.get('amount')),
             date: formData.get('date'),
             description: formData.get('description')
         };
@@ -1002,16 +1059,13 @@ const UI = {
         window.StorageAPI.saveDebt(debt);
 
         if (id) {
-            const index = state.debts.findIndex(d => d.id === id);
-            state.debts[index] = debt;
             this.recordActivity('Modificación', 'Deuda', `Actualizada deuda a ${debt.titular}`);
         } else {
-            state.debts.push(debt);
             this.recordActivity('Alta', 'Deuda', `Registrada deuda a ${debt.titular}`);
         }
 
-        this.resetDebtForm();
-        this.renderDebts();
+        this.loadData();
+        this.switchView('debts');
     },
 
     editDebt(id) {
@@ -1021,7 +1075,7 @@ const UI = {
         const form = document.getElementById('add-debt-form');
         document.getElementById('debt-id').value = debt.id;
         form.elements['titular'].value = debt.titular;
-        form.elements['amount'].value = debt.amount;
+        form.elements['amount'].value = new Intl.NumberFormat('es-CL').format(debt.amount);
         form.elements['date'].value = debt.date;
         form.elements['description'].value = debt.description || '';
 
@@ -1061,7 +1115,7 @@ const UI = {
         state.debtors.forEach(d => {
             const tr = document.createElement('tr');
             tr.innerHTML = `
-                <td>${d.date}</td>
+                <td>${formatDate(d.date)}</td>
                 <td>${d.titular}</td>
                 <td>${d.description || '-'}</td>
                 <td style="font-weight:bold; color: var(--secondary-color)">${formatCurrency(d.amount)}</td>
@@ -1087,7 +1141,7 @@ const UI = {
         const debtor = {
             id: id || Date.now().toString(),
             titular: formData.get('titular'),
-            amount: parseFloat(formData.get('amount')),
+            amount: parseAmount(formData.get('amount')),
             date: formData.get('date'),
             description: formData.get('description')
         };
@@ -1095,16 +1149,13 @@ const UI = {
         window.StorageAPI.saveDebtor(debtor);
 
         if (id) {
-            const index = state.debtors.findIndex(d => d.id === id);
-            state.debtors[index] = debtor;
             this.recordActivity('Modificación', 'Deudor', `Actualizado deudor ${debtor.titular}`);
         } else {
-            state.debtors.push(debtor);
             this.recordActivity('Alta', 'Deudor', `Registrado deudor ${debtor.titular}`);
         }
 
-        this.resetDebtorForm();
-        this.renderDebtors();
+        this.loadData();
+        this.switchView('debtors');
     },
 
     editDebtor(id) {
@@ -1114,7 +1165,7 @@ const UI = {
         const form = document.getElementById('add-debtor-form');
         document.getElementById('debtor-id').value = debtor.id;
         form.elements['titular'].value = debtor.titular;
-        form.elements['amount'].value = debtor.amount;
+        form.elements['amount'].value = new Intl.NumberFormat('es-CL').format(debtor.amount);
         form.elements['date'].value = debtor.date;
         form.elements['description'].value = debtor.description || '';
 
@@ -1144,10 +1195,18 @@ const UI = {
         this.renderDebtors();
     },
 
-    recordActivity(action, category, details, extraData = null) {
-        const log = { action, category, details, extraData };
+    recordActivity(action, module, details, extraData = null) {
+        const log = {
+            action,
+            module,
+            details,
+            extraData,
+            userName: state.currentUser?.name || state.currentUser?.username || 'Sistema'
+        };
         window.StorageAPI.saveLog(log);
-        state.logs = window.StorageAPI.getLogs(); // Refrescar estado
+        state.logs = window.StorageAPI.getLogs() || []; // Refrescar estado
+        // Si estamos en la vista de actividad, re-renderizar
+        if (state.currentView === 'activity') this.renderActivity();
     },
 
     renderActivity() {
@@ -1163,7 +1222,11 @@ const UI = {
         state.logs.forEach(log => {
             const date = new Date(log.timestamp);
             const timeStr = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-            const dateStr = date.toLocaleDateString();
+            // Formato DD/MM/YYYY manual para coherencia
+            const day = String(date.getDate()).padStart(2, '0');
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const year = date.getFullYear();
+            const dateStr = `${day}/${month}/${year}`;
 
             const logEntry = document.createElement('div');
             logEntry.className = 'activity-item';
@@ -1182,11 +1245,14 @@ const UI = {
                 <div class="activity-content">
                     <div class="activity-header">
                         <span class="activity-action">${log.action}</span>
-                        <span class="activity-category">${log.category}</span>
+                        <span class="activity-category">${log.module || log.category || 'Varios'}</span>
+                        <span class="activity-user" style="color: var(--text-muted); font-size: 0.85rem; margin-right: auto; margin-left: 10px;">
+                            <i class="fa-solid fa-user"></i> ${log.userName || 'Sistema'}
+                        </span>
                         <span class="activity-time">${dateStr} ${timeStr}</span>
                     </div>
                     <div class="activity-details">${log.details}</div>
-                    ${log.action === 'Baja' && log.extraData && state.currentUser.role === ROLES.ADMIN ? `
+                    ${log.action === 'Baja' && log.extraData && state.currentUser.role === 'administrador' ? `
                         <button class="btn-text text-primary mt-2" onclick="UI.handleUndoFromLog('${log.id}')">
                             <i class="fa-solid fa-rotate-left"></i> Deshacer Eliminación
                         </button>
@@ -1204,11 +1270,20 @@ const UI = {
         const formData = new FormData(e.target);
         const id = formData.get('id');
 
+        let type = formData.get('type');
+        const conceptId = formData.get('concept');
+        const concept = state.concepts.find(c => c.id === conceptId);
+
+        // Seguridad: Si el concepto tiene un tipo definido, forzar ese tipo
+        if (concept && concept.type) {
+            type = concept.type;
+        }
+
         const transaction = {
             id: id || Date.now().toString(),
-            type: formData.get('type'),
-            amount: parseFloat(formData.get('amount')),
-            conceptId: formData.get('concept'),
+            type: type,
+            amount: parseAmount(formData.get('amount')),
+            conceptId: conceptId,
             clientId: formData.get('client') || null,
             date: formData.get('date'),
             observation: formData.get('observation')
@@ -1217,17 +1292,13 @@ const UI = {
         window.StorageAPI.saveTransaction(transaction); // Debería actualizar si el ID ya existe
 
         if (id) {
-            const index = state.transactions.findIndex(t => t.id === id);
-            state.transactions[index] = transaction;
-            const concept = state.concepts.find(c => c.id === transaction.conceptId);
             this.recordActivity('Modificación', 'Movimiento', `Actualizado: ${concept?.name || 'Varios'} por ${formatCurrency(transaction.amount)}`);
         } else {
-            state.transactions.push(transaction);
-            const concept = state.concepts.find(c => c.id === transaction.conceptId);
             this.recordActivity('Alta', 'Movimiento', `Registrado: ${concept?.name || 'Varios'} por ${formatCurrency(transaction.amount)}`);
         }
 
-        this.cancelTransactionEdit();
+        this.loadData();
+        this.switchView('transactions');
         this.renderDashboard();
     },
 
@@ -1242,7 +1313,7 @@ const UI = {
         const radios = form.querySelectorAll('input[name="type"]');
         radios.forEach(r => r.checked = r.value === transaction.type);
 
-        form.elements['amount'].value = transaction.amount;
+        form.elements['amount'].value = new Intl.NumberFormat('es-CL').format(transaction.amount);
         form.elements['concept'].value = transaction.conceptId;
         form.elements['client'].value = transaction.clientId || '';
         form.elements['date'].value = transaction.date;
@@ -1260,6 +1331,8 @@ const UI = {
         const form = document.getElementById('add-transaction-form');
         if (form) {
             form.reset();
+            const idInput = document.getElementById('transaction-id');
+            if (idInput) idInput.value = '';
             document.getElementById('transaction-form-title').textContent = 'Registrar Movimiento';
             document.getElementById('btn-save-transaction').textContent = 'Guardar Movimiento';
             document.getElementById('cancel-transaction-edit').style.display = 'none';
@@ -1365,8 +1438,11 @@ const UI = {
     },
 
     handleUndoFromLog(logId) {
-        const log = state.logs.find(l => l.id === logId);
-        if (!log || !log.extraData || log.action !== 'Baja') return;
+        const log = state.logs.find(l => l.id == logId);
+        if (!log || !log.extraData || log.action !== 'Baja') {
+            console.warn("No se puede deshacer: log inválido o sin datos extra", log);
+            return;
+        }
 
         const { type, item } = log.extraData;
         console.log("Restaurando desde log:", type, item);
@@ -1388,12 +1464,9 @@ const UI = {
             this.renderTransactionFormOptions();
         }
 
-        this.recordActivity('Restauración', log.category, `Restaurado desde historial: ${log.details}`);
+        this.recordActivity('Restauración', log.module || log.category || 'Varios', `Restaurado desde historial: ${log.details}`);
 
-        // Actualizar la vista de actividad para reflejar el cambio
         this.renderActivity();
-
-        // Mostrar confirmación
         this.showUndoToast("Elemento restaurado exitosamente");
     },
 
@@ -1529,7 +1602,8 @@ const UI = {
             // Mapear datos a formato amigable
             const exportData = dataToExport.map(t => {
                 const conceptName = state.concepts.find(c => c.id === t.conceptId)?.name || 'Desconocido';
-                const clientName = state.clients.find(c => c.id === t.clientId)?.name || '-';
+                const client = state.clients.find(c => c.id === t.clientId);
+                const clientName = client ? (client.razonSocial || client.name) : '-';
                 return {
                     Fecha: t.date,
                     Tipo: t.type === 'income' ? 'Ingreso' : 'Egreso',
@@ -1588,7 +1662,8 @@ const UI = {
         // Datos para tabla
         const tableBody = dataToExport.map(t => {
             const conceptName = state.concepts.find(c => c.id === t.conceptId)?.name || 'Desconocido';
-            const clientName = state.clients.find(c => c.id === t.clientId)?.name || '-';
+            const client = state.clients.find(c => c.id === t.clientId);
+            const clientName = client ? (client.razonSocial || client.name) : '-';
             return [
                 t.date,
                 t.type === 'income' ? 'Ingreso' : 'Egreso',
@@ -1890,9 +1965,12 @@ const UI = {
         const cancelBtn = document.getElementById('cancel-client-edit');
         if (cancelBtn) cancelBtn.style.display = 'none';
 
+        this.loadData();
+        this.switchView('clients');
         this.renderClients();
     }
 };
 
 // Inicialización
+window.UI = UI;
 document.addEventListener('DOMContentLoaded', () => UI.init());
