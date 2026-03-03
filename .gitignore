@@ -1,0 +1,6 @@
+node_modules/
+.vscode/
+test_*.js
+audit_test.js
+validate_persistence.js
+package-lock.json

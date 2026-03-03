@@ -1,22 +1,14 @@
 const express = require('express');
 const cors = require('cors');
-const sql = require('mssql');
+const sql = require('mssql/msnodesqlv8');
 
 const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Configuración de Conexión a SQL Server
+// Configuración de Conexión a SQL Server usando driver nativo (para evitar problemas de TCP/IP)
 const dbConfig = {
-    user: 'sa',
-    password: 'S0p0rt3!!2025',
-    server: 'localhost',
-    port: 64514,
-    database: 'ContabilidadDB',
-    options: {
-        encrypt: true,
-        trustServerCertificate: true // Importante para desarrollo local
-    }
+    connectionString: 'Driver={ODBC Driver 18 for SQL Server};Server=localhost\\SIMONS;Database=ContabilidadDB;UID=sa;PWD=S0p0rt3!!2025;Encrypt=yes;TrustServerCertificate=yes;'
 };
 
 let poolPromise = new sql.ConnectionPool(dbConfig)
@@ -75,7 +67,7 @@ app.post('/api/transactions', async (req, res) => {
                 .input('conceptId', sql.VarChar, t.conceptId)
                 .input('clientId', sql.VarChar, t.clientId)
                 .input('amount', sql.Decimal(18, 2), t.amount)
-                .input('observation', sql.Text, t.observation)
+                .input('observation', sql.VarChar(sql.MAX), t.observation)
                 .query(`UPDATE Transactions SET date=@date, type=@type, conceptId=@conceptId, clientId=@clientId, amount=@amount, observation=@observation WHERE id=@id`);
         } else {
             await pool.request()
@@ -85,7 +77,7 @@ app.post('/api/transactions', async (req, res) => {
                 .input('conceptId', sql.VarChar, t.conceptId)
                 .input('clientId', sql.VarChar, t.clientId)
                 .input('amount', sql.Decimal(18, 2), t.amount)
-                .input('observation', sql.Text, t.observation)
+                .input('observation', sql.VarChar(sql.MAX), t.observation)
                 .query(`INSERT INTO Transactions (id, date, type, conceptId, clientId, amount, observation) VALUES (@id, @date, @type, @conceptId, @clientId, @amount, @observation)`);
         }
         res.json(t);
@@ -167,7 +159,7 @@ app.post('/api/debts', async (req, res) => {
                 .input('creditor', sql.VarChar, d.creditor)
                 .input('amount', sql.Decimal(18, 2), d.amount)
                 .input('dueDate', sql.Date, d.dueDate)
-                .input('description', sql.Text, d.description || '')
+                .input('description', sql.VarChar(sql.MAX), d.description || '')
                 .input('status', sql.VarChar, d.status || 'pending')
                 .query(`UPDATE Debts SET creditor=@creditor, amount=@amount, dueDate=@dueDate, description=@description, status=@status WHERE id=@id`);
         } else {
@@ -176,7 +168,7 @@ app.post('/api/debts', async (req, res) => {
                 .input('creditor', sql.VarChar, d.creditor)
                 .input('amount', sql.Decimal(18, 2), d.amount)
                 .input('dueDate', sql.Date, d.dueDate)
-                .input('description', sql.Text, d.description || '')
+                .input('description', sql.VarChar(sql.MAX), d.description || '')
                 .input('status', sql.VarChar, d.status || 'pending')
                 .query(`INSERT INTO Debts (id, creditor, amount, dueDate, description, status) VALUES (@id, @creditor, @amount, @dueDate, @description, @status)`);
         }
@@ -200,7 +192,7 @@ app.post('/api/debtors', async (req, res) => {
                 .input('debtor', sql.VarChar, d.debtor)
                 .input('amount', sql.Decimal(18, 2), d.amount)
                 .input('dueDate', sql.Date, d.dueDate)
-                .input('description', sql.Text, d.description || '')
+                .input('description', sql.VarChar(sql.MAX), d.description || '')
                 .input('status', sql.VarChar, d.status || 'pending')
                 .query(`UPDATE Debtors SET debtor=@debtor, amount=@amount, dueDate=@dueDate, description=@description, status=@status WHERE id=@id`);
         } else {
@@ -209,7 +201,7 @@ app.post('/api/debtors', async (req, res) => {
                 .input('debtor', sql.VarChar, d.debtor)
                 .input('amount', sql.Decimal(18, 2), d.amount)
                 .input('dueDate', sql.Date, d.dueDate)
-                .input('description', sql.Text, d.description || '')
+                .input('description', sql.VarChar(sql.MAX), d.description || '')
                 .input('status', sql.VarChar, d.status || 'pending')
                 .query(`INSERT INTO Debtors (id, debtor, amount, dueDate, description, status) VALUES (@id, @debtor, @amount, @dueDate, @description, @status)`);
         }
@@ -278,7 +270,7 @@ app.post('/api/logs', async (req, res) => {
             .input('id', sql.VarChar, l.id)
             .input('action', sql.VarChar, l.action)
             .input('module', sql.VarChar, l.module)
-            .input('details', sql.Text, l.details || '')
+            .input('details', sql.VarChar(sql.MAX), l.details || '')
             .input('timestamp', sql.DateTime, new Date(l.timestamp))
             .query(`INSERT INTO Logs (id, action, module, details, timestamp) VALUES (@id, @action, @module, @details, @timestamp)`);
 
