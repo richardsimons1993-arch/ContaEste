@@ -72,6 +72,7 @@ const UI = {
             this.renderClients();
             this.setupCustomDropdowns(); // Inicializar oyentes para menús desplegables
             this.renderTransactionFormOptions(); // Rellenar formulario y filtros
+            this.initDatePickers(); // Inicializar Flatpickr
 
             // Si hay sesión, cargar la UI normal
             if (state.currentUser) {
@@ -1968,6 +1969,18 @@ const UI = {
         this.loadData();
         this.switchView('clients');
         this.renderClients();
+    },
+
+    initDatePickers() {
+        if (typeof flatpickr !== 'undefined') {
+            flatpickr('input[type="date"]', {
+                locale: 'es',
+                dateFormat: 'Y-m-d',
+                allowInput: true
+            });
+        } else {
+            console.warn("Flatpickr no está cargado.");
+        }
     }
 };
 

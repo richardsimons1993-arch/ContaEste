@@ -191,23 +191,25 @@ app.delete('/api/debts/:id', (req, res) => deleteApi(req, res, 'Debts'));
 app.post('/api/debts', async (req, res) => {
     try {
         const d = req.body;
+        const creditor = d.creditor || d.titular;
+        const dueDate = d.dueDate || d.date;
         const pool = await poolPromise;
         const check = await pool.request().input('id', sql.VarChar, d.id).query('SELECT id FROM Debts WHERE id = @id');
         if (check.recordset.length > 0) {
             await pool.request()
                 .input('id', sql.VarChar, d.id)
-                .input('creditor', sql.VarChar, d.creditor)
+                .input('creditor', sql.VarChar, creditor)
                 .input('amount', sql.Decimal(18, 2), d.amount)
-                .input('dueDate', sql.Date, d.dueDate)
+                .input('dueDate', sql.Date, dueDate)
                 .input('description', sql.VarChar(sql.MAX), d.description || '')
                 .input('status', sql.VarChar, d.status || 'pending')
                 .query(`UPDATE Debts SET creditor=@creditor, amount=@amount, dueDate=@dueDate, description=@description, status=@status WHERE id=@id`);
         } else {
             await pool.request()
                 .input('id', sql.VarChar, d.id)
-                .input('creditor', sql.VarChar, d.creditor)
+                .input('creditor', sql.VarChar, creditor)
                 .input('amount', sql.Decimal(18, 2), d.amount)
-                .input('dueDate', sql.Date, d.dueDate)
+                .input('dueDate', sql.Date, dueDate)
                 .input('description', sql.VarChar(sql.MAX), d.description || '')
                 .input('status', sql.VarChar, d.status || 'pending')
                 .query(`INSERT INTO Debts (id, creditor, amount, dueDate, description, status) VALUES (@id, @creditor, @amount, @dueDate, @description, @status)`);
@@ -224,23 +226,25 @@ app.delete('/api/debtors/:id', (req, res) => deleteApi(req, res, 'Debtors'));
 app.post('/api/debtors', async (req, res) => {
     try {
         const d = req.body;
+        const debtorName = d.debtor || d.titular;
+        const dueDate = d.dueDate || d.date;
         const pool = await poolPromise;
         const check = await pool.request().input('id', sql.VarChar, d.id).query('SELECT id FROM Debtors WHERE id = @id');
         if (check.recordset.length > 0) {
             await pool.request()
                 .input('id', sql.VarChar, d.id)
-                .input('debtor', sql.VarChar, d.debtor)
+                .input('debtor', sql.VarChar, debtorName)
                 .input('amount', sql.Decimal(18, 2), d.amount)
-                .input('dueDate', sql.Date, d.dueDate)
+                .input('dueDate', sql.Date, dueDate)
                 .input('description', sql.VarChar(sql.MAX), d.description || '')
                 .input('status', sql.VarChar, d.status || 'pending')
                 .query(`UPDATE Debtors SET debtor=@debtor, amount=@amount, dueDate=@dueDate, description=@description, status=@status WHERE id=@id`);
         } else {
             await pool.request()
                 .input('id', sql.VarChar, d.id)
-                .input('debtor', sql.VarChar, d.debtor)
+                .input('debtor', sql.VarChar, debtorName)
                 .input('amount', sql.Decimal(18, 2), d.amount)
-                .input('dueDate', sql.Date, d.dueDate)
+                .input('dueDate', sql.Date, dueDate)
                 .input('description', sql.VarChar(sql.MAX), d.description || '')
                 .input('status', sql.VarChar, d.status || 'pending')
                 .query(`INSERT INTO Debtors (id, debtor, amount, dueDate, description, status) VALUES (@id, @debtor, @amount, @dueDate, @description, @status)`);
