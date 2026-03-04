@@ -14,6 +14,12 @@ function syncRequest(method, endpoint, body) {
         }
         if (xhr.status >= 200 && xhr.status < 300) {
             return xhr.responseText ? JSON.parse(xhr.responseText) : null;
+        } else if (xhr.status === 0 || xhr.status >= 500) {
+            console.error("API o Base de Datos no disponible. Status:", xhr.status);
+            if (!window.hasShownDbError) {
+                alert("No se pudo conectar con la base de datos o el servidor.\nPor favor, espere unos momentos o reinicie la aplicación.");
+                window.hasShownDbError = true;
+            }
         }
         return null;
     } catch (e) {

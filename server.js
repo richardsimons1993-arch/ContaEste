@@ -12,18 +12,29 @@ const dbConfig = {
     connectionString: 'Driver={ODBC Driver 18 for SQL Server};Server=localhost\\SIMONS;Database=ContabilidadDB;UID=sa;PWD=S0p0rt3!!2025;Encrypt=yes;TrustServerCertificate=yes;'
 };
 
-let poolPromise = new sql.ConnectionPool(dbConfig)
-    .connect()
-    .then(pool => {
-        console.log('✅ Conectado a SQL Server Express');
-        return pool;
-    })
-    .catch(err => console.error('❌ Error conectando a SQL Server: ', err));
+let poolPromise = null;
+
+function getDbPool() {
+    if (!poolPromise) {
+        poolPromise = new sql.ConnectionPool(dbConfig)
+            .connect()
+            .then(pool => {
+                console.log('✅ Conectado a SQL Server Express');
+                return pool;
+            })
+            .catch(err => {
+                console.error('❌ Error conectando a SQL Server: ', err);
+                poolPromise = null;
+                throw err;
+            });
+    }
+    return poolPromise;
+}
 
 // Rutas Genéricas
 const getApi = async (req, res, table) => {
     try {
-        const pool = await poolPromise;
+        const pool = await getDbPool();
         let query = `SELECT * FROM ${table}`;
 
         // Aliases para compatibilidad con el frontend
@@ -40,7 +51,7 @@ const getApi = async (req, res, table) => {
 
 const deleteApi = async (req, res, table) => {
     try {
-        const pool = await poolPromise;
+        const pool = await getDbPool();
         await pool.request()
             .input('id', sql.VarChar, req.params.id)
             .query(`DELETE FROM ${table} WHERE id = @id`);
@@ -57,7 +68,7 @@ app.delete('/api/transactions/:id', (req, res) => deleteApi(req, res, 'Transacti
 app.post('/api/transactions', async (req, res) => {
     try {
         const t = req.body;
-        const pool = await poolPromise;
+        const pool = await getDbPool();
 
         // Validar tipo según concepto (Seguridad extra)
         const conceptCheck = await pool.request()
@@ -102,7 +113,7 @@ app.delete('/api/concepts/:id', (req, res) => deleteApi(req, res, 'Concepts'));
 app.post('/api/concepts', async (req, res) => {
     try {
         const c = req.body;
-        const pool = await poolPromise;
+        const pool = await getDbPool();
         const check = await pool.request().input('id', sql.VarChar, c.id).query('SELECT id FROM Concepts WHERE id = @id');
         if (check.recordset.length > 0) {
             await pool.request()
@@ -126,7 +137,7 @@ app.post('/api/concepts', async (req, res) => {
 // --- ENDPOINTS PARA CLIENTS ---
 app.get('/api/clients', async (req, res) => {
     try {
-        const pool = await poolPromise;
+        const pool = await getDbPool();
         const result = await pool.request().query('SELECT * FROM Clients');
         const clients = result.recordset.map(c => ({
             id: c.id,
@@ -149,7 +160,7 @@ app.delete('/api/clients/:id', (req, res) => deleteApi(req, res, 'Clients'));
 app.post('/api/clients', async (req, res) => {
     try {
         const c = req.body;
-        const pool = await poolPromise;
+        const pool = await getDbPool();
         const clientId = c.id;
 
         const check = await pool.request().input('id', sql.VarChar, clientId).query('SELECT id FROM Clients WHERE id = @id');
@@ -193,7 +204,7 @@ app.post('/api/debts', async (req, res) => {
         const d = req.body;
         const creditor = d.creditor || d.titular;
         const dueDate = d.dueDate || d.date;
-        const pool = await poolPromise;
+        const pool = await getDbPool();
         const check = await pool.request().input('id', sql.VarChar, d.id).query('SELECT id FROM Debts WHERE id = @id');
         if (check.recordset.length > 0) {
             await pool.request()
@@ -228,7 +239,7 @@ app.post('/api/debtors', async (req, res) => {
         const d = req.body;
         const debtorName = d.debtor || d.titular;
         const dueDate = d.dueDate || d.date;
-        const pool = await poolPromise;
+        const pool = await getDbPool();
         const check = await pool.request().input('id', sql.VarChar, d.id).query('SELECT id FROM Debtors WHERE id = @id');
         if (check.recordset.length > 0) {
             await pool.request()
@@ -258,7 +269,7 @@ app.post('/api/debtors', async (req, res) => {
 // --- ENDPOINTS PARA USERS ---
 app.get('/api/users', async (req, res) => {
     try {
-        const pool = await poolPromise;
+        const pool = await getDbPool();
         const result = await pool.request().query('SELECT * FROM Users');
         const users = result.recordset.map(u => ({
             ...u,
@@ -273,7 +284,7 @@ app.delete('/api/users/:id', (req, res) => deleteApi(req, res, 'Users'));
 app.post('/api/users/batch', async (req, res) => {
     try {
         const usersArray = req.body;
-        const pool = await poolPromise;
+        const pool = await getDbPool();
         await pool.request().query('DELETE FROM Users');
         for (let u of usersArray) {
             await pool.request()
@@ -294,7 +305,7 @@ app.post('/api/users/batch', async (req, res) => {
 // --- ENDPOINTS PARA LOGS ---
 app.get('/api/logs', async (req, res) => {
     try {
-        const pool = await poolPromise;
+        const pool = await getDbPool();
         const result = await pool.request().query('SELECT TOP 100 * FROM Logs ORDER BY timestamp DESC');
         const logs = result.recordset.map(l => ({
             ...l,
@@ -309,7 +320,7 @@ app.get('/api/logs', async (req, res) => {
 app.post('/api/logs', async (req, res) => {
     try {
         const l = req.body;
-        const pool = await poolPromise;
+        const pool = await getDbPool();
         await pool.request()
             .input('id', sql.VarChar, l.id)
             .input('action', sql.VarChar, l.action)
