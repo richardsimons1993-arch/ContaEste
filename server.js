@@ -86,9 +86,10 @@ app.post('/api/transactions', async (req, res) => {
                 .input('type', sql.VarChar(50), finalType)
                 .input('conceptId', sql.VarChar(50), t.conceptId)
                 .input('clientId', sql.VarChar(50), t.clientId)
+                .input('supplierId', sql.VarChar(50), t.supplierId || null)
                 .input('amount', sql.Decimal(18, 2), t.amount)
                 .input('observation', sql.VarChar(sql.MAX), t.observation)
-                .query(`UPDATE Transactions SET date=@date, type=@type, conceptId=@conceptId, clientId=@clientId, amount=@amount, observation=@observation WHERE id=@id`);
+                .query(`UPDATE Transactions SET date=@date, type=@type, conceptId=@conceptId, clientId=@clientId, supplierId=@supplierId, amount=@amount, observation=@observation WHERE id=@id`);
         } else {
             await pool.request()
                 .input('id', sql.VarChar(50), t.id)
@@ -96,9 +97,10 @@ app.post('/api/transactions', async (req, res) => {
                 .input('type', sql.VarChar(50), finalType)
                 .input('conceptId', sql.VarChar(50), t.conceptId)
                 .input('clientId', sql.VarChar(50), t.clientId)
+                .input('supplierId', sql.VarChar(50), t.supplierId || null)
                 .input('amount', sql.Decimal(18, 2), t.amount)
                 .input('observation', sql.VarChar(sql.MAX), t.observation)
-                .query(`INSERT INTO Transactions (id, date, type, conceptId, clientId, amount, observation) VALUES (@id, @date, @type, @conceptId, @clientId, @amount, @observation)`);
+                .query(`INSERT INTO Transactions (id, date, type, conceptId, clientId, supplierId, amount, observation) VALUES (@id, @date, @type, @conceptId, @clientId, @supplierId, @amount, @observation)`);
         }
         res.json({ ...t, type: finalType });
     } catch (err) {
@@ -273,7 +275,8 @@ app.post('/api/debts/:id/pay', async (req, res) => {
                 .input('amount', sql.Decimal(18, 2), debt.amount)
                 .input('observation', sql.VarChar(sql.MAX), obsText)
                 .input('clientId', sql.VarChar, null)
-                .query(`INSERT INTO Transactions (id, date, type, conceptId, amount, observation, clientId) VALUES (@id, @date, @type, @conceptId, @amount, @observation, @clientId)`);
+                .input('supplierId', sql.VarChar, debt.supplierId || null)
+                .query(`INSERT INTO Transactions (id, date, type, conceptId, amount, observation, clientId, supplierId) VALUES (@id, @date, @type, @conceptId, @amount, @observation, @clientId, @supplierId)`);
 
             // 3. Eliminar deuda
             await transaction.request()

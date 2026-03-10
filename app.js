@@ -1,5 +1,5 @@
 // Estado del Sistema
-const state = {
+const rawState = {
     currentView: 'transaction-form',
     transactions: [],
     concepts: [],
@@ -14,6 +14,39 @@ const state = {
     currentUser: null,
     lastDeleted: null
 };
+
+// --- Store Reactivo ---
+// El Store usa un Proxy para detectar cambios en el estado y disparar re-renders automáticos.
+const Store = new Proxy(rawState, {
+    set(target, property, value) {
+        if (target[property] === value) return true;
+        target[property] = value;
+
+        // Mapeo de propiedades a funciones de renderizado
+        const renderMap = {
+            'transactions': () => UI.renderTransactionsList(),
+            'concepts': () => { UI.renderConcepts(); UI.renderTransactionFormOptions(); },
+            'clients': () => { UI.renderClients(); UI.renderTransactionFormOptions(); },
+            'debts': () => UI.renderDebts(),
+            'debtors': () => UI.renderDebtors(),
+            'suppliers': () => UI.renderSuppliers(),
+            'contracts': () => UI.renderContracts(),
+            'pendingContracts': () => UI.checkPendingContracts(),
+            'users': () => UI.renderUsers(),
+            'currentView': (val) => UI.switchView(val)
+        };
+
+        if (renderMap[property]) {
+            console.log(`Store: Cambio detectado en '${property}', actualizando UI...`);
+            renderMap[property](value);
+        }
+
+        return true;
+    }
+});
+
+// Alias para mantener compatibilidad con el código existente que usa 'state'
+const state = Store;
 
 // Roles y Permisos
 const ROLES = {
@@ -95,6 +128,40 @@ const UI = {
             if (dateInput) dateInput.valueAsDate = new Date();
         } catch (error) {
             console.error("Error en UI.init: " + error.message);
+        }
+    },
+
+    // --- Helpers de Carga (Spinners) ---
+    // Muestra un spinner en el elemento (o su botón submit si es un formulario)
+    showLoading(elementOrId) {
+        let el = typeof elementOrId === 'string' ? document.getElementById(elementOrId) : elementOrId;
+        if (!el) return;
+
+        if (el.tagName === 'FORM') {
+            el = el.querySelector('button[type="submit"]');
+        }
+
+        if (el) {
+            el.dataset.originalHtml = el.innerHTML;
+            el.classList.add('btn-loading');
+            el.disabled = true;
+        }
+    },
+
+    hideLoading(elementOrId) {
+        let el = typeof elementOrId === 'string' ? document.getElementById(elementOrId) : elementOrId;
+        if (!el) return;
+
+        if (el.tagName === 'FORM') {
+            el = el.querySelector('button[type="submit"]');
+        }
+
+        if (el && el.classList.contains('btn-loading')) {
+            el.classList.remove('btn-loading');
+            el.disabled = false;
+            if (el.dataset.originalHtml) {
+                el.innerHTML = el.dataset.originalHtml;
+            }
         }
     },
 
@@ -570,6 +637,11 @@ const UI = {
 
         console.log("Cambiando vista a:", viewName);
 
+        // Actualizar estado (sin disparar el Proxy recursivamente si ya se está en esta vista)
+        if (rawState.currentView !== viewName) {
+            rawState.currentView = viewName;
+        }
+
         // Actualizar Barra Lateral
         document.querySelectorAll('.nav-btn').forEach(btn => {
             btn.classList.toggle('active', btn.dataset.target === viewName);
@@ -790,14 +862,22 @@ const UI = {
 
             const row = document.createElement('tr');
             const conceptName = state.concepts.find(c => c.id === t.conceptId)?.name || 'Desconocido';
-            const client = state.clients.find(c => c.id === t.clientId);
-            const clientName = client ? (client.razonSocial || client.name) : '-';
+
+            // Lógica para Titular (Cliente o Proveedor)
+            let titularName = '-';
+            if (t.clientId) {
+                const client = state.clients.find(c => c.id === t.clientId);
+                titularName = client ? (client.razonSocial || client.name) : '-';
+            } else if (t.supplierId) {
+                const supplier = state.suppliers.find(s => s.id === t.supplierId);
+                titularName = supplier ? supplier.name : '-';
+            }
 
             row.innerHTML = `
                 <td>${formatDate(t.date)}</td>
                 <td><span class="tag ${t.type}">${t.type === 'income' ? 'Ingreso' : 'Egreso'}</span></td>
                 <td>${conceptName}</td>
-                <td>${clientName}</td>
+                <td>${titularName}</td>
                 <td>${t.observation || '-'}</td>
                 <td style="font-weight: bold; color: ${t.type === 'income' ? 'var(--secondary-color)' : 'var(--danger-color)'}">
                     ${t.type === 'income' ? '+' : '-'} ${formatCurrency(t.amount)}
@@ -1140,32 +1220,6 @@ const UI = {
 
         state.debts.forEach(d => {
             const tr = document.createElement('tr');
-            tr.innerHTML = `
-                <td>${formatDate(d.date)}</td>
-                <td>${d.titular}</td>
-                <td>${d.description || '-'}</td>
-                <td style="font-weight:bold; color: var(--danger-color)">${formatCurrency(d.amount)}</td>
-                <td class="actions">
-                    <button class="btn-icon" title="Editar" onclick="UI.editDebt('${d.id}')">
-                        <i class="fa-solid fa-pen-to-square"></i>
-                    </button>
-                    <button class="btn-icon text-danger" title="Eliminar" onclick="UI.deleteDebt('${d.id}')">
-                        <i class="fa-solid fa-trash"></i>
-                    </button>
-                </td>
-            `;
-            tbody.appendChild(tr);
-        });
-        this.applyPrivileges();
-    },
-
-    renderDebts() {
-        const tbody = document.getElementById('debts-list-body');
-        if (!tbody) return;
-        tbody.innerHTML = '';
-
-        state.debts.forEach(d => {
-            const tr = document.createElement('tr');
             // Mapear IDs a nombres para mostrar
             const supplier = state.suppliers.find(s => s.id === d.supplierId);
             const concept = state.concepts.find(c => c.id === d.conceptId);
@@ -1245,13 +1299,49 @@ const UI = {
         window.scrollTo({ top: 0, behavior: 'smooth' });
     },
 
-    payDebt(id) {
+    async payDebt(id) {
         if (!confirm('¿Estás seguro de que quieres marcar esta deuda como pagada? Se eliminará de Deudas y se creará un egreso en Movimientos.')) return;
 
-        window.StorageAPI.payDebt(id);
-        this.showToast('Deuda pagada. Movimiento de egreso registrado.', 'success');
-        this.loadData();
-        this.renderDebts();
+        const originalDebts = [...state.debts];
+        const originalTransactions = [...state.transactions];
+
+        // --- Optimista: Mostrar Feedback Visual ---
+        const rows = document.querySelectorAll(`[onclick="UI.payDebt('${id}')"]`);
+        const row = rows.length > 0 ? rows[0].closest('tr') : null;
+        if (row) row.classList.add('fade-out');
+
+        try {
+            await window.StorageAPI.async.payDebt(id);
+
+            // Actualizar estado local reactivamente
+            state.debts = state.debts.filter(d => d.id !== id);
+
+            // Recargar transacciones para mostrar el nuevo egreso si es necesario
+            // O podemos ser más optimistas y añadirlo manualmente
+            const debt = originalDebts.find(d => d.id === id);
+            if (debt) {
+                const newTx = {
+                    id: Date.now().toString(), // El server generará uno real, esto es para la UI
+                    type: 'expense',
+                    amount: debt.amount,
+                    conceptId: debt.conceptId,
+                    supplierId: debt.supplierId, // Incluir proveedor para que renderTransactionsList lo muestre
+                    date: new Date().toISOString().split('T')[0],
+                    observation: `Pago deuda: ${debt.description || ''}`
+                };
+                state.transactions = [newTx, ...state.transactions];
+            }
+
+            this.showToast('Deuda pagada y movimiento registrado', 'success');
+        } catch (error) {
+            console.error("Error al pagar deuda:", error);
+            if (row) row.classList.remove('fade-out');
+            state.debts = originalDebts;
+            state.transactions = originalTransactions;
+            this.showToast('Error al procesar el pago en el servidor.', 'error');
+        } finally {
+            this.renderDashboard();
+        }
     },
 
     populateDebtSupplierSelect() {
@@ -1510,13 +1600,44 @@ const UI = {
         this.renderDebtors();
     },
 
-    payDebtor(id) {
+    async payDebtor(id) {
         if (!confirm('¿Estás seguro de que quieres marcar esta deuda como pagada? Esto la eliminará de Deudores y creará un ingreso en Movimientos.')) return;
 
-        window.StorageAPI.payDebtor(id);
-        this.showToast('Deuda liquidada. Movimiento creado.', 'success');
+        const originalDebtors = [...state.debtors];
+        const originalTransactions = [...state.transactions];
 
-        this.loadData();
+        const rows = document.querySelectorAll(`[onclick="UI.payDebtor('${id}')"]`);
+        const row = rows.length > 0 ? rows[0].closest('tr') : null;
+        if (row) row.classList.add('fade-out');
+
+        try {
+            await window.StorageAPI.async.payDebtor(id);
+
+            state.debtors = state.debtors.filter(d => d.id !== id);
+
+            const debtor = originalDebtors.find(d => d.id === id);
+            if (debtor) {
+                const newTx = {
+                    id: Date.now().toString(),
+                    type: 'income',
+                    amount: debtor.amount,
+                    conceptId: 'cobro-deudor', // Concepto harcodeado o buscar uno similar
+                    date: new Date().toISOString().split('T')[0],
+                    observation: `Cobro a deudor: ${debtor.titular}`
+                };
+                state.transactions = [newTx, ...state.transactions];
+            }
+
+            this.showToast('Deuda liquidada con éxito', 'success');
+        } catch (error) {
+            console.error("Error al cobrar deuda:", error);
+            if (row) row.classList.remove('fade-out');
+            state.debtors = originalDebtors;
+            state.transactions = originalTransactions;
+            this.showToast('Error al procesar el cobro.', 'error');
+        } finally {
+            this.renderDashboard();
+        }
     },
 
     recordActivity(action, module, details, extraData = null) {
@@ -1589,16 +1710,16 @@ const UI = {
 
     // --- MANEJADORES ---
 
-    handleTransactionSubmit(e) {
+    async handleTransactionSubmit(e) {
         e.preventDefault();
-        const formData = new FormData(e.target);
+        const form = e.target;
+        const formData = new FormData(form);
         const id = formData.get('id');
 
         let type = formData.get('type');
         const conceptId = formData.get('concept');
         const concept = state.concepts.find(c => c.id === conceptId);
 
-        // Seguridad: Si el concepto tiene un tipo definido, forzar ese tipo
         if (concept && concept.type) {
             type = concept.type;
         }
@@ -1613,17 +1734,40 @@ const UI = {
             observation: formData.get('observation')
         };
 
-        window.StorageAPI.saveTransaction(transaction); // Debería actualizar si el ID ya existe
+        // --- Actualización Optimista ---
+        const originalTransactions = [...state.transactions];
 
         if (id) {
-            this.recordActivity('Modificación', 'Movimiento', `Actualizado: ${concept?.name || 'Varios'} por ${formatCurrency(transaction.amount)}`);
+            // Edición: Reemplazar en el estado local
+            state.transactions = state.transactions.map(t => t.id === id ? transaction : t);
         } else {
-            this.recordActivity('Alta', 'Movimiento', `Registrado: ${concept?.name || 'Varios'} por ${formatCurrency(transaction.amount)}`);
+            // Alta: Prepend al estado local para que aparezca arriba
+            state.transactions = [transaction, ...state.transactions];
         }
 
-        this.loadData();
-        this.switchView('transactions');
-        this.renderDashboard();
+        UI.showLoading(form);
+        UI.switchView('transactions');
+
+        try {
+            await window.StorageAPI.async.saveTransaction(transaction);
+
+            if (id) {
+                this.recordActivity('Modificación', 'Movimiento', `Actualizado: ${concept?.name || 'Varios'} por ${formatCurrency(transaction.amount)}`);
+            } else {
+                this.recordActivity('Alta', 'Movimiento', `Registrado: ${concept?.name || 'Varios'} por ${formatCurrency(transaction.amount)}`);
+            }
+
+            this.showToast('Movimiento guardado con éxito', 'success');
+            this.cancelTransactionEdit();
+        } catch (error) {
+            console.error("Error al guardar transacción:", error);
+            // Rollback en caso de error
+            state.transactions = originalTransactions;
+            this.showToast('Error al guardar en el servidor. Los cambios han sido revertidos.', 'error');
+        } finally {
+            UI.hideLoading(form);
+            this.renderDashboard(); // Asegurar balance actualizado
+        }
     },
 
     editTransaction(id) {
@@ -1666,23 +1810,29 @@ const UI = {
         }
     },
 
-    handleTransactionDelete(id) {
+    async handleTransactionDelete(id) {
         if (state.currentUser.role !== ROLES.ADMIN) return;
+        if (!confirm('¿Estás seguro de que quieres eliminar este movimiento?')) return;
 
         const tx = state.transactions.find(t => t.id === id);
         const concept = state.concepts.find(c => c.id === tx?.conceptId);
+        const originalTransactions = [...state.transactions];
 
-        // Guardar para Deshacer
+        // --- Baja Optimista ---
+        state.transactions = state.transactions.filter(t => t.id !== id);
         state.lastDeleted = { type: 'transaction', data: { ...tx } };
 
-        window.StorageAPI.deleteTransaction(id);
-        state.transactions = state.transactions.filter(t => t.id !== id);
-
-        this.recordActivity('Baja', 'Movimiento', `Eliminado: ${concept?.name || 'Varios'} por ${formatCurrency(tx?.amount || 0)}`, { type: 'transaction', item: tx });
-        this.showUndoToast(`Movimiento de ${formatCurrency(tx?.amount || 0)} eliminado`);
-
-        this.renderTransactionsList();
-        this.renderDashboard();
+        try {
+            await window.StorageAPI.async.deleteTransaction(id);
+            this.recordActivity('Baja', 'Movimiento', `Eliminado: ${concept?.name || 'Varios'} por ${formatCurrency(tx?.amount || 0)}`, { type: 'transaction', item: tx });
+            this.showUndoToast(`Movimiento de ${formatCurrency(tx?.amount || 0)} eliminado`);
+        } catch (error) {
+            console.error("Error al eliminar transacción:", error);
+            state.transactions = originalTransactions;
+            this.showToast('Error al eliminar en el servidor.', 'error');
+        } finally {
+            this.renderDashboard();
+        }
     },
 
     // --- SISTEMA DE DESHACER (UNDO) ---
@@ -2401,13 +2551,15 @@ const UI = {
 
         if (!pendingBadge || !reminderBtn) return;
 
-        // Fetch fresh
-        state.pendingContracts = window.StorageAPI.getPendingContracts() || [];
+        // Los datos se asumen ya cargados en state.pendingContracts
+        // Si queremos forzar una actualización desde el servidor, se debe hacer antes de llamar a esta función
+        // (asignando a state.pendingContracts = window.StorageAPI.getPendingContracts())
+        const contracts = state.pendingContracts;
 
-        if (state.pendingContracts.length > 0) {
+        if (contracts.length > 0) {
             reminderBtn.style.display = 'inline-block';
             pendingBadge.style.display = 'inline-block';
-            pendingBadge.textContent = state.pendingContracts.length;
+            pendingBadge.textContent = contracts.length;
         } else {
             reminderBtn.style.display = 'inline-block';
             pendingBadge.style.display = 'none';
@@ -2415,7 +2567,7 @@ const UI = {
 
         if (pendingBody) {
             pendingBody.innerHTML = '';
-            state.pendingContracts.forEach(c => {
+            contracts.forEach(c => {
                 const client = state.clients.find(cl => cl.id === c.clientId);
                 const clientName = client ? (client.razonSocial || client.name) : '-';
                 const conceptText = `Mensualidad Contrato - ${clientName}`;
@@ -2460,28 +2612,50 @@ const UI = {
         }
     },
 
-    markContractInvoiced(id) {
-        // Actualización optimista de UI (Tiempo Real)
+    async markContractInvoiced(id) {
         const row = document.getElementById(`pending-row-${id}`);
-        if (row) row.style.display = 'none';
+        if (row) row.classList.add('fade-out');
 
-        const badge = document.getElementById('contracts-badge');
-        if (badge) {
-            let count = parseInt(badge.textContent) || 0;
-            if (count > 1) {
-                badge.textContent = count - 1;
-            } else {
-                badge.style.display = 'none';
+        const originalPending = [...state.pendingContracts];
+        const originalDebtors = [...state.debtors];
+
+        try {
+            // Actualización optimista del contador
+            const badge = document.getElementById('contracts-badge');
+            if (badge) {
+                let count = parseInt(badge.textContent) || 0;
+                if (count > 1) badge.textContent = count - 1;
+                else badge.style.display = 'none';
             }
+
+            await window.StorageAPI.async.invoiceContract(id);
+
+            // Actualizar estado local
+            state.pendingContracts = state.pendingContracts.filter(c => c.id !== id);
+
+            // Refrescar data para que 'Movimientos' o 'Deudores' se vean actualizados si se navega a ellos
+            // invoiceContract suele crear un deudor o movimiento
+            const invoicedContract = originalPending.find(c => c.id === id);
+            if (invoicedContract) {
+                const newDebtor = {
+                    id: Date.now().toString(),
+                    titular: invoicedContract.clientName || 'Cliente',
+                    amount: invoicedContract.amount,
+                    date: new Date().toISOString().split('T')[0],
+                    description: `Factura Contrato ${new Date().getMonth() + 1}/${new Date().getFullYear()}`
+                };
+                state.debtors = [newDebtor, ...state.debtors];
+            }
+
+            this.showToast('Factura Emitida Correctamente', 'success');
+        } catch (error) {
+            console.error("Error al facturar contrato:", error);
+            if (row) row.classList.remove('fade-out');
+            state.pendingContracts = originalPending;
+            state.debtors = originalDebtors;
+            this.showToast('Error al procesar facturación.', 'error');
+            this.checkPendingContracts(); // Resetear badges
         }
-
-        // Llamada síncrona al backend para actualizar estado en Contratos y Deudores
-        window.StorageAPI.invoiceContract(id);
-        this.showToast('Factura Emitida', 'success');
-
-        // Refrescar data subyacente de forma que los tabs al navegar estén full actualizados
-        this.checkPendingContracts();
-        this.loadData();
     },
 
     undoContractInvoice(id) {

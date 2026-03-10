@@ -28,6 +28,27 @@ function syncRequest(method, endpoint, body) {
     }
 }
 
+// Nueva implementación Asíncrona para Reactividad y Optimismo
+async function asyncRequest(method, endpoint, body) {
+    const options = {
+        method,
+        headers: {
+            'Content-Type': 'application/json'
+        }
+    };
+    if (body) options.body = JSON.stringify(body);
+
+    try {
+        const response = await fetch(API_BASE + endpoint, options);
+        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+        const text = await response.text();
+        return text ? JSON.parse(text) : null;
+    } catch (e) {
+        console.error("Async API Error:", e);
+        throw e;
+    }
+}
+
 const Storage = {
     getTransactions() {
         return syncRequest('GET', '/transactions') || [];
@@ -186,8 +207,37 @@ const Storage = {
 
     getContractHistory(clientId) {
         return syncRequest('GET', `/contracts/history/${clientId}`) || [];
+    },
+
+    // --- Métodos Asíncronos (Nuevos para SPA Reactiva) ---
+    async: {
+        getTransactions: () => asyncRequest('GET', '/transactions'),
+        saveTransaction: (t) => asyncRequest('POST', '/transactions', t),
+        deleteTransaction: (id) => asyncRequest('DELETE', `/transactions/${id}`),
+
+        getDebts: () => asyncRequest('GET', '/debts'),
+        saveDebt: (d) => asyncRequest('POST', '/debts', d),
+        deleteDebt: (id) => asyncRequest('DELETE', `/debts/${id}`),
+        payDebt: (id) => asyncRequest('POST', `/debts/${id}/pay`),
+
+        getDebtors: () => asyncRequest('GET', '/debtors'),
+        saveDebtor: (d) => asyncRequest('POST', '/debtors', d),
+        deleteDebtor: (id) => asyncRequest('DELETE', `/debtors/${id}`),
+        payDebtor: (id) => asyncRequest('POST', `/debtors/${id}/pay`),
+
+        getContracts: () => asyncRequest('GET', '/contracts'),
+        getPendingContracts: () => asyncRequest('GET', '/contracts/pending'),
+        saveContract: (c) => asyncRequest('POST', '/contracts', c),
+        deleteContract: (id) => asyncRequest('DELETE', `/contracts/${id}`),
+        invoiceContract: (id) => asyncRequest('POST', `/contracts/${id}/invoice`),
+
+        saveLog: (log) => {
+            const entry = { ...log, id: Date.now().toString(), timestamp: new Date().toISOString() };
+            return asyncRequest('POST', '/logs', entry);
+        }
     }
 };
 
 window.StorageAPI = Storage;
-console.log("Almacenamiento (Backend SQL Server - Síncrono) cargado");
+console.log("Almacenamiento (Backend SQL Server - Híbrido Sync/Async) cargado");
+
