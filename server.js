@@ -266,6 +266,85 @@ app.post('/api/debtors', async (req, res) => {
     }
 });
 
+app.post('/api/debtors/:id/pay', async (req, res) => {
+    try {
+        const pool = await getDbPool();
+        const debtorId = req.params.id;
+
+        // Iniciar transacción explícita
+        const transaction = new sql.Transaction(pool);
+        await transaction.begin();
+
+        try {
+            // 1. Obtener la deuda específica
+            const debtorRes = await transaction.request()
+                .input('id', sql.VarChar, debtorId)
+                .query(`SELECT debtor, amount, description FROM Debtors WHERE id = @id`);
+
+            if (debtorRes.recordset.length === 0) {
+                await transaction.rollback();
+                return res.status(404).json({ error: "Deudor no encontrado" });
+            }
+
+            const debtor = debtorRes.recordset[0];
+
+            // 1b. Intentar obtener clientId desde ContractHistory
+            const chRes = await transaction.request()
+                .input('debtorId', sql.VarChar, debtorId)
+                .query(`SELECT clientId FROM ContractHistory WHERE debtorId = @debtorId`);
+
+            let clientIdToUse = null;
+            if (chRes.recordset.length > 0 && chRes.recordset[0].clientId) {
+                clientIdToUse = chRes.recordset[0].clientId;
+            } else {
+                // Si no fue autogenerado por contrato, intentamos buscar por nombre
+                const clRes = await transaction.request()
+                    .input('name', sql.VarChar, debtor.debtor)
+                    .query(`SELECT id FROM Clients WHERE name = @name OR razonSocial = @name`);
+                if (clRes.recordset.length > 0) {
+                    clientIdToUse = clRes.recordset[0].id;
+                }
+            }
+
+            // 2. Crear movimiento en Transactions
+            const moveId = 'T' + Date.now().toString() + Math.floor(Math.random() * 1000);
+            const moveDate = new Date();
+            const obsText = 'Pago deuda auto. Titular: ' + debtor.debtor + ' - Detalle: ' + (debtor.description || '');
+
+            await transaction.request()
+                .input('id', sql.VarChar, moveId)
+                .input('date', sql.Date, moveDate)
+                .input('type', sql.VarChar, 'income')
+                .input('conceptId', sql.VarChar, '1') // Concepto fijo "Ventas" (se asume que su ID es 1 en la BD)
+                .input('amount', sql.Decimal(18, 2), debtor.amount)
+                .input('observation', sql.VarChar(sql.MAX), obsText)
+                .input('clientId', sql.VarChar, clientIdToUse)
+                .query(`INSERT INTO Transactions (id, date, type, conceptId, amount, observation, clientId) VALUES (@id, @date, @type, @conceptId, @amount, @observation, @clientId)`);
+
+            // 3. Eliminar o actualizar en Debtors
+            await transaction.request()
+                .input('id', sql.VarChar, debtorId)
+                .query(`DELETE FROM Debtors WHERE id = @id`);
+
+            // NOTA: Si quisiéramos mantener el registro en Contratos/Historial lo dejamos intacto o actualizamos su status en ContractHistory
+            // En este caso, actualizaremos contractHistory a Pagada
+            await transaction.request()
+                .input('debtorId', sql.VarChar, debtorId)
+                .query(`UPDATE ContractHistory SET debtorId = NULL WHERE debtorId = @debtorId`); // O puedes poner un campo de status si existiera
+
+            await transaction.commit();
+            res.json({ success: true, message: 'Deuda liquidada y movimiento creado' });
+
+        } catch (tErr) {
+            await transaction.rollback();
+            throw tErr;
+        }
+
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 // --- ENDPOINTS PARA USERS ---
 app.get('/api/users', async (req, res) => {
     try {
@@ -297,6 +376,211 @@ app.post('/api/users/batch', async (req, res) => {
                 .query(`INSERT INTO Users (id, username, password, role, name, modules) VALUES (@id, @username, @password, @role, @name, @modules)`);
         }
         res.json(usersArray);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// --- ENDPOINTS PARA CONTRACTS ---
+app.get('/api/contracts', (req, res) => getApi(req, res, 'Contracts'));
+app.delete('/api/contracts/:id', async (req, res) => {
+    try {
+        const pool = await getDbPool();
+        // Borrar primero el historial para no violar la llave foránea
+        await pool.request()
+            .input('id', sql.VarChar, req.params.id)
+            .query('DELETE FROM ContractHistory WHERE contractId = @id');
+
+        await pool.request()
+            .input('id', sql.VarChar, req.params.id)
+            .query('DELETE FROM Contracts WHERE id = @id');
+
+        res.json({ success: true });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+app.post('/api/contracts', async (req, res) => {
+    try {
+        const c = req.body;
+        const pool = await getDbPool();
+        const check = await pool.request().input('id', sql.VarChar, c.id).query('SELECT id FROM Contracts WHERE id = @id');
+        if (check.recordset.length > 0) {
+            await pool.request()
+                .input('id', sql.VarChar, c.id)
+                .input('clientId', sql.VarChar, c.clientId)
+                .input('amount', sql.Decimal(18, 2), c.amount)
+                .input('startDate', sql.Date, c.startDate)
+                .input('endDate', sql.Date, c.endDate)
+                .input('billingDay', sql.Int, c.billingDay)
+                .input('frequency', sql.VarChar, c.frequency || 'mensual')
+                .input('lastInvoicedPeriod', sql.VarChar, c.lastInvoicedPeriod || '')
+                .query(`UPDATE Contracts SET clientId=@clientId, amount=@amount, startDate=@startDate, endDate=@endDate, billingDay=@billingDay, frequency=@frequency, lastInvoicedPeriod=@lastInvoicedPeriod WHERE id=@id`);
+        } else {
+            await pool.request()
+                .input('id', sql.VarChar, c.id)
+                .input('clientId', sql.VarChar, c.clientId)
+                .input('amount', sql.Decimal(18, 2), c.amount)
+                .input('startDate', sql.Date, c.startDate)
+                .input('endDate', sql.Date, c.endDate)
+                .input('billingDay', sql.Int, c.billingDay)
+                .input('frequency', sql.VarChar, c.frequency || 'mensual')
+                .input('lastInvoicedPeriod', sql.VarChar, c.lastInvoicedPeriod || '')
+                .query(`INSERT INTO Contracts (id, clientId, amount, startDate, endDate, billingDay, frequency, lastInvoicedPeriod) VALUES (@id, @clientId, @amount, @startDate, @endDate, @billingDay, @frequency, @lastInvoicedPeriod)`);
+        }
+        res.json(c);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.get('/api/contracts/pending', async (req, res) => {
+    try {
+        const pool = await getDbPool();
+        const now = new Date();
+        const currentYear = now.getFullYear();
+        const currentMonth = String(now.getMonth() + 1).padStart(2, '0');
+        const currentDay = now.getDate();
+        const currentPeriod = `${currentYear}-${currentMonth}`;
+        const currentDateStr = `${currentYear}-${currentMonth}-${String(currentDay).padStart(2, '0')}`;
+
+        const query = `
+            SELECT * FROM Contracts 
+            WHERE startDate <= @currentDate 
+              AND endDate >= @currentDate
+              AND billingDay <= @currentDay
+              AND (lastInvoicedPeriod IS NULL OR lastInvoicedPeriod != @currentPeriod)
+        `;
+        const result = await pool.request()
+            .input('currentDate', sql.Date, currentDateStr)
+            .input('currentDay', sql.Int, currentDay)
+            .input('currentPeriod', sql.VarChar, currentPeriod)
+            .query(query);
+
+        res.json(result.recordset);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.post('/api/contracts/:id/invoice', async (req, res) => {
+    try {
+        const pool = await getDbPool();
+        const now = new Date();
+        const currentYear = now.getFullYear();
+        const currentMonth = String(now.getMonth() + 1).padStart(2, '0');
+        const currentPeriod = `${currentYear}-${currentMonth}`;
+
+        const contractId = req.params.id;
+
+        const contractRes = await pool.request()
+            .input('id', sql.VarChar, contractId)
+            .query(`SELECT c.amount, c.clientId, cl.name as clientName 
+                    FROM Contracts c
+                    LEFT JOIN Clients cl ON c.clientId = cl.id
+                    WHERE c.id = @id`);
+
+        if (contractRes.recordset.length === 0) {
+            return res.status(404).json({ error: "Contrato no encontrado" });
+        }
+
+        const contract = contractRes.recordset[0];
+        const debtorName = contract.razonSocial || contract.clientName || 'Cliente Desconocido';
+        const amount = contract.amount;
+
+        await pool.request()
+            .input('id', sql.VarChar, contractId)
+            .input('period', sql.VarChar, currentPeriod)
+            .query(`UPDATE Contracts SET lastInvoicedPeriod = @period WHERE id = @id`);
+
+        // Integración Módulo Deudores (Vencimiento INMEDIATO: hoy)
+        const dueDate = new Date();
+        const newDebtorId = 'D' + Date.now().toString() + Math.floor(Math.random() * 1000);
+
+        // Determinar nombre del mes
+        const monthNames = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
+        const periodNameStr = `${monthNames[now.getMonth()]} ${currentYear}`;
+        const descriptionStr = `Outsourcing Mes ${monthNames[now.getMonth()]}`;
+
+        await pool.request()
+            .input('id', sql.VarChar, newDebtorId)
+            .input('debtor', sql.VarChar, debtorName)
+            .input('amount', sql.Decimal(18, 2), amount)
+            .input('dueDate', sql.Date, dueDate)
+            .input('description', sql.VarChar(sql.MAX), descriptionStr)
+            .input('status', sql.VarChar, 'pending')
+            .query(`INSERT INTO Debtors (id, debtor, amount, dueDate, description, status) VALUES (@id, @debtor, @amount, @dueDate, @description, @status)`);
+
+        // Registrar en Historial de Contratos (ContractHistory)
+        const historyId = 'CH' + Date.now().toString() + Math.floor(Math.random() * 1000);
+
+        await pool.request()
+            .input('id', sql.VarChar, historyId)
+            .input('contractId', sql.VarChar, contractId)
+            .input('clientId', sql.VarChar, contract.clientId || '') // Necesitamos obtener el clientId
+            .input('periodName', sql.VarChar, periodNameStr)
+            .input('issueDate', sql.Date, dueDate)
+            .input('amount', sql.Decimal(18, 2), amount)
+            .input('debtorId', sql.VarChar, newDebtorId)
+            .query(`INSERT INTO ContractHistory (id, contractId, clientId, periodName, issueDate, amount, debtorId) VALUES (@id, @contractId, @clientId, @periodName, @issueDate, @amount, @debtorId)`);
+
+        res.json({ success: true, period: currentPeriod });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.post('/api/contracts/:id/undo', async (req, res) => {
+    try {
+        const pool = await getDbPool();
+        const contractId = req.params.id;
+
+        // 1. Obtener el historial más reciente de este contrato para saber qué deudor borrar
+        const historyRes = await pool.request()
+            .input('contractId', sql.VarChar, contractId)
+            .query(`SELECT TOP 1 id, debtorId, periodName FROM ContractHistory WHERE contractId = @contractId ORDER BY issueDate DESC`);
+
+        if (historyRes.recordset.length > 0) {
+            const history = historyRes.recordset[0];
+
+            // 2. Eliminar el registro del historial
+            await pool.request()
+                .input('id', sql.VarChar, history.id)
+                .query(`DELETE FROM ContractHistory WHERE id = @id`);
+
+            // 3. Eliminar la deuda generada automáticamente en Debtors
+            if (history.debtorId) {
+                await pool.request()
+                    .input('debtorId', sql.VarChar, history.debtorId)
+                    .query(`DELETE FROM Debtors WHERE id = @debtorId`);
+            }
+        }
+
+        // 4. Limpiar lastInvoicedPeriod del contrato (para que vuelva a salir en "Pendientes de Mes")
+        await pool.request()
+            .input('id', sql.VarChar, contractId)
+            .query(`UPDATE Contracts SET lastInvoicedPeriod = '' WHERE id = @id`);
+
+        res.json({ success: true });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Endpoint para obtener el historial de contratos de un cliente
+app.get('/api/contracts/history/:clientId', async (req, res) => {
+    try {
+        const pool = await getDbPool();
+        const result = await pool.request()
+            .input('clientId', sql.VarChar, req.params.clientId)
+            .query(`
+                SELECT ch.*, d.status as debtStatus 
+                FROM ContractHistory ch
+                LEFT JOIN Debtors d ON ch.debtorId = d.id
+                WHERE ch.clientId = @clientId
+                ORDER BY ch.issueDate DESC
+            `);
+        res.json(result.recordset);
     } catch (err) {
         res.status(500).json({ error: err.message });
     }

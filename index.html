@@ -86,6 +86,9 @@
                     <button class="nav-btn" data-target="debtors">
                         <i class="fa-solid fa-hand-holding-hand"></i> Deudores
                     </button>
+                    <button class="nav-btn" data-target="contracts">
+                        <i class="fa-solid fa-file-contract"></i> Contratos
+                    </button>
                     <button class="nav-btn" data-target="dashboard">
                         <i class="fa-solid fa-chart-pie"></i> Balance
                     </button>
@@ -112,6 +115,12 @@
             <header class="top-bar">
                 <h1 id="page-title">Registrar</h1>
                 <div class="header-actions" style="display: flex; align-items: center; gap: 1rem;">
+                    <button id="contracts-reminder-btn" class="btn-icon" title="Contratos Pendientes de Facturar"
+                        style="position: relative; display: none;">
+                        <i class="fa-solid fa-bell"></i>
+                        <span id="contracts-badge"
+                            style="position: absolute; top: -5px; right: -5px; background: var(--danger-color); color: white; border-radius: 50%; padding: 2px 6px; font-size: 0.7rem; font-weight: bold; display: none;">0</span>
+                    </button>
                     <button id="theme-toggle" class="btn-icon theme-toggle" title="Cambiar Tema">
                         <i class="fa-solid fa-moon"></i>
                     </button>
@@ -536,10 +545,11 @@
                         <input type="hidden" name="id" id="debtor-id">
                         <div class="grid-2">
                             <div class="form-group">
-                                <label>Titular (Quien me debe)</label>
-                                <input type="text" name="titular" required placeholder="Ej: Cliente X, Amigo Y..."
-                                    oninvalid="this.setCustomValidity('Por favor, ingrese el titular')"
-                                    oninput="this.setCustomValidity('')">
+                                <label>Titular (Cliente deudor)</label>
+                                <select name="titular" id="debtor-client-select" required>
+                                    <option value="">Seleccionar Cliente</option>
+                                    <!-- Clientes inyectados por JS -->
+                                </select>
                             </div>
                             <div class="form-group">
                                 <label>Monto</label>
@@ -595,6 +605,130 @@
                                 <!-- Inyectado por JS -->
                             </tbody>
                         </table>
+                    </div>
+                </div>
+            </section>
+
+            <!-- VISTA CONTRATOS RECURRENTES -->
+            <section id="contracts" class="view-section">
+                <div class="card form-card">
+                    <h2 id="contract-form-title">Registrar Contrato</h2>
+                    <form id="add-contract-form">
+                        <input type="hidden" name="id" id="contract-id">
+                        <div class="grid-2">
+                            <div class="form-group">
+                                <label>Cliente</label>
+                                <select id="contract-client" name="clientId" required>
+                                    <option value="">Seleccionar Cliente</option>
+                                    <!-- Clientes inyectados por JS -->
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>Monto a Facturar</label>
+                                <input type="text" name="amount" class="amount-input" required placeholder="0">
+                            </div>
+                        </div>
+                        <div class="grid-2">
+                            <div class="form-group">
+                                <label>Fecha de Inicio</label>
+                                <input type="date" name="startDate" required>
+                            </div>
+                            <div class="form-group">
+                                <label>Fecha de Fin (Vigencia)</label>
+                                <input type="date" name="endDate" required>
+                            </div>
+                        </div>
+                        <div class="grid-2">
+                            <div class="form-group">
+                                <label>Día de Facturación (1-31)</label>
+                                <input type="number" name="billingDay" min="1" max="31" required placeholder="Ej: 1">
+                            </div>
+                            <div class="form-group">
+                                <label>Frecuencia</label>
+                                <select name="frequency" required>
+                                    <option value="mensual" selected>Mensual</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="form-actions mt-3">
+                            <button type="submit" class="btn-secondary">Guardar Contrato</button>
+                            <button type="button" id="cancel-contract-edit" class="btn-text"
+                                style="display: none;">Cancelar</button>
+                        </div>
+                    </form>
+                </div>
+
+                <div class="card mt-4">
+                    <h3>Listado de Contratos</h3>
+                    <div class="table-responsive">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Cliente</th>
+                                    <th>Monto</th>
+                                    <th>Vigencia</th>
+                                    <th>Día Facturación</th>
+                                    <th>Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody id="contracts-list-body">
+                                <!-- Inyectado por JS -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <!-- VISTA ALERTAS (Contratos y Deudores) -->
+            <section id="alerts" class="view-section">
+                <div class="card">
+                    <div
+                        style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+                        <h2>Centro de Alertas</h2>
+                    </div>
+
+                    <div class="tabs"
+                        style="display: flex; gap: 1rem; border-bottom: 2px solid var(--border-color); margin-bottom: 1rem; padding-bottom: 0.5rem;">
+                        <button class="btn-text alert-tab-btn active" data-tab="tab-pending-month"
+                            style="font-weight: bold; border-bottom: 2px solid var(--primary-color);">Pendientes de
+                            Facturar</button>
+                        <button class="btn-text alert-tab-btn" data-tab="tab-invoiced-month">Emitidas este Mes</button>
+                    </div>
+
+                    <div id="tab-pending-month" class="alert-tab-content" style="display: block;">
+                        <h3>Contratos Pendientes de Facturar este Mes</h3>
+                        <div class="table-responsive">
+                            <table class="data-table">
+                                <thead>
+                                    <tr>
+                                        <th>Cliente</th>
+                                        <th>Monto</th>
+                                        <th>Concepto</th>
+                                        <th>Acción</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="alerts-pending-body">
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <div id="tab-invoiced-month" class="alert-tab-content" style="display: none;">
+                        <h3>Contratos Emitidos este Mes</h3>
+                        <div class="table-responsive">
+                            <table class="data-table">
+                                <thead>
+                                    <tr>
+                                        <th>Cliente</th>
+                                        <th>Monto</th>
+                                        <th>Periodo</th>
+                                        <th>Acción</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="alerts-invoiced-body">
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
                 </div>
             </section>
@@ -695,6 +829,63 @@
 
     <!-- Contenedor de Toasts (Notificaciones) -->
     <div id="toast-container" class="toast-container"></div>
+
+    <!-- Modal para Contratos Pendientes -->
+    <div id="contracts-modal" class="modal-overlay"
+        style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; justify-content: center; align-items: center;">
+        <div class="modal-content"
+            style="background: var(--bg-card); padding: 2rem; border-radius: 12px; width: 90%; max-width: 600px; box-shadow: 0 10px 30px rgba(0,0,0,0.2);">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+                <h3 style="margin: 0;">Contratos Pendientes de Facturar este Mes</h3>
+                <button type="button" class="btn-icon" id="close-contracts-modal"
+                    style="font-size: 1.2rem;">&times;</button>
+            </div>
+            <div class="table-responsive">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Cliente</th>
+                            <th>Monto</th>
+                            <th>Día</th>
+                            <th>Acción</th>
+                        </tr>
+                    </thead>
+                    <tbody id="pending-contracts-body">
+                        <!-- Inyectado por JS -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal para Historial de Contratos del Cliente -->
+    <div id="contract-history-modal" class="modal-overlay"
+        style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; justify-content: center; align-items: center;">
+        <div class="modal-content"
+            style="background: var(--bg-card); padding: 2rem; border-radius: 12px; width: 90%; max-width: 700px; box-shadow: 0 10px 30px rgba(0,0,0,0.2); max-height: 80vh; overflow-y: auto;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+                <h3 style="margin: 0;">Historial de Facturación por Contrato <br><span id="history-client-name"
+                        style="color: var(--primary-color);"></span></h3>
+                <button type="button" class="btn-icon" id="close-history-modal"
+                    style="font-size: 1.2rem;">&times;</button>
+            </div>
+            <div class="table-responsive">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Mes de Servicio</th>
+                            <th>Fecha Emisión (Manual)</th>
+                            <th>Monto</th>
+                            <th>Ref. Deuda</th>
+                        </tr>
+                    </thead>
+                    <tbody id="history-contract-body">
+                        <!-- Inyectado por JS -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
 
     <!-- Scripts -->
     <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>

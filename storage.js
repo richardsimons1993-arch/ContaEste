@@ -133,6 +133,41 @@ const Storage = {
     deleteDebtor(id) {
         syncRequest('DELETE', `/debtors/${id}`);
         return this.getDebtors();
+    },
+
+    payDebtor(id) {
+        syncRequest('POST', `/debtors/${id}/pay`);
+        return this.getDebtors();
+    },
+
+    getContracts() {
+        return syncRequest('GET', '/contracts') || [];
+    },
+
+    getPendingContracts() {
+        return syncRequest('GET', '/contracts/pending') || [];
+    },
+
+    saveContract(contract) {
+        syncRequest('POST', '/contracts', contract);
+        return this.getContracts();
+    },
+
+    deleteContract(id) {
+        syncRequest('DELETE', `/contracts/${id}`);
+        return this.getContracts();
+    },
+
+    invoiceContract(id) {
+        return syncRequest('POST', `/contracts/${id}/invoice`);
+    },
+
+    undoInvoiceContract(id) {
+        return syncRequest('POST', `/contracts/${id}/undo`);
+    },
+
+    getContractHistory(clientId) {
+        return syncRequest('GET', `/contracts/history/${clientId}`) || [];
     }
 };
 

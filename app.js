@@ -6,6 +6,8 @@ const state = {
     clients: [],
     debts: [],
     debtors: [],
+    contracts: [],
+    pendingContracts: [],
     logs: [],
     users: [],
     currentUser: null,
@@ -73,6 +75,7 @@ const UI = {
             this.setupCustomDropdowns(); // Inicializar oyentes para menús desplegables
             this.renderTransactionFormOptions(); // Rellenar formulario y filtros
             this.initDatePickers(); // Inicializar Flatpickr
+            this.checkPendingContracts(); // Verificar contratos pendientes
 
             // Si hay sesión, cargar la UI normal
             if (state.currentUser) {
@@ -96,6 +99,8 @@ const UI = {
         state.clients = window.StorageAPI.getClients() || [];
         state.debts = (window.StorageAPI.getDebts() || []).map(d => ({ ...d, date: cleanDate(d.date) }));
         state.debtors = (window.StorageAPI.getDebtors() || []).map(d => ({ ...d, date: cleanDate(d.date) }));
+        state.contracts = (window.StorageAPI.getContracts() || []).map(c => ({ ...c, startDate: cleanDate(c.startDate), endDate: cleanDate(c.endDate) }));
+        state.pendingContracts = window.StorageAPI.getPendingContracts() || [];
         state.logs = window.StorageAPI.getLogs() || [];
 
         // Cargar usuarios o inicializar con por defecto
@@ -204,6 +209,35 @@ const UI = {
         if (cancelDebtorEditBtn) {
             cancelDebtorEditBtn.addEventListener('click', () => this.resetDebtorForm());
         }
+
+        // --- CONTRATOS ---
+        const contractForm = document.getElementById('add-contract-form');
+        if (contractForm) contractForm.addEventListener('submit', (e) => this.handleContractSubmit(e));
+
+        const cancelContractEditBtn = document.getElementById('cancel-contract-edit');
+        if (cancelContractEditBtn) cancelContractEditBtn.addEventListener('click', () => this.resetContractForm());
+
+        const contractsReminderBtn = document.getElementById('contracts-reminder-btn');
+        if (contractsReminderBtn) contractsReminderBtn.addEventListener('click', () => {
+            UI.switchView('alerts');
+        });
+
+        const alertTabBtns = document.querySelectorAll('.alert-tab-btn');
+        alertTabBtns.forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const targetTab = e.target.dataset.tab;
+                document.querySelectorAll('.alert-tab-content').forEach(c => c.style.display = 'none');
+                document.querySelectorAll('.alert-tab-btn').forEach(b => {
+                    b.classList.remove('active');
+                    b.style.fontWeight = 'normal';
+                    b.style.borderBottom = 'none';
+                });
+                document.getElementById(targetTab).style.display = 'block';
+                e.target.classList.add('active');
+                e.target.style.fontWeight = 'bold';
+                e.target.style.borderBottom = '2px solid var(--primary-color)';
+            });
+        });
 
         // Exportar Deudas
         const btnExportDebtExcel = document.getElementById('btn-export-debts-excel');
@@ -489,6 +523,7 @@ const UI = {
             'transactions': 'finanzas',
             'debts': 'finanzas',
             'debtors': 'finanzas',
+            'contracts': 'finanzas',
             'dashboard': 'finanzas',
             'activity': 'finanzas',
             'users': 'usuarios'
@@ -538,6 +573,7 @@ const UI = {
             'clients': 'Clientes',
             'debts': 'Deudas',
             'debtors': 'Deudores',
+            'contracts': 'Contratos',
             'activity': 'Actividad',
             'users': 'Usuarios'
         };
@@ -553,6 +589,7 @@ const UI = {
         if (viewName === 'clients') this.renderClients();
         if (viewName === 'debts') this.renderDebts();
         if (viewName === 'debtors') this.renderDebtors();
+        if (viewName === 'contracts') this.renderContracts();
         if (viewName === 'activity') this.renderActivity();
         if (viewName === 'users') this.renderUsers();
 
@@ -561,6 +598,7 @@ const UI = {
         if (viewName !== 'clients') this.resetClientForm();
         if (viewName !== 'debts') this.resetDebtForm();
         if (viewName !== 'debtors') this.resetDebtorForm();
+        if (viewName !== 'contracts') this.resetContractForm();
         if (viewName !== 'users') this.resetUserForm();
 
         // Re-aplicar privilegios (por si se renderizaron botones nuevos)
@@ -791,14 +829,20 @@ const UI = {
         }
 
         // --- Clientes en el Formulario ---
+        const contractClientSelect = document.getElementById('contract-client');
         if (clientSelect) {
             clientSelect.innerHTML = '<option value="">Seleccionar Cliente</option>';
+            if (contractClientSelect) contractClientSelect.innerHTML = '<option value="">Seleccionar Cliente</option>';
             state.clients.forEach(c => {
                 const option = document.createElement('option');
                 option.value = c.id;
-                // Usar razonSocial, si no existe usar name (del backend mapeado)
                 option.textContent = c.razonSocial || c.name || 'Sin Nombre';
                 clientSelect.appendChild(option);
+
+                if (contractClientSelect) {
+                    const opt = option.cloneNode(true);
+                    contractClientSelect.appendChild(opt);
+                }
             });
         }
 
@@ -953,6 +997,9 @@ const UI = {
                 <td>${c.correo || '---'}</td>
                 <td>${c.direccion || '---'}</td>
                 <td class="actions">
+                    <button class="btn-icon text-info" title="Ver Historial" onclick="UI.viewClientHistory('${c.id}')">
+                        <i class="fa-solid fa-clock-rotate-left"></i>
+                    </button>
                     <button class="btn-icon" title="Editar" onclick="UI.editClient('${c.id}')">
                         <i class="fa-solid fa-pen-to-square"></i>
                     </button>
@@ -997,6 +1044,57 @@ const UI = {
             document.getElementById('client-form-title').textContent = 'Crear Cliente';
             const cancelBtn = document.getElementById('cancel-client-edit');
             if (cancelBtn) cancelBtn.style.display = 'none';
+        }
+    },
+
+    viewClientHistory(id) {
+        const client = state.clients.find(c => c.id === id);
+        if (!client) return;
+
+        const historyModal = document.getElementById('contract-history-modal');
+        const clientNameSpan = document.getElementById('history-client-name');
+        const historyBody = document.getElementById('history-contract-body');
+
+        if (clientNameSpan) clientNameSpan.textContent = client.razonSocial || client.name;
+        if (historyBody) historyBody.innerHTML = '<tr><td colspan="4" style="text-align:center;">Cargando...</td></tr>';
+
+        if (historyModal) historyModal.style.display = 'flex';
+
+        // Fix missing listener attaching conditionally (since this can run multiple times, doing it once in setupEventListeners is better, but doing it on click is safer if missing)
+        const closeBtn = document.getElementById('close-history-modal');
+        if (closeBtn && !closeBtn.hasAttribute('data-bound')) {
+            closeBtn.setAttribute('data-bound', 'true');
+            closeBtn.addEventListener('click', () => { historyModal.style.display = 'none'; });
+        }
+
+        const historyData = window.StorageAPI.getContractHistory(id);
+
+        if (historyBody) {
+            historyBody.innerHTML = '';
+            if (historyData.length === 0) {
+                historyBody.innerHTML = '<tr><td colspan="4" style="text-align:center;">No hay historial de facturación para este cliente.</td></tr>';
+            } else {
+                historyData.forEach(h => {
+                    const tr = document.createElement('tr');
+
+                    let debtStatusTag = '';
+                    if (h.debtStatus === 'pending') {
+                        debtStatusTag = '<span class="tag expense">Pendiente</span>';
+                    } else if (h.debtStatus === 'paid') {
+                        debtStatusTag = '<span class="tag income">Pagada</span>';
+                    } else {
+                        debtStatusTag = '<span class="tag">Desconocido</span>';
+                    }
+
+                    tr.innerHTML = `
+                        <td>${h.periodName}</td>
+                        <td>${formatDate(h.issueDate)}</td>
+                        <td>${formatCurrency(h.amount)}</td>
+                        <td>${debtStatusTag} (${h.debtorId || '-'})</td>
+                    `;
+                    historyBody.appendChild(tr);
+                });
+            }
         }
     },
 
@@ -1121,6 +1219,9 @@ const UI = {
                 <td>${d.description || '-'}</td>
                 <td style="font-weight:bold; color: var(--secondary-color)">${formatCurrency(d.amount)}</td>
                 <td class="actions">
+                    <button class="btn-icon text-success" title="Marcar como Pagado" onclick="UI.payDebtor('${d.id}')">
+                        <i class="fa-solid fa-check"></i>
+                    </button>
                     <button class="btn-icon" title="Editar" onclick="UI.editDebtor('${d.id}')">
                         <i class="fa-solid fa-pen-to-square"></i>
                     </button>
@@ -1194,6 +1295,15 @@ const UI = {
         state.debtors = state.debtors.filter(d => d.id !== id);
         this.recordActivity('Baja', 'Deudor', `Eliminado deudor ${debtor?.titular}`);
         this.renderDebtors();
+    },
+
+    payDebtor(id) {
+        if (!confirm('¿Estás seguro de que quieres marcar esta deuda como pagada? Esto la eliminará de Deudores y creará un ingreso en Movimientos.')) return;
+
+        window.StorageAPI.payDebtor(id);
+        this.showToast('Deuda liquidada. Movimiento creado.', 'success');
+
+        this.loadData();
     },
 
     recordActivity(action, module, details, extraData = null) {
@@ -1969,6 +2079,206 @@ const UI = {
         this.loadData();
         this.switchView('clients');
         this.renderClients();
+    },
+
+    // --- LOGICA CONTRATOS RECURRENTES ---
+
+    renderContracts() {
+        const tbody = document.getElementById('contracts-list-body');
+        if (!tbody) return;
+        tbody.innerHTML = '';
+
+        state.contracts.forEach(c => {
+            const tr = document.createElement('tr');
+            const client = state.clients.find(cl => cl.id === c.clientId);
+            const clientName = client ? (client.razonSocial || client.name) : '-';
+
+            tr.innerHTML = `
+                <td>${clientName}</td>
+                <td style="font-weight:bold; color: var(--secondary-color)">${formatCurrency(c.amount)}</td>
+                <td>${formatDate(c.startDate)} al ${formatDate(c.endDate)}</td>
+                <td>Día ${c.billingDay} (${c.frequency})</td>
+                <td class="actions">
+                    <button class="btn-icon" title="Editar" onclick="UI.editContract('${c.id}')">
+                        <i class="fa-solid fa-pen-to-square"></i>
+                    </button>
+                    <button class="btn-icon text-danger" title="Eliminar" onclick="UI.deleteContract('${c.id}')">
+                        <i class="fa-solid fa-trash"></i>
+                    </button>
+                </td>
+            `;
+            tbody.appendChild(tr);
+        });
+        this.applyPrivileges();
+    },
+
+    handleContractSubmit(e) {
+        e.preventDefault();
+        const formData = new FormData(e.target);
+        const id = formData.get('id');
+
+        const contract = {
+            id: id || Date.now().toString(),
+            clientId: formData.get('clientId'),
+            amount: parseAmount(formData.get('amount')),
+            startDate: formData.get('startDate'),
+            endDate: formData.get('endDate'),
+            billingDay: parseInt(formData.get('billingDay')),
+            frequency: formData.get('frequency')
+        };
+
+        window.StorageAPI.saveContract(contract);
+
+        if (id) {
+            this.recordActivity('Modificación', 'Contrato', `Actualizado contrato`);
+        } else {
+            this.recordActivity('Alta', 'Contrato', `Registrado contrato`);
+        }
+
+        this.loadData();
+        this.switchView('contracts');
+        this.checkPendingContracts();
+    },
+
+    editContract(id) {
+        const contract = state.contracts.find(c => c.id === id);
+        if (!contract) return;
+
+        const form = document.getElementById('add-contract-form');
+        document.getElementById('contract-id').value = contract.id;
+        form.elements['clientId'].value = contract.clientId;
+        form.elements['amount'].value = new Intl.NumberFormat('es-CL').format(contract.amount);
+        form.elements['startDate'].value = contract.startDate;
+        form.elements['endDate'].value = contract.endDate;
+        form.elements['billingDay'].value = contract.billingDay;
+        form.elements['frequency'].value = contract.frequency || 'mensual';
+
+        document.getElementById('contract-form-title').textContent = 'Editar Contrato';
+        const cancelBtn = document.getElementById('cancel-contract-edit');
+        if (cancelBtn) cancelBtn.style.display = 'inline-block';
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    },
+
+    resetContractForm() {
+        const form = document.getElementById('add-contract-form');
+        if (form) {
+            form.reset();
+            document.getElementById('contract-id').value = '';
+            document.getElementById('contract-form-title').textContent = 'Registrar Contrato';
+            const cancelBtn = document.getElementById('cancel-contract-edit');
+            if (cancelBtn) cancelBtn.style.display = 'none';
+        }
+    },
+
+    deleteContract(id) {
+        if (state.currentUser.role !== ROLES.ADMIN) return;
+        window.StorageAPI.deleteContract(id);
+        this.recordActivity('Baja', 'Contrato', `Eliminado contrato`);
+        this.loadData();
+        this.renderContracts();
+        this.checkPendingContracts();
+    },
+
+    checkPendingContracts() {
+        const pendingBadge = document.getElementById('contracts-badge');
+        const reminderBtn = document.getElementById('contracts-reminder-btn');
+        const pendingBody = document.getElementById('alerts-pending-body');
+        const invoicedBody = document.getElementById('alerts-invoiced-body');
+        const overdueBody = document.getElementById('alerts-overdue-body');
+
+        if (!pendingBadge || !reminderBtn) return;
+
+        // Fetch fresh
+        state.pendingContracts = window.StorageAPI.getPendingContracts() || [];
+
+        if (state.pendingContracts.length > 0) {
+            reminderBtn.style.display = 'inline-block';
+            pendingBadge.style.display = 'inline-block';
+            pendingBadge.textContent = state.pendingContracts.length;
+        } else {
+            reminderBtn.style.display = 'inline-block';
+            pendingBadge.style.display = 'none';
+        }
+
+        if (pendingBody) {
+            pendingBody.innerHTML = '';
+            state.pendingContracts.forEach(c => {
+                const client = state.clients.find(cl => cl.id === c.clientId);
+                const clientName = client ? (client.razonSocial || client.name) : '-';
+                const conceptText = `Mensualidad Contrato - ${clientName}`;
+
+                const tr = document.createElement('tr');
+                tr.id = `pending-row-${c.id}`;
+                tr.innerHTML = `
+                    <td>${clientName}</td>
+                    <td style="font-weight:bold; color: var(--danger-color);">${formatCurrency(c.amount)}</td>
+                    <td>${conceptText}</td>
+                    <td>
+                        <button class="btn-sm btn-outline-success" onclick="UI.markContractInvoiced('${c.id}')">
+                            <i class="fa-solid fa-check"></i> Factura Emitida
+                        </button>
+                    </td>
+                `;
+                pendingBody.appendChild(tr);
+            });
+        }
+
+        if (invoicedBody) {
+            invoicedBody.innerHTML = '';
+            const now = new Date();
+            const currentPeriod = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+            const invoicedThisMonth = state.contracts.filter(c => c.lastInvoicedPeriod === currentPeriod);
+            invoicedThisMonth.forEach(c => {
+                const client = state.clients.find(cl => cl.id === c.clientId);
+                const clientName = client ? (client.razonSocial || client.name) : '-';
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td>${clientName}</td>
+                    <td style="font-weight:bold; color: var(--secondary-color);">${formatCurrency(c.amount)}</td>
+                    <td>${currentPeriod}</td>
+                    <td class="actions">
+                        <button class="btn-icon text-danger" title="Revertir Emisión" onclick="UI.undoContractInvoice('${c.id}')">
+                            <i class="fa-solid fa-clock-rotate-left"></i> Revertir
+                        </button>
+                    </td>
+                `;
+                invoicedBody.appendChild(tr);
+            });
+        }
+    },
+
+    markContractInvoiced(id) {
+        // Actualización optimista de UI (Tiempo Real)
+        const row = document.getElementById(`pending-row-${id}`);
+        if (row) row.style.display = 'none';
+
+        const badge = document.getElementById('contracts-badge');
+        if (badge) {
+            let count = parseInt(badge.textContent) || 0;
+            if (count > 1) {
+                badge.textContent = count - 1;
+            } else {
+                badge.style.display = 'none';
+            }
+        }
+
+        // Llamada síncrona al backend para actualizar estado en Contratos y Deudores
+        window.StorageAPI.invoiceContract(id);
+        this.showToast('Factura Emitida', 'success');
+
+        // Refrescar data subyacente de forma que los tabs al navegar estén full actualizados
+        this.checkPendingContracts();
+        this.loadData();
+    },
+
+    undoContractInvoice(id) {
+        if (!confirm('¿Estás seguro de que quieres revertir la emisión de esta factura? Se eliminará la deuda asociada.')) return;
+
+        window.StorageAPI.undoInvoiceContract(id);
+        this.showToast('Emisión revertida con éxito', 'info');
+
+        this.loadData();
+        this.checkPendingContracts();
     },
 
     initDatePickers() {
