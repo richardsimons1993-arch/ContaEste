@@ -121,6 +121,24 @@ const Storage = {
         return this.getDebts();
     },
 
+    payDebt(id) {
+        return syncRequest('POST', `/debts/${id}/pay`);
+    },
+
+    getSuppliers() {
+        return syncRequest('GET', '/suppliers') || [];
+    },
+
+    saveSupplier(supplier) {
+        syncRequest('POST', '/suppliers', supplier);
+        return this.getSuppliers();
+    },
+
+    deleteSupplier(id) {
+        syncRequest('DELETE', `/suppliers/${id}`);
+        return this.getSuppliers();
+    },
+
     getDebtors() {
         return syncRequest('GET', '/debtors') || [];
     },

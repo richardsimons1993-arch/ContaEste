@@ -77,6 +77,9 @@
                     <button class="nav-btn" data-target="clients">
                         <i class="fa-solid fa-users"></i> Clientes
                     </button>
+                    <button class="nav-btn" data-target="suppliers">
+                        <i class="fa-solid fa-truck"></i> Proveedores
+                    </button>
                     <button class="nav-btn" data-target="transactions">
                         <i class="fa-solid fa-list-ul"></i> Movimientos
                     </button>
@@ -466,6 +469,73 @@
                 </div>
             </section>
 
+            <!-- VISTA PROVEEDORES -->
+            <section id="suppliers" class="view-section">
+                <div class="card form-card">
+                    <h2 id="supplier-form-title">Registrar Proveedor</h2>
+                    <form id="add-supplier-form">
+                        <input type="hidden" name="id" id="supplier-id">
+                        <div class="grid-2">
+                            <div class="form-group">
+                                <label>Razón Social</label>
+                                <input type="text" name="name" required placeholder="Nombre o empresa del proveedor">
+                            </div>
+                            <div class="form-group">
+                                <label>RUT</label>
+                                <input type="text" name="rut" placeholder="Ej: 12.345.678-9">
+                            </div>
+                        </div>
+                        <div class="grid-2">
+                            <div class="form-group">
+                                <label>Encargado / Contacto</label>
+                                <input type="text" name="encargado" placeholder="Nombre del contacto">
+                            </div>
+                            <div class="form-group">
+                                <label>Teléfono</label>
+                                <input type="text" name="phone" placeholder="+56 9 XXXX XXXX">
+                            </div>
+                        </div>
+                        <div class="grid-2">
+                            <div class="form-group">
+                                <label>Correo Electrónico</label>
+                                <input type="email" name="email" placeholder="correo@proveedor.com">
+                            </div>
+                            <div class="form-group">
+                                <label>Dirección</label>
+                                <input type="text" name="address" placeholder="Calle, Número, Ciudad">
+                            </div>
+                        </div>
+                        <div class="form-actions mt-3">
+                            <button type="submit" class="btn-secondary">Guardar Proveedor</button>
+                            <button type="button" id="cancel-supplier-edit" class="btn-text"
+                                style="display: none;">Cancelar</button>
+                        </div>
+                    </form>
+                </div>
+
+                <div class="card mt-4">
+                    <h3>Lista de Proveedores</h3>
+                    <div class="table-responsive">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Razón Social</th>
+                                    <th>RUT</th>
+                                    <th>Encargado</th>
+                                    <th>Teléfono</th>
+                                    <th>Correo</th>
+                                    <th>Dirección</th>
+                                    <th>Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody id="suppliers-list-body">
+                                <!-- Inyectado por JS -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
             <!-- VISTA DEUDAS (Lo que debo) -->
             <section id="debts" class="view-section">
                 <div class="card form-card">
@@ -474,23 +544,31 @@
                         <input type="hidden" name="id" id="debt-id">
                         <div class="grid-2">
                             <div class="form-group">
-                                <label>Titular (Quien me prestó)</label>
-                                <input type="text" name="titular" required placeholder="Ej: Banco Estado, Juan Perez..."
-                                    oninvalid="this.setCustomValidity('Por favor, ingrese el titular')"
-                                    oninput="this.setCustomValidity('')">
+                                <label>Proveedor / Acreedor</label>
+                                <select name="supplierId" id="debt-supplier-select" required>
+                                    <option value="">Seleccionar Proveedor</option>
+                                    <!-- Inyectado por JS -->
+                                </select>
                             </div>
                             <div class="form-group">
-                                <label>Monto</label>
-                                <input type="text" name="amount" class="amount-input" required placeholder="0"
-                                    oninvalid="this.setCustomValidity('Por favor, ingrese el monto')"
-                                    oninput="this.setCustomValidity('')">
+                                <label>Concepto</label>
+                                <select name="conceptId" id="debt-concept-select">
+                                    <option value="">Sin Concepto</option>
+                                    <!-- Inyectado por JS -->
+                                </select>
                             </div>
                         </div>
                         <div class="grid-2">
                             <div class="form-group">
-                                <label>Fecha de Vencimiento / Registro</label>
-                                <input type="date" name="date" required>
+                                <label>Monto</label>
+                                <input type="text" name="amount" class="amount-input" required placeholder="0">
                             </div>
+                            <div class="form-group">
+                                <label>Fecha de Vencimiento / Registro</label>
+                                <input type="date" name="dueDate" required>
+                            </div>
+                        </div>
+                        <div class="grid-2">
                             <div class="form-group">
                                 <label>Descripción / Observación</label>
                                 <input type="text" name="description" placeholder="Detalles de la deuda...">
@@ -523,9 +601,10 @@
                             <thead>
                                 <tr>
                                     <th>Fecha</th>
-                                    <th>Titular</th>
-                                    <th>Descripción</th>
+                                    <th>Proveedor</th>
+                                    <th>Concepto</th>
                                     <th>Monto</th>
+                                    <th>Descripción</th>
                                     <th>Acciones</th>
                                 </tr>
                             </thead>

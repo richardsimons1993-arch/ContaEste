@@ -6,12 +6,13 @@ const state = {
     clients: [],
     debts: [],
     debtors: [],
+    suppliers: [],
     contracts: [],
     pendingContracts: [],
     logs: [],
     users: [],
     currentUser: null,
-    lastDeleted: null // Para el sistema de Deshacer
+    lastDeleted: null
 };
 
 // Roles y Permisos
@@ -76,6 +77,12 @@ const UI = {
             this.renderTransactionFormOptions(); // Rellenar formulario y filtros
             this.initDatePickers(); // Inicializar Flatpickr
             this.checkPendingContracts(); // Verificar contratos pendientes
+            this.renderSuppliers();
+            this.renderDebts();
+            this.renderDebtors();
+            this.populateDebtSupplierSelect();
+            this.populateDebtConceptSelect();
+            this.populateDebtorClientSelect();
 
             // Si hay sesión, cargar la UI normal
             if (state.currentUser) {
@@ -97,11 +104,12 @@ const UI = {
         state.transactions = (window.StorageAPI.getTransactions() || []).map(t => ({ ...t, date: cleanDate(t.date) }));
         state.concepts = window.StorageAPI.getConcepts() || [];
         state.clients = window.StorageAPI.getClients() || [];
-        state.debts = (window.StorageAPI.getDebts() || []).map(d => ({ ...d, date: cleanDate(d.date) }));
+        state.debts = (window.StorageAPI.getDebts() || []).map(d => ({ ...d, dueDate: cleanDate(d.dueDate || d.date), date: cleanDate(d.date) }));
         state.debtors = (window.StorageAPI.getDebtors() || []).map(d => ({ ...d, date: cleanDate(d.date) }));
         state.contracts = (window.StorageAPI.getContracts() || []).map(c => ({ ...c, startDate: cleanDate(c.startDate), endDate: cleanDate(c.endDate) }));
         state.pendingContracts = window.StorageAPI.getPendingContracts() || [];
         state.logs = window.StorageAPI.getLogs() || [];
+        state.suppliers = window.StorageAPI.getSuppliers() || [];
 
         // Cargar usuarios o inicializar con por defecto
         state.users = window.StorageAPI.getUsers() || [];
@@ -209,6 +217,13 @@ const UI = {
         if (cancelDebtorEditBtn) {
             cancelDebtorEditBtn.addEventListener('click', () => this.resetDebtorForm());
         }
+
+        // Suppliers
+        const supplierForm = document.getElementById('add-supplier-form');
+        if (supplierForm) supplierForm.addEventListener('submit', (e) => this.handleSupplierSubmit(e));
+
+        const cancelSupplierEditBtn = document.getElementById('cancel-supplier-edit');
+        if (cancelSupplierEditBtn) cancelSupplierEditBtn.addEventListener('click', () => this.resetSupplierForm());
 
         // --- CONTRATOS ---
         const contractForm = document.getElementById('add-contract-form');
@@ -524,6 +539,7 @@ const UI = {
             'debts': 'finanzas',
             'debtors': 'finanzas',
             'contracts': 'finanzas',
+            'suppliers': 'finanzas',
             'dashboard': 'finanzas',
             'activity': 'finanzas',
             'users': 'usuarios'
@@ -571,6 +587,7 @@ const UI = {
             'transactions': 'Movimientos',
             'concepts': 'Conceptos',
             'clients': 'Clientes',
+            'suppliers': 'Proveedores',
             'debts': 'Deudas',
             'debtors': 'Deudores',
             'contracts': 'Contratos',
@@ -1142,25 +1159,68 @@ const UI = {
         this.applyPrivileges();
     },
 
+    renderDebts() {
+        const tbody = document.getElementById('debts-list-body');
+        if (!tbody) return;
+        tbody.innerHTML = '';
+
+        state.debts.forEach(d => {
+            const tr = document.createElement('tr');
+            // Mapear IDs a nombres para mostrar
+            const supplier = state.suppliers.find(s => s.id === d.supplierId);
+            const concept = state.concepts.find(c => c.id === d.conceptId);
+            const supplierTitle = supplier ? supplier.name : (d.titular || d.creditor || '-');
+            const conceptTitle = concept ? concept.name : '-';
+
+            tr.innerHTML = `
+                <td>${formatDate(d.dueDate || d.date)}</td>
+                <td>${supplierTitle}</td>
+                <td>${conceptTitle}</td>
+                <td style="font-weight:bold; color: var(--danger-color)">${formatCurrency(d.amount)}</td>
+                <td>${d.description || '-'}</td>
+                <td class="actions">
+                    <button class="btn-icon text-success" title="Marcar como Pagada" onclick="UI.payDebt('${d.id}')">
+                        <i class="fa-solid fa-check-double"></i>
+                    </button>
+                    <button class="btn-icon" title="Editar" onclick="UI.editDebt('${d.id}')">
+                        <i class="fa-solid fa-pen-to-square"></i>
+                    </button>
+                    <button class="btn-icon text-danger" title="Eliminar" onclick="UI.deleteDebt('${d.id}')">
+                        <i class="fa-solid fa-trash"></i>
+                    </button>
+                </td>
+            `;
+            tbody.appendChild(tr);
+        });
+        this.applyPrivileges();
+    },
+
     handleDebtSubmit(e) {
         e.preventDefault();
         const formData = new FormData(e.target);
         const id = formData.get('id');
 
+        // Obtener nombre del proveedor seleccionado para guardar en 'titular' como fallback
+        const supplierSelect = document.getElementById('debt-supplier-select');
+        const supplierName = supplierSelect && supplierSelect.options[supplierSelect.selectedIndex] ? supplierSelect.options[supplierSelect.selectedIndex].text : '';
+
         const debt = {
             id: id || Date.now().toString(),
-            titular: formData.get('titular'),
+            supplierId: formData.get('supplierId'),
+            titular: supplierName, // Fallback para compatibilidad
             amount: parseAmount(formData.get('amount')),
-            date: formData.get('date'),
-            description: formData.get('description')
+            dueDate: formData.get('dueDate'),
+            conceptId: formData.get('conceptId'),
+            description: formData.get('description'),
+            status: 'pending'
         };
 
         window.StorageAPI.saveDebt(debt);
 
         if (id) {
-            this.recordActivity('Modificación', 'Deuda', `Actualizada deuda a ${debt.titular}`);
+            this.recordActivity('Modificación', 'Deuda', `Actualizada deuda de ${debt.titular}`);
         } else {
-            this.recordActivity('Alta', 'Deuda', `Registrada deuda a ${debt.titular}`);
+            this.recordActivity('Alta', 'Deuda', `Registrada deuda de ${debt.titular}`);
         }
 
         this.loadData();
@@ -1173,15 +1233,149 @@ const UI = {
 
         const form = document.getElementById('add-debt-form');
         document.getElementById('debt-id').value = debt.id;
-        form.elements['titular'].value = debt.titular;
+        form.elements['supplierId'].value = debt.supplierId || '';
         form.elements['amount'].value = new Intl.NumberFormat('es-CL').format(debt.amount);
-        form.elements['date'].value = debt.date;
+        form.elements['dueDate'].value = debt.dueDate || debt.date;
+        form.elements['conceptId'].value = debt.conceptId || '';
         form.elements['description'].value = debt.description || '';
 
         document.getElementById('debt-form-title').textContent = 'Editar Deuda';
         const cancelBtn = document.getElementById('cancel-debt-edit');
         if (cancelBtn) cancelBtn.style.display = 'inline-block';
         window.scrollTo({ top: 0, behavior: 'smooth' });
+    },
+
+    payDebt(id) {
+        if (!confirm('¿Estás seguro de que quieres marcar esta deuda como pagada? Se eliminará de Deudas y se creará un egreso en Movimientos.')) return;
+
+        window.StorageAPI.payDebt(id);
+        this.showToast('Deuda pagada. Movimiento de egreso registrado.', 'success');
+        this.loadData();
+        this.renderDebts();
+    },
+
+    populateDebtSupplierSelect() {
+        const sel = document.getElementById('debt-supplier-select');
+        if (!sel) return;
+        sel.innerHTML = '<option value="">Seleccionar Proveedor</option>';
+        state.suppliers.forEach(s => {
+            const opt = document.createElement('option');
+            opt.value = s.id;
+            opt.textContent = s.name;
+            sel.appendChild(opt);
+        });
+    },
+
+    populateDebtConceptSelect() {
+        const sel = document.getElementById('debt-concept-select');
+        if (!sel) return;
+        sel.innerHTML = '<option value="">Seleccionar Concepto</option>';
+        state.concepts.forEach(c => {
+            const opt = document.createElement('option');
+            opt.value = c.id;
+            opt.textContent = c.name;
+            sel.appendChild(opt);
+        });
+    },
+
+    // --- LOGICA PROVEEDORES ---
+
+    renderSuppliers() {
+        const tbody = document.getElementById('suppliers-list-body');
+        if (!tbody) return;
+        tbody.innerHTML = '';
+
+        state.suppliers.forEach(s => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td>${s.name}</td>
+                <td>${s.rut || '-'}</td>
+                <td>${s.encargado || '-'}</td>
+                <td>${s.phone || '-'}</td>
+                <td>${s.email || '-'}</td>
+                <td class="actions">
+                    <button class="btn-icon" title="Editar" onclick="UI.editSupplier('${s.id}')">
+                        <i class="fa-solid fa-pen-to-square"></i>
+                    </button>
+                    <button class="btn-icon text-danger" title="Eliminar" onclick="UI.deleteSupplier('${s.id}')">
+                        <i class="fa-solid fa-trash"></i>
+                    </button>
+                </td>
+            `;
+            tbody.appendChild(tr);
+        });
+        this.applyPrivileges();
+    },
+
+    handleSupplierSubmit(e) {
+        e.preventDefault();
+        const formData = new FormData(e.target);
+        const id = formData.get('id');
+
+        const supplier = {
+            id: id || Date.now().toString(),
+            name: formData.get('name'),
+            rut: formData.get('rut'),
+            encargado: formData.get('encargado'),
+            phone: formData.get('phone'),
+            email: formData.get('email'),
+            address: formData.get('address')
+        };
+
+        window.StorageAPI.saveSupplier(supplier);
+
+        if (id) {
+            this.recordActivity('Modificación', 'Proveedor', `Actualizado proveedor ${supplier.name}`);
+        } else {
+            this.recordActivity('Alta', 'Proveedor', `Registrado proveedor ${supplier.name}`);
+        }
+
+        this.loadData();
+        this.resetSupplierForm();
+        this.renderSuppliers();
+        this.populateDebtSupplierSelect();
+    },
+
+    editSupplier(id) {
+        const supplier = state.suppliers.find(s => s.id === id);
+        if (!supplier) return;
+
+        const form = document.getElementById('add-supplier-form');
+        document.getElementById('supplier-id').value = supplier.id;
+        form.elements['name'].value = supplier.name;
+        form.elements['rut'].value = supplier.rut || '';
+        form.elements['encargado'].value = supplier.encargado || '';
+        form.elements['phone'].value = supplier.phone || '';
+        form.elements['email'].value = supplier.email || '';
+        form.elements['address'].value = supplier.address || '';
+
+        document.getElementById('supplier-form-title').textContent = 'Editar Proveedor';
+        const cancelBtn = document.getElementById('cancel-supplier-edit');
+        if (cancelBtn) cancelBtn.style.display = 'inline-block';
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    },
+
+    resetSupplierForm() {
+        const form = document.getElementById('add-supplier-form');
+        if (form) {
+            form.reset();
+            document.getElementById('supplier-id').value = '';
+            document.getElementById('supplier-form-title').textContent = 'Registrar Proveedor';
+            const cancelBtn = document.getElementById('cancel-supplier-edit');
+            if (cancelBtn) cancelBtn.style.display = 'none';
+        }
+    },
+
+    deleteSupplier(id) {
+        if (state.currentUser.role !== ROLES.ADMIN) return;
+        if (!confirm('¿Estás seguro de que quieres eliminar este proveedor?')) return;
+
+        const supplier = state.suppliers.find(s => s.id === id);
+        window.StorageAPI.deleteSupplier(id);
+        state.suppliers = state.suppliers.filter(s => s.id !== id);
+        this.recordActivity('Baja', 'Proveedor', `Eliminado proveedor ${supplier?.name}`);
+        this.renderSuppliers();
+        this.populateDebtSupplierSelect();
     },
 
     resetDebtForm() {
@@ -1233,6 +1427,7 @@ const UI = {
             tbody.appendChild(tr);
         });
         this.applyPrivileges();
+        this.populateDebtorClientSelect();
     },
 
     handleDebtorSubmit(e) {
@@ -1264,6 +1459,8 @@ const UI = {
         const debtor = state.debtors.find(d => d.id === id);
         if (!debtor) return;
 
+        this.populateDebtorClientSelect(debtor.titular);
+
         const form = document.getElementById('add-debtor-form');
         document.getElementById('debtor-id').value = debtor.id;
         form.elements['titular'].value = debtor.titular;
@@ -1286,6 +1483,22 @@ const UI = {
             const cancelBtn = document.getElementById('cancel-debtor-edit');
             if (cancelBtn) cancelBtn.style.display = 'none';
         }
+        // Poblar select de clientes
+        this.populateDebtorClientSelect();
+    },
+
+    populateDebtorClientSelect(selectedName) {
+        const sel = document.getElementById('debtor-client-select');
+        if (!sel) return;
+        sel.innerHTML = '<option value="">Seleccionar Cliente</option>';
+        state.clients.forEach(c => {
+            const name = c.razonSocial || c.name;
+            const opt = document.createElement('option');
+            opt.value = name;
+            opt.textContent = name;
+            if (selectedName && selectedName === name) opt.selected = true;
+            sel.appendChild(opt);
+        });
     },
 
     deleteDebtor(id) {

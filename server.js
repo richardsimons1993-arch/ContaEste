@@ -77,25 +77,25 @@ app.post('/api/transactions', async (req, res) => {
 
         const finalType = conceptCheck.recordset.length > 0 ? conceptCheck.recordset[0].type : t.type;
 
-        const check = await pool.request().input('id', sql.VarChar, t.id).query('SELECT id FROM Transactions WHERE id = @id');
+        const check = await pool.request().input('id', sql.VarChar(50), t.id).query('SELECT id FROM Transactions WHERE id = @id');
 
         if (check.recordset.length > 0) {
             await pool.request()
-                .input('id', sql.VarChar, t.id)
+                .input('id', sql.VarChar(50), t.id)
                 .input('date', sql.Date, t.date)
-                .input('type', sql.VarChar, finalType)
-                .input('conceptId', sql.VarChar, t.conceptId)
-                .input('clientId', sql.VarChar, t.clientId)
+                .input('type', sql.VarChar(50), finalType)
+                .input('conceptId', sql.VarChar(50), t.conceptId)
+                .input('clientId', sql.VarChar(50), t.clientId)
                 .input('amount', sql.Decimal(18, 2), t.amount)
                 .input('observation', sql.VarChar(sql.MAX), t.observation)
                 .query(`UPDATE Transactions SET date=@date, type=@type, conceptId=@conceptId, clientId=@clientId, amount=@amount, observation=@observation WHERE id=@id`);
         } else {
             await pool.request()
-                .input('id', sql.VarChar, t.id)
+                .input('id', sql.VarChar(50), t.id)
                 .input('date', sql.Date, t.date)
-                .input('type', sql.VarChar, finalType)
-                .input('conceptId', sql.VarChar, t.conceptId)
-                .input('clientId', sql.VarChar, t.clientId)
+                .input('type', sql.VarChar(50), finalType)
+                .input('conceptId', sql.VarChar(50), t.conceptId)
+                .input('clientId', sql.VarChar(50), t.clientId)
                 .input('amount', sql.Decimal(18, 2), t.amount)
                 .input('observation', sql.VarChar(sql.MAX), t.observation)
                 .query(`INSERT INTO Transactions (id, date, type, conceptId, clientId, amount, observation) VALUES (@id, @date, @type, @conceptId, @clientId, @amount, @observation)`);
@@ -114,18 +114,18 @@ app.post('/api/concepts', async (req, res) => {
     try {
         const c = req.body;
         const pool = await getDbPool();
-        const check = await pool.request().input('id', sql.VarChar, c.id).query('SELECT id FROM Concepts WHERE id = @id');
+        const check = await pool.request().input('id', sql.VarChar(50), c.id).query('SELECT id FROM Concepts WHERE id = @id');
         if (check.recordset.length > 0) {
             await pool.request()
-                .input('id', sql.VarChar, c.id)
-                .input('name', sql.VarChar, c.name)
-                .input('type', sql.VarChar, c.type)
+                .input('id', sql.VarChar(50), c.id)
+                .input('name', sql.VarChar(255), c.name)
+                .input('type', sql.VarChar(50), c.type)
                 .query(`UPDATE Concepts SET name=@name, type=@type WHERE id=@id`);
         } else {
             await pool.request()
-                .input('id', sql.VarChar, c.id)
-                .input('name', sql.VarChar, c.name)
-                .input('type', sql.VarChar, c.type)
+                .input('id', sql.VarChar(50), c.id)
+                .input('name', sql.VarChar(255), c.name)
+                .input('type', sql.VarChar(50), c.type)
                 .query(`INSERT INTO Concepts (id, name, type) VALUES (@id, @name, @type)`);
         }
         res.json(c);
@@ -163,35 +163,36 @@ app.post('/api/clients', async (req, res) => {
         const pool = await getDbPool();
         const clientId = c.id;
 
-        const check = await pool.request().input('id', sql.VarChar, clientId).query('SELECT id FROM Clients WHERE id = @id');
+        const check = await pool.request().input('id', sql.VarChar(50), clientId).query('SELECT id FROM Clients WHERE id = @id');
 
         const clientName = c.razonSocial || c.name || 'Sin Nombre';
 
         if (check.recordset.length > 0) {
             await pool.request()
-                .input('id', sql.VarChar, clientId)
-                .input('name', sql.VarChar, clientName)
-                .input('nombreFantasia', sql.VarChar, c.nombreFantasia || null)
-                .input('rut', sql.VarChar, c.rut || null)
-                .input('encargado', sql.VarChar, c.encargado || null)
-                .input('phone', sql.VarChar, c.telefono || null)
-                .input('email', sql.VarChar, c.correo || null)
-                .input('address', sql.VarChar, c.direccion || null)
+                .input('id', sql.VarChar(50), clientId)
+                .input('name', sql.VarChar(255), clientName)
+                .input('nombreFantasia', sql.VarChar(255), c.nombreFantasia || null)
+                .input('rut', sql.VarChar(50), c.rut || null)
+                .input('encargado', sql.VarChar(255), c.encargado || null)
+                .input('phone', sql.VarChar(50), c.telefono || null)
+                .input('email', sql.VarChar(255), c.correo || null)
+                .input('address', sql.VarChar(255), c.direccion || null)
                 .query(`UPDATE Clients SET name=@name, nombreFantasia=@nombreFantasia, rut=@rut, encargado=@encargado, phone=@phone, email=@email, address=@address WHERE id=@id`);
         } else {
             await pool.request()
-                .input('id', sql.VarChar, clientId)
-                .input('name', sql.VarChar, clientName)
-                .input('nombreFantasia', sql.VarChar, c.nombreFantasia || null)
-                .input('rut', sql.VarChar, c.rut || null)
-                .input('encargado', sql.VarChar, c.encargado || null)
-                .input('phone', sql.VarChar, c.telefono || null)
-                .input('email', sql.VarChar, c.correo || null)
-                .input('address', sql.VarChar, c.direccion || null)
+                .input('id', sql.VarChar(50), clientId)
+                .input('name', sql.VarChar(255), clientName)
+                .input('nombreFantasia', sql.VarChar(255), c.nombreFantasia || null)
+                .input('rut', sql.VarChar(50), c.rut || null)
+                .input('encargado', sql.VarChar(255), c.encargado || null)
+                .input('phone', sql.VarChar(50), c.telefono || null)
+                .input('email', sql.VarChar(255), c.correo || null)
+                .input('address', sql.VarChar(255), c.direccion || null)
                 .query(`INSERT INTO Clients (id, name, nombreFantasia, rut, encargado, phone, email, address) VALUES (@id, @name, @nombreFantasia, @rut, @encargado, @phone, @email, @address)`);
         }
         res.json({ success: true, id: clientId });
     } catch (err) {
+        console.error('Error in POST /api/clients:', err);
         res.status(500).json({ error: err.message });
     }
 });
@@ -208,25 +209,121 @@ app.post('/api/debts', async (req, res) => {
         const check = await pool.request().input('id', sql.VarChar, d.id).query('SELECT id FROM Debts WHERE id = @id');
         if (check.recordset.length > 0) {
             await pool.request()
-                .input('id', sql.VarChar, d.id)
-                .input('creditor', sql.VarChar, creditor)
+                .input('id', sql.VarChar(50), d.id)
+                .input('creditor', sql.VarChar(255), creditor)
                 .input('amount', sql.Decimal(18, 2), d.amount)
                 .input('dueDate', sql.Date, dueDate)
                 .input('description', sql.VarChar(sql.MAX), d.description || '')
-                .input('status', sql.VarChar, d.status || 'pending')
-                .query(`UPDATE Debts SET creditor=@creditor, amount=@amount, dueDate=@dueDate, description=@description, status=@status WHERE id=@id`);
+                .input('status', sql.VarChar(50), d.status || 'pending')
+                .input('conceptId', sql.VarChar(50), d.conceptId || null)
+                .input('supplierId', sql.VarChar(50), d.supplierId || null)
+                .query(`UPDATE Debts SET creditor=@creditor, amount=@amount, dueDate=@dueDate, description=@description, status=@status, conceptId=@conceptId, supplierId=@supplierId WHERE id=@id`);
         } else {
             await pool.request()
-                .input('id', sql.VarChar, d.id)
-                .input('creditor', sql.VarChar, creditor)
+                .input('id', sql.VarChar(50), d.id)
+                .input('creditor', sql.VarChar(255), creditor)
                 .input('amount', sql.Decimal(18, 2), d.amount)
                 .input('dueDate', sql.Date, dueDate)
                 .input('description', sql.VarChar(sql.MAX), d.description || '')
-                .input('status', sql.VarChar, d.status || 'pending')
-                .query(`INSERT INTO Debts (id, creditor, amount, dueDate, description, status) VALUES (@id, @creditor, @amount, @dueDate, @description, @status)`);
+                .input('status', sql.VarChar(50), d.status || 'pending')
+                .input('conceptId', sql.VarChar(50), d.conceptId || null)
+                .input('supplierId', sql.VarChar(50), d.supplierId || null)
+                .query(`INSERT INTO Debts (id, creditor, amount, dueDate, description, status, conceptId, supplierId) VALUES (@id, @creditor, @amount, @dueDate, @description, @status, @conceptId, @supplierId)`);
         }
         res.json(d);
     } catch (err) {
+        console.error('Error in POST /api/debts:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.post('/api/debts/:id/pay', async (req, res) => {
+    try {
+        const pool = await getDbPool();
+        const debtId = req.params.id;
+
+        const transaction = new sql.Transaction(pool);
+        await transaction.begin();
+
+        try {
+            // 1. Obtener la deuda
+            const debtRes = await transaction.request()
+                .input('id', sql.VarChar, debtId)
+                .query(`SELECT creditor, amount, description, conceptId, supplierId FROM Debts WHERE id = @id`);
+
+            if (debtRes.recordset.length === 0) {
+                await transaction.rollback();
+                return res.status(404).json({ error: 'Deuda no encontrada' });
+            }
+
+            const debt = debtRes.recordset[0];
+            const moveId = 'T' + Date.now().toString() + Math.floor(Math.random() * 1000);
+            const moveDate = new Date();
+            const obsText = 'Pago a proveedor: ' + debt.creditor + (debt.description ? ' - ' + debt.description : '');
+
+            // Usar conceptId del registro o Ventas(1) como fallback
+            const conceptIdToUse = debt.conceptId || '1';
+
+            // 2. Crear movimiento (egreso)
+            await transaction.request()
+                .input('id', sql.VarChar, moveId)
+                .input('date', sql.Date, moveDate)
+                .input('type', sql.VarChar, 'expense')
+                .input('conceptId', sql.VarChar, conceptIdToUse)
+                .input('amount', sql.Decimal(18, 2), debt.amount)
+                .input('observation', sql.VarChar(sql.MAX), obsText)
+                .input('clientId', sql.VarChar, null)
+                .query(`INSERT INTO Transactions (id, date, type, conceptId, amount, observation, clientId) VALUES (@id, @date, @type, @conceptId, @amount, @observation, @clientId)`);
+
+            // 3. Eliminar deuda
+            await transaction.request()
+                .input('id', sql.VarChar, debtId)
+                .query(`DELETE FROM Debts WHERE id = @id`);
+
+            await transaction.commit();
+            res.json({ success: true, message: 'Deuda pagada y movimiento creado' });
+
+        } catch (tErr) {
+            await transaction.rollback();
+            throw tErr;
+        }
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// --- ENDPOINTS PARA SUPPLIERS ---
+app.get('/api/suppliers', (req, res) => getApi(req, res, 'Suppliers'));
+app.delete('/api/suppliers/:id', (req, res) => deleteApi(req, res, 'Suppliers'));
+app.post('/api/suppliers', async (req, res) => {
+    try {
+        const s = req.body;
+        const pool = await getDbPool();
+        const check = await pool.request().input('id', sql.VarChar(50), s.id).query('SELECT id FROM Suppliers WHERE id = @id');
+        if (check.recordset.length > 0) {
+            await pool.request()
+                .input('id', sql.VarChar(50), s.id)
+                .input('name', sql.VarChar(255), s.name)
+                .input('rut', sql.VarChar(50), s.rut || '')
+                .input('encargado', sql.VarChar(255), s.encargado || '')
+                .input('phone', sql.VarChar(50), s.phone || '')
+                .input('email', sql.VarChar(255), s.email || '')
+                .input('address', sql.VarChar(255), s.address || '')
+                .query(`UPDATE Suppliers SET name=@name, rut=@rut, encargado=@encargado, phone=@phone, email=@email, address=@address WHERE id=@id`);
+        } else {
+            await pool.request()
+                .input('id', sql.VarChar(50), s.id)
+                .input('name', sql.VarChar(255), s.name)
+                .input('rut', sql.VarChar(50), s.rut || '')
+                .input('encargado', sql.VarChar(255), s.encargado || '')
+                .input('phone', sql.VarChar(50), s.phone || '')
+                .input('email', sql.VarChar(255), s.email || '')
+                .input('address', sql.VarChar(255), s.address || '')
+                .query(`INSERT INTO Suppliers (id, name, rut, encargado, phone, email, address) VALUES (@id, @name, @rut, @encargado, @phone, @email, @address)`);
+        }
+        res.json(s);
+    } catch (err) {
+        console.error('Error in POST /api/suppliers:', err);
         res.status(500).json({ error: err.message });
     }
 });
@@ -240,28 +337,29 @@ app.post('/api/debtors', async (req, res) => {
         const debtorName = d.debtor || d.titular;
         const dueDate = d.dueDate || d.date;
         const pool = await getDbPool();
-        const check = await pool.request().input('id', sql.VarChar, d.id).query('SELECT id FROM Debtors WHERE id = @id');
+        const check = await pool.request().input('id', sql.VarChar(50), d.id).query('SELECT id FROM Debtors WHERE id = @id');
         if (check.recordset.length > 0) {
             await pool.request()
-                .input('id', sql.VarChar, d.id)
-                .input('debtor', sql.VarChar, debtorName)
+                .input('id', sql.VarChar(50), d.id)
+                .input('debtor', sql.VarChar(255), debtorName)
                 .input('amount', sql.Decimal(18, 2), d.amount)
                 .input('dueDate', sql.Date, dueDate)
                 .input('description', sql.VarChar(sql.MAX), d.description || '')
-                .input('status', sql.VarChar, d.status || 'pending')
+                .input('status', sql.VarChar(50), d.status || 'pending')
                 .query(`UPDATE Debtors SET debtor=@debtor, amount=@amount, dueDate=@dueDate, description=@description, status=@status WHERE id=@id`);
         } else {
             await pool.request()
-                .input('id', sql.VarChar, d.id)
-                .input('debtor', sql.VarChar, debtorName)
+                .input('id', sql.VarChar(50), d.id)
+                .input('debtor', sql.VarChar(255), debtorName)
                 .input('amount', sql.Decimal(18, 2), d.amount)
                 .input('dueDate', sql.Date, dueDate)
                 .input('description', sql.VarChar(sql.MAX), d.description || '')
-                .input('status', sql.VarChar, d.status || 'pending')
+                .input('status', sql.VarChar(50), d.status || 'pending')
                 .query(`INSERT INTO Debtors (id, debtor, amount, dueDate, description, status) VALUES (@id, @debtor, @amount, @dueDate, @description, @status)`);
         }
         res.json(d);
     } catch (err) {
+        console.error('Error in POST /api/debtors:', err);
         res.status(500).json({ error: err.message });
     }
 });
@@ -297,10 +395,10 @@ app.post('/api/debtors/:id/pay', async (req, res) => {
             if (chRes.recordset.length > 0 && chRes.recordset[0].clientId) {
                 clientIdToUse = chRes.recordset[0].clientId;
             } else {
-                // Si no fue autogenerado por contrato, intentamos buscar por nombre
+                // Si no fue autogenerado por contrato, intentamos buscar por nombre exacto
                 const clRes = await transaction.request()
                     .input('name', sql.VarChar, debtor.debtor)
-                    .query(`SELECT id FROM Clients WHERE name = @name OR razonSocial = @name`);
+                    .query(`SELECT id FROM Clients WHERE name = @name`);
                 if (clRes.recordset.length > 0) {
                     clientIdToUse = clRes.recordset[0].id;
                 }
@@ -367,16 +465,17 @@ app.post('/api/users/batch', async (req, res) => {
         await pool.request().query('DELETE FROM Users');
         for (let u of usersArray) {
             await pool.request()
-                .input('id', sql.VarChar, u.id)
-                .input('username', sql.VarChar, u.username)
-                .input('password', sql.VarChar, u.password)
-                .input('role', sql.VarChar, u.role)
-                .input('name', sql.VarChar, u.name)
-                .input('modules', sql.VarChar, JSON.stringify(u.modules || []))
+                .input('id', sql.VarChar(50), u.id)
+                .input('username', sql.VarChar(50), u.username)
+                .input('password', sql.VarChar(100), u.password)
+                .input('role', sql.VarChar(50), u.role)
+                .input('name', sql.VarChar(100), u.name)
+                .input('modules', sql.VarChar(sql.MAX), JSON.stringify(u.modules || []))
                 .query(`INSERT INTO Users (id, username, password, role, name, modules) VALUES (@id, @username, @password, @role, @name, @modules)`);
         }
         res.json(usersArray);
     } catch (err) {
+        console.error('Error in POST /api/users/batch:', err);
         res.status(500).json({ error: err.message });
     }
 });
@@ -404,32 +503,33 @@ app.post('/api/contracts', async (req, res) => {
     try {
         const c = req.body;
         const pool = await getDbPool();
-        const check = await pool.request().input('id', sql.VarChar, c.id).query('SELECT id FROM Contracts WHERE id = @id');
+        const check = await pool.request().input('id', sql.VarChar(50), c.id).query('SELECT id FROM Contracts WHERE id = @id');
         if (check.recordset.length > 0) {
             await pool.request()
-                .input('id', sql.VarChar, c.id)
-                .input('clientId', sql.VarChar, c.clientId)
+                .input('id', sql.VarChar(50), c.id)
+                .input('clientId', sql.VarChar(50), c.clientId)
                 .input('amount', sql.Decimal(18, 2), c.amount)
                 .input('startDate', sql.Date, c.startDate)
                 .input('endDate', sql.Date, c.endDate)
                 .input('billingDay', sql.Int, c.billingDay)
-                .input('frequency', sql.VarChar, c.frequency || 'mensual')
-                .input('lastInvoicedPeriod', sql.VarChar, c.lastInvoicedPeriod || '')
+                .input('frequency', sql.VarChar(50), c.frequency || 'mensual')
+                .input('lastInvoicedPeriod', sql.VarChar(50), c.lastInvoicedPeriod || '')
                 .query(`UPDATE Contracts SET clientId=@clientId, amount=@amount, startDate=@startDate, endDate=@endDate, billingDay=@billingDay, frequency=@frequency, lastInvoicedPeriod=@lastInvoicedPeriod WHERE id=@id`);
         } else {
             await pool.request()
-                .input('id', sql.VarChar, c.id)
-                .input('clientId', sql.VarChar, c.clientId)
+                .input('id', sql.VarChar(50), c.id)
+                .input('clientId', sql.VarChar(50), c.clientId)
                 .input('amount', sql.Decimal(18, 2), c.amount)
                 .input('startDate', sql.Date, c.startDate)
                 .input('endDate', sql.Date, c.endDate)
                 .input('billingDay', sql.Int, c.billingDay)
-                .input('frequency', sql.VarChar, c.frequency || 'mensual')
-                .input('lastInvoicedPeriod', sql.VarChar, c.lastInvoicedPeriod || '')
+                .input('frequency', sql.VarChar(50), c.frequency || 'mensual')
+                .input('lastInvoicedPeriod', sql.VarChar(50), c.lastInvoicedPeriod || '')
                 .query(`INSERT INTO Contracts (id, clientId, amount, startDate, endDate, billingDay, frequency, lastInvoicedPeriod) VALUES (@id, @clientId, @amount, @startDate, @endDate, @billingDay, @frequency, @lastInvoicedPeriod)`);
         }
         res.json(c);
     } catch (err) {
+        console.error('Error in POST /api/contracts:', err);
         res.status(500).json({ error: err.message });
     }
 });
@@ -474,7 +574,7 @@ app.post('/api/contracts/:id/invoice', async (req, res) => {
         const contractId = req.params.id;
 
         const contractRes = await pool.request()
-            .input('id', sql.VarChar, contractId)
+            .input('id', sql.VarChar(50), contractId)
             .query(`SELECT c.amount, c.clientId, cl.name as clientName 
                     FROM Contracts c
                     LEFT JOIN Clients cl ON c.clientId = cl.id
@@ -485,12 +585,12 @@ app.post('/api/contracts/:id/invoice', async (req, res) => {
         }
 
         const contract = contractRes.recordset[0];
-        const debtorName = contract.razonSocial || contract.clientName || 'Cliente Desconocido';
+        const debtorName = contract.clientName || 'Cliente Desconocido';
         const amount = contract.amount;
 
         await pool.request()
-            .input('id', sql.VarChar, contractId)
-            .input('period', sql.VarChar, currentPeriod)
+            .input('id', sql.VarChar(50), contractId)
+            .input('period', sql.VarChar(50), currentPeriod)
             .query(`UPDATE Contracts SET lastInvoicedPeriod = @period WHERE id = @id`);
 
         // Integración Módulo Deudores (Vencimiento INMEDIATO: hoy)
@@ -503,29 +603,30 @@ app.post('/api/contracts/:id/invoice', async (req, res) => {
         const descriptionStr = `Outsourcing Mes ${monthNames[now.getMonth()]}`;
 
         await pool.request()
-            .input('id', sql.VarChar, newDebtorId)
-            .input('debtor', sql.VarChar, debtorName)
+            .input('id', sql.VarChar(50), newDebtorId)
+            .input('debtor', sql.VarChar(255), debtorName)
             .input('amount', sql.Decimal(18, 2), amount)
             .input('dueDate', sql.Date, dueDate)
             .input('description', sql.VarChar(sql.MAX), descriptionStr)
-            .input('status', sql.VarChar, 'pending')
+            .input('status', sql.VarChar(50), 'pending')
             .query(`INSERT INTO Debtors (id, debtor, amount, dueDate, description, status) VALUES (@id, @debtor, @amount, @dueDate, @description, @status)`);
 
         // Registrar en Historial de Contratos (ContractHistory)
         const historyId = 'CH' + Date.now().toString() + Math.floor(Math.random() * 1000);
 
         await pool.request()
-            .input('id', sql.VarChar, historyId)
-            .input('contractId', sql.VarChar, contractId)
-            .input('clientId', sql.VarChar, contract.clientId || '') // Necesitamos obtener el clientId
-            .input('periodName', sql.VarChar, periodNameStr)
+            .input('id', sql.VarChar(50), historyId)
+            .input('contractId', sql.VarChar(50), contractId)
+            .input('clientId', sql.VarChar(50), contract.clientId || '')
+            .input('periodName', sql.VarChar(100), periodNameStr)
             .input('issueDate', sql.Date, dueDate)
             .input('amount', sql.Decimal(18, 2), amount)
-            .input('debtorId', sql.VarChar, newDebtorId)
+            .input('debtorId', sql.VarChar(50), newDebtorId)
             .query(`INSERT INTO ContractHistory (id, contractId, clientId, periodName, issueDate, amount, debtorId) VALUES (@id, @contractId, @clientId, @periodName, @issueDate, @amount, @debtorId)`);
 
         res.json({ success: true, period: currentPeriod });
     } catch (err) {
+        console.error('Error in POST /api/contracts/:id/invoice:', err);
         res.status(500).json({ error: err.message });
     }
 });
@@ -606,16 +707,17 @@ app.post('/api/logs', async (req, res) => {
         const l = req.body;
         const pool = await getDbPool();
         await pool.request()
-            .input('id', sql.VarChar, l.id)
-            .input('action', sql.VarChar, l.action)
-            .input('module', sql.VarChar, l.module)
-            .input('userName', sql.VarChar, l.userName || 'Sistema')
+            .input('id', sql.VarChar(50), l.id)
+            .input('action', sql.VarChar(50), l.action)
+            .input('module', sql.VarChar(50), l.module)
+            .input('userName', sql.VarChar(100), l.userName || 'Sistema')
             .input('details', sql.VarChar(sql.MAX), l.details || '')
             .input('timestamp', sql.DateTime, new Date(l.timestamp))
             .input('extraData', sql.VarChar(sql.MAX), l.extraData ? JSON.stringify(l.extraData) : null)
             .query(`INSERT INTO Logs (id, action, module, userName, details, timestamp, extraData) VALUES (@id, @action, @module, @userName, @details, @timestamp, @extraData)`);
         res.json(l);
     } catch (err) {
+        console.error('Error in POST /api/logs:', err);
         res.status(500).json({ error: err.message });
     }
 });
