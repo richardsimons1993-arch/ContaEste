@@ -690,6 +690,78 @@ app.get('/api/contracts/history/:clientId', async (req, res) => {
     }
 });
 
+// --- ENDPOINTS PARA PROJECTS ---
+app.get('/api/projects', async (req, res) => {
+    try {
+        const pool = await getDbPool();
+        const result = await pool.request().query('SELECT p.*, c.name as clientName FROM Projects p LEFT JOIN Clients c ON p.clientId = c.id');
+        res.json(result.recordset);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.delete('/api/projects/:id', (req, res) => deleteApi(req, res, 'Projects'));
+
+app.post('/api/projects', async (req, res) => {
+    try {
+        const p = req.body;
+        const pool = await getDbPool();
+        const check = await pool.request().input('id', sql.VarChar(50), p.id).query('SELECT id FROM Projects WHERE id = @id');
+
+        if (check.recordset.length > 0) {
+            await pool.request()
+                .input('id', sql.VarChar(50), p.id)
+                .input('clientId', sql.VarChar(50), p.clientId)
+                .input('status', sql.VarChar(50), p.status)
+                .input('observations', sql.VarChar(sql.MAX), p.observations || '')
+                .input('visitDate', sql.Date, p.visitDate || null)
+                .input('executionDate', sql.Date, p.executionDate || null)
+                .query(`UPDATE Projects SET clientId=@clientId, status=@status, observations=@observations, visitDate=@visitDate, executionDate=@executionDate WHERE id=@id`);
+        } else {
+            await pool.request()
+                .input('id', sql.VarChar(50), p.id)
+                .input('clientId', sql.VarChar(50), p.clientId)
+                .input('status', sql.VarChar(50), p.status || 'Evaluación')
+                .input('observations', sql.VarChar(sql.MAX), p.observations || '')
+                .input('visitDate', sql.Date, p.visitDate || null)
+                .input('executionDate', sql.Date, p.executionDate || null)
+                .query(`INSERT INTO Projects (id, clientId, status, observations, visitDate, executionDate) VALUES (@id, @clientId, @status, @observations, @visitDate, @executionDate)`);
+        }
+        res.json(p);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.get('/api/projects/:id/history', async (req, res) => {
+    try {
+        const pool = await getDbPool();
+        const result = await pool.request()
+            .input('projectId', sql.VarChar(50), req.params.id)
+            .query('SELECT * FROM ProjectHistory WHERE projectId = @projectId ORDER BY changeDate DESC');
+        res.json(result.recordset);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.post('/api/projects/:id/history', async (req, res) => {
+    try {
+        const h = req.body;
+        const pool = await getDbPool();
+        await pool.request()
+            .input('projectId', sql.VarChar(50), req.params.id)
+            .input('previousStatus', sql.VarChar(50), h.previousStatus || null)
+            .input('newStatus', sql.VarChar(50), h.newStatus)
+            .input('note', sql.VarChar(sql.MAX), h.note || '')
+            .query(`INSERT INTO ProjectHistory (projectId, previousStatus, newStatus, note) VALUES (@projectId, @previousStatus, @newStatus, @note)`);
+        res.json({ success: true });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 // --- ENDPOINTS PARA LOGS ---
 app.get('/api/logs', async (req, res) => {
     try {

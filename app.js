@@ -12,7 +12,8 @@ const rawState = {
     logs: [],
     users: [],
     currentUser: null,
-    lastDeleted: null
+    lastDeleted: null,
+    projects: []
 };
 
 // --- Store Reactivo ---
@@ -33,6 +34,7 @@ const Store = new Proxy(rawState, {
             'contracts': () => UI.renderContracts(),
             'pendingContracts': () => UI.checkPendingContracts(),
             'users': () => UI.renderUsers(),
+            'projects': () => UI.renderProjects(),
             'currentView': (val) => UI.switchView(val)
         };
 
@@ -116,6 +118,8 @@ const UI = {
             this.populateDebtSupplierSelect();
             this.populateDebtConceptSelect();
             this.populateDebtorClientSelect();
+            this.populateProjectClientSelect();
+            this.renderProjects();
 
             // Si hay sesión, cargar la UI normal
             if (state.currentUser) {
@@ -177,6 +181,7 @@ const UI = {
         state.pendingContracts = window.StorageAPI.getPendingContracts() || [];
         state.logs = window.StorageAPI.getLogs() || [];
         state.suppliers = window.StorageAPI.getSuppliers() || [];
+        state.projects = window.StorageAPI.getProjects() || [];
 
         // Cargar usuarios o inicializar con por defecto
         state.users = window.StorageAPI.getUsers() || [];
@@ -299,10 +304,41 @@ const UI = {
         const cancelContractEditBtn = document.getElementById('cancel-contract-edit');
         if (cancelContractEditBtn) cancelContractEditBtn.addEventListener('click', () => this.resetContractForm());
 
+        // --- PROYECTOS ---
+        const projectForm = document.getElementById('add-project-form');
+        if (projectForm) projectForm.addEventListener('submit', (e) => this.handleProjectSubmit(e));
+
+        const cancelProjectEditBtn = document.getElementById('cancel-project-edit');
+        if (cancelProjectEditBtn) cancelProjectEditBtn.addEventListener('click', () => this.resetProjectForm());
+
+        const projectFilterStatus = document.getElementById('project-filter-status');
+        if (projectFilterStatus) projectFilterStatus.addEventListener('change', () => this.renderProjects());
+
+        const projectSearch = document.getElementById('project-search');
+        if (projectSearch) projectSearch.addEventListener('input', () => this.renderProjects());
+
         const contractsReminderBtn = document.getElementById('contracts-reminder-btn');
         if (contractsReminderBtn) contractsReminderBtn.addEventListener('click', () => {
             UI.switchView('alerts');
         });
+
+        // --- NEW PROJECT DATE MODAL LISTENER ---
+        const btnSaveProjectDate = document.getElementById('btn-save-project-date');
+        if (btnSaveProjectDate) {
+            btnSaveProjectDate.addEventListener('click', () => {
+                const id = document.getElementById('date-modal-project-id').value;
+                const status = document.getElementById('date-modal-new-status').value;
+                const date = document.getElementById('date-modal-value').value;
+                const note = document.getElementById('date-modal-note').value;
+
+                if (!date && status === 'Ejecución') {
+                    this.showToast('La fecha es obligatoria para este estado', 'error');
+                    return;
+                }
+
+                this.updateProjectStatus(id, status, date, note);
+            });
+        }
 
         const alertTabBtns = document.querySelectorAll('.alert-tab-btn');
         alertTabBtns.forEach(btn => {
@@ -580,6 +616,23 @@ const UI = {
         // La visibilidad se controla en applyModuleAccess()
     },
 
+    // --- MODALES ---
+    openModal(id) {
+        const modal = document.getElementById(id);
+        if (modal) {
+            modal.style.display = 'flex';
+            document.body.style.overflow = 'hidden';
+        }
+    },
+
+    closeModal(id) {
+        const modal = document.getElementById(id);
+        if (modal) {
+            modal.style.display = 'none';
+            document.body.style.overflow = 'auto';
+        }
+    },
+
     applyModuleAccess() {
         const userModules = state.currentUser?.modules || [];
         console.log("Aplicando acceso a módulos:", userModules);
@@ -608,6 +661,7 @@ const UI = {
             'contracts': 'finanzas',
             'suppliers': 'finanzas',
             'dashboard': 'finanzas',
+            'projects': 'ventas',
             'activity': 'finanzas',
             'users': 'usuarios'
         };
@@ -663,6 +717,7 @@ const UI = {
             'debts': 'Deudas',
             'debtors': 'Deudores',
             'contracts': 'Contratos',
+            'projects': 'Gestión de Proyectos',
             'activity': 'Actividad',
             'users': 'Usuarios'
         };
@@ -679,6 +734,7 @@ const UI = {
         if (viewName === 'debts') this.renderDebts();
         if (viewName === 'debtors') this.renderDebtors();
         if (viewName === 'contracts') this.renderContracts();
+        if (viewName === 'projects') this.renderProjects();
         if (viewName === 'activity') this.renderActivity();
         if (viewName === 'users') this.renderUsers();
 
@@ -688,6 +744,7 @@ const UI = {
         if (viewName !== 'debts') this.resetDebtForm();
         if (viewName !== 'debtors') this.resetDebtorForm();
         if (viewName !== 'contracts') this.resetContractForm();
+        if (viewName !== 'projects') this.resetProjectForm();
         if (viewName !== 'users') this.resetUserForm();
 
         // Re-aplicar privilegios (por si se renderizaron botones nuevos)
@@ -2666,6 +2723,277 @@ const UI = {
 
         this.loadData();
         this.checkPendingContracts();
+    },
+
+    // --- LOGICA DE PROYECTOS ---
+
+    renderProjects() {
+        const tbody = document.getElementById('projects-list-body');
+        if (!tbody) return;
+        tbody.innerHTML = '';
+
+        const statusFilter = document.getElementById('project-filter-status')?.value || 'all';
+        const searchText = document.getElementById('project-search')?.value.toLowerCase() || '';
+
+        let filtered = state.projects || [];
+        if (statusFilter !== 'all') {
+            filtered = filtered.filter(p => p.status === statusFilter);
+        }
+        if (searchText) {
+            filtered = filtered.filter(p => {
+                const client = state.clients.find(c => c.id === p.clientId);
+                const name = (client ? (client.razonSocial || client.name) : '').toLowerCase();
+                const obs = (p.observations || '').toLowerCase();
+                return name.includes(searchText) || obs.includes(searchText);
+            });
+        }
+
+        filtered.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+
+        filtered.forEach(p => {
+            const tr = document.createElement('tr');
+            tr.id = `project-row-${p.id}`;
+            const client = state.clients.find(c => c.id === p.clientId);
+            const clientName = client ? (client.razonSocial || client.name) : 'Desconocido';
+
+            tr.innerHTML = `
+                <td style="font-weight: 500;">${clientName}</td>
+                <td>
+                    <select class="status-dropdown status-${p.status.replace(/\s+/g, '-')}" onchange="UI.handleStatusChange('${p.id}', this.value)">
+                        <option value="Evaluación" ${p.status === 'Evaluación' ? 'selected' : ''}>[Evaluación]</option>
+                        <option value="Pendiente Planificación Cliente" ${p.status === 'Pendiente Planificación Cliente' ? 'selected' : ''}>[Planificación Cliente]</option>
+                        <option value="Cotizado" ${p.status === 'Cotizado' ? 'selected' : ''}>[Cotizado]</option>
+                        <option value="Aprobado" ${p.status === 'Aprobado' ? 'selected' : ''}>[Aprobado]</option>
+                        <option value="Materiales" ${p.status === 'Materiales' ? 'selected' : ''}>[Materiales]</option>
+                        <option value="Ejecución" ${p.status === 'Ejecución' ? 'selected' : ''}>[Ejecución]</option>
+                    </select>
+                </td>
+                <td>${formatDate(p.visitDate)}</td>
+                <td>${formatDate(p.executionDate)}</td>
+                <td><small>${p.observations || '-'}</small></td>
+                <td class="actions">
+                    <button class="btn-icon" title="Ver Historial" onclick="UI.showProjectHistory('${p.id}')">
+                        <i class="fa-solid fa-clock-rotate-left"></i>
+                    </button>
+                    <button class="btn-icon" title="Editar" onclick="UI.editProject('${p.id}')">
+                        <i class="fa-solid fa-pen-to-square"></i>
+                    </button>
+                    <button class="btn-icon text-danger" title="Eliminar" onclick="UI.deleteProject('${p.id}')">
+                        <i class="fa-solid fa-trash"></i>
+                    </button>
+                </td>
+            `;
+            tbody.appendChild(tr);
+        });
+        this.applyPrivileges();
+    },
+
+    async handleProjectSubmit(e) {
+        e.preventDefault();
+        const form = e.target;
+        const formData = new FormData(form);
+        const id = formData.get('id');
+        const isNew = !id;
+
+        const project = {
+            id: id || 'P' + Date.now().toString(),
+            clientId: formData.get('clientId'),
+            status: formData.get('status') || 'Evaluación',
+            observations: formData.get('observations'),
+            visitDate: formData.get('visitDate'),
+            executionDate: id ? (state.projects.find(p => p.id === id)?.executionDate) : null,
+            createdAt: id ? (state.projects.find(p => p.id === id)?.createdAt) : new Date().toISOString()
+        };
+
+        try {
+            await window.StorageAPI.async.saveProject(project);
+
+            // Reactividad inmediata
+            if (isNew) {
+                state.projects = [project, ...state.projects];
+                // Log inicial en bitácora
+                await window.StorageAPI.async.addProjectHistory(project.id, {
+                    newStatus: project.status,
+                    note: 'Registro inicial del proyecto. ' + (project.observations || '')
+                });
+            } else {
+                state.projects = state.projects.map(p => p.id === project.id ? project : p);
+            }
+
+            this.showToast(isNew ? 'Proyecto registrado' : 'Proyecto actualizado', 'success');
+            this.resetProjectForm();
+            this.renderProjects();
+
+            if (project.status === 'Aprobado') this.checkContractForProject(project.clientId);
+
+        } catch (error) {
+            console.error("Error al guardar proyecto:", error);
+            const msg = error.message.includes('fetch') ? 'Error de conexión con el servidor' : (error.message || 'Error desconocido');
+            this.showToast(`Error al guardar: ${msg}`, 'error');
+        }
+    },
+
+    getClientName(id) {
+        const c = state.clients.find(cl => cl.id === id);
+        return c ? (c.razonSocial || c.name) : 'Cliente';
+    },
+
+    checkContractForProject(clientId) {
+        const hasContract = state.contracts.some(c => c.clientId === clientId);
+        if (!hasContract) {
+            setTimeout(() => {
+                const name = this.getClientName(clientId);
+                if (confirm(`El proyecto de "${name}" ha sido APROBADO.\n\n¿Deseas verificar si ya se registró su contrato en el módulo de Finanzas?`)) {
+                    UI.switchView('contracts');
+                }
+            }, 500);
+        }
+    },
+
+    handleStatusChange(id, newStatus) {
+        const project = state.projects.find(p => p.id === id);
+        if (!project) return;
+
+        // Si el estado requiere una fecha específica (ej: Ejecución)
+        if (newStatus === 'Ejecución') {
+            document.getElementById('date-modal-title').textContent = 'Confirmar Fecha de Ejecución';
+            document.getElementById('date-modal-label').textContent = 'Fecha Programada';
+            document.getElementById('date-modal-project-id').value = id;
+            document.getElementById('date-modal-new-status').value = newStatus;
+            document.getElementById('date-modal-value').value = project.executionDate || '';
+            this.openModal('project-date-modal');
+            return;
+        }
+
+        // Otros estados que podrían requerir confirmación o solo nota
+        this.updateProjectStatus(id, newStatus);
+    },
+
+    async updateProjectStatus(id, newStatus, date = null, note = '') {
+        const project = state.projects.find(p => p.id === id);
+        if (!project) return;
+
+        const oldStatus = project.status;
+        project.status = newStatus;
+        if (date && newStatus === 'Ejecución') project.executionDate = date;
+
+        try {
+            await window.StorageAPI.async.saveProject(project);
+            await window.StorageAPI.async.addProjectHistory(id, {
+                previousStatus: oldStatus,
+                newStatus: newStatus,
+                note: note || `Cambio de estado manual.`
+            });
+
+            this.showToast(`Estado actualizado: ${newStatus}`, 'success');
+            this.renderProjects();
+
+            if (newStatus === 'Aprobado') this.checkContractForProject(project.clientId);
+            this.closeModal('project-date-modal');
+        } catch (error) {
+            console.error("Error al actualizar estado:", error);
+            this.showToast('Error al actualizar estado', 'error');
+        }
+    },
+
+    async showProjectHistory(id) {
+        const history = await window.StorageAPI.async.getProjectHistory(id);
+        const container = document.getElementById('project-history-container');
+        if (!container) return;
+
+        container.innerHTML = history.length ? '' : '<div class="empty-state">No hay historial registrado.</div>';
+
+        history.forEach(h => {
+            const item = document.createElement('div');
+            item.className = 'activity-item';
+            item.innerHTML = `
+                <div class="activity-icon"><i class="fa-solid fa-history"></i></div>
+                <div class="activity-content">
+                    <div class="activity-header">
+                        <span class="activity-action">${h.newStatus}</span>
+                        <span class="activity-time">${new Date(h.changeDate).toLocaleString()}</span>
+                    </div>
+                    ${h.previousStatus ? `<div class="activity-category">Anterior: ${h.previousStatus}</div>` : ''}
+                    <div class="activity-details">${h.note || 'Sin comentarios.'}</div>
+                </div>
+            `;
+            container.appendChild(item);
+        });
+
+        this.openModal('project-history-modal');
+    },
+
+    editProject(id) {
+        const p = state.projects.find(proj => proj.id === id);
+        if (!p) return;
+
+        const form = document.getElementById('add-project-form');
+        document.getElementById('project-id').value = p.id;
+        form.elements['clientId'].value = p.clientId;
+
+        // Manejar el select de estado según el estado actual del proyecto
+        const statusSelect = form.elements['status'];
+        if (p.status !== 'Evaluación') {
+            statusSelect.innerHTML = `
+                <option value="Evaluación">[Evaluación] Visita técnica</option>
+                <option value="${p.status}">${p.status}</option>
+            `;
+        } else {
+            statusSelect.innerHTML = `<option value="Evaluación">[Evaluación] Visita técnica</option>`;
+        }
+        statusSelect.value = p.status;
+
+        form.elements['visitDate'].value = p.visitDate || '';
+        form.elements['observations'].value = p.observations || '';
+
+        document.getElementById('project-form-title').textContent = 'Editar Proyecto';
+        const cancelBtn = document.getElementById('cancel-project-edit');
+        if (cancelBtn) cancelBtn.style.display = 'inline-block';
+
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    },
+
+    deleteProject(id) {
+        if (state.currentUser.role !== ROLES.ADMIN) return;
+        if (!confirm('¿Estás seguro de que quieres eliminar este registro de proyecto?')) return;
+
+        const p = state.projects.find(proj => proj.id === id);
+        window.StorageAPI.deleteProject(id);
+        state.projects = state.projects.filter(proj => proj.id !== id);
+        this.recordActivity('Baja', 'Proyecto', `Eliminado registro de ${this.getClientName(p?.clientId)}`);
+        this.renderProjects();
+    },
+
+    resetProjectForm() {
+        const form = document.getElementById('add-project-form');
+        if (form) {
+            form.reset();
+            document.getElementById('project-id').value = '';
+            document.getElementById('project-form-title').textContent = 'Nueva Solicitud / Proyecto';
+
+            // Restaurar select de estado inicial
+            const statusSelect = form.elements['status'];
+            if (statusSelect) {
+                statusSelect.innerHTML = '<option value="Evaluación">[Evaluación] Visita técnica</option>';
+                statusSelect.value = 'Evaluación';
+            }
+
+            const cancelBtn = document.getElementById('cancel-project-edit');
+            if (cancelBtn) cancelBtn.style.display = 'none';
+        }
+        this.populateProjectClientSelect();
+    },
+
+    populateProjectClientSelect() {
+        const sel = document.getElementById('project-client');
+        if (!sel) return;
+        sel.innerHTML = '<option value="">Seleccionar Cliente</option>';
+        state.clients.forEach(c => {
+            const opt = document.createElement('option');
+            opt.value = c.id;
+            opt.textContent = c.razonSocial || c.name;
+            sel.appendChild(opt);
+        });
     },
 
     initDatePickers() {

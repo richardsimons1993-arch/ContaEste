@@ -100,6 +100,14 @@
                     </button>
                 </div>
 
+                <!-- Módulo Ventas -->
+                <div class="nav-section" data-module="ventas">
+                    <div class="nav-section-header">VENTAS</div>
+                    <button class="nav-btn" data-target="projects">
+                        <i class="fa-solid fa-diagram-project"></i> Proyectos
+                    </button>
+                </div>
+
 
 
                 <!-- Módulo Usuarios (Admin only) -->
@@ -688,6 +696,84 @@
                 </div>
             </section>
 
+            <!-- VISTA PROYECTOS (Gestión de Ventas y Proyectos) -->
+            <section id="projects" class="view-section">
+                <div class="card form-card">
+                    <h2 id="project-form-title">Nueva Solicitud / Proyecto</h2>
+                    <form id="add-project-form">
+                        <input type="hidden" name="id" id="project-id">
+                        <div class="grid-2">
+                            <div class="form-group">
+                                <label for="project-client">Cliente</label>
+                                <select id="project-client" name="clientId" required>
+                                    <option value="">Seleccionar Cliente</option>
+                                    <!-- Clientes inyectados por JS -->
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label for="project-status">Estado / Fase</label>
+                                <select id="project-status" name="status" required>
+                                    <option value="Evaluación">[Evaluación] Visita técnica</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="grid-2">
+                            <div class="form-group">
+                                <label for="project-visit-date">Fecha de Visita / Primer Contacto</label>
+                                <input type="date" id="project-visit-date" name="visitDate" required>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label for="project-observations">Observaciones (Técnicas / Materiales)</label>
+                            <textarea id="project-observations" name="observations" rows="4"
+                                placeholder="Detalles de la visita, lista de materiales, etc."></textarea>
+                        </div>
+                        <div class="form-actions mt-3">
+                            <button type="submit" class="btn-secondary">Guardar Proyecto</button>
+                            <button type="button" id="cancel-project-edit" class="btn-text"
+                                style="display: none;">Cancelar</button>
+                        </div>
+                    </form>
+                </div>
+
+                <div class="card mt-4">
+                    <div
+                        style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem; margin-bottom: 1rem;">
+                        <h3 style="margin: 0;">Pipeline de Proyectos</h3>
+                        <div class="filters" style="display: flex; gap: 1rem;">
+                            <input type="text" id="project-search" placeholder="Buscar por cliente..."
+                                class="form-control" style="width: 250px;">
+                            <select id="project-filter-status" class="form-control" style="width: 180px;">
+                                <option value="all">Todos los Estados</option>
+                                <option value="Evaluación">Evaluación</option>
+                                <option value="Pendiente Planificación Cliente">Planificación Cliente</option>
+                                <option value="Cotizado">Cotizado</option>
+                                <option value="Aprobado">Aprobado</option>
+                                <option value="Materiales">Materiales</option>
+                                <option value="Ejecución">Ejecución</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Cliente</th>
+                                    <th>Fase Actual</th>
+                                    <th>Fecha Visita</th>
+                                    <th>Fecha Ejecución</th>
+                                    <th>Observaciones</th>
+                                    <th>Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody id="projects-list-body">
+                                <!-- Proyectos inyectados por JS -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
             <!-- VISTA CONTRATOS RECURRENTES -->
             <section id="contracts" class="view-section">
                 <div class="card form-card">
@@ -867,6 +953,11 @@
                                 </label>
 
                                 <label class="checkbox-label">
+                                    <input type="checkbox" name="modules" value="ventas" class="module-checkbox">
+                                    <span>Ventas y Proyectos</span>
+                                </label>
+
+                                <label class="checkbox-label">
                                     <input type="checkbox" name="modules" value="usuarios" class="module-checkbox"
                                         id="module-usuarios">
                                     <span>Usuarios (Solo Administradores)</span>
@@ -910,61 +1001,66 @@
     <div id="toast-container" class="toast-container"></div>
 
     <!-- Modal para Contratos Pendientes -->
-    <div id="contracts-modal" class="modal-overlay"
-        style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; justify-content: center; align-items: center;">
-        <div class="modal-content"
-            style="background: var(--bg-card); padding: 2rem; border-radius: 12px; width: 90%; max-width: 600px; box-shadow: 0 10px 30px rgba(0,0,0,0.2);">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
-                <h3 style="margin: 0;">Contratos Pendientes de Facturar este Mes</h3>
-                <button type="button" class="btn-icon" id="close-contracts-modal"
-                    style="font-size: 1.2rem;">&times;</button>
+    <div id="contracts-modal" class="modal-overlay" style="display: none;">
+        <div class="modal-card">
+            <div class="modal-header">
+                <h3>Contratos Pendientes de Facturar</h3>
+                <button class="btn-icon" onclick="UI.closeModal('contracts-modal')">&times;</button>
             </div>
-            <div class="table-responsive">
-                <table class="data-table">
-                    <thead>
-                        <tr>
-                            <th>Cliente</th>
-                            <th>Monto</th>
-                            <th>Día</th>
-                            <th>Acción</th>
-                        </tr>
-                    </thead>
-                    <tbody id="pending-contracts-body">
-                        <!-- Inyectado por JS -->
-                    </tbody>
-                </table>
+            <div id="contracts-modal-list" class="modal-list">
+                <!-- Inyectado por JS -->
+            </div>
+            <div class="modal-footer">
+                <button class="btn-secondary" onclick="UI.closeModal('contracts-modal')">Cerrar</button>
             </div>
         </div>
     </div>
 
-    <!-- Modal para Historial de Contratos del Cliente -->
-    <div id="contract-history-modal" class="modal-overlay"
-        style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; justify-content: center; align-items: center;">
-        <div class="modal-content"
-            style="background: var(--bg-card); padding: 2rem; border-radius: 12px; width: 90%; max-width: 700px; box-shadow: 0 10px 30px rgba(0,0,0,0.2); max-height: 80vh; overflow-y: auto;">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
-                <h3 style="margin: 0;">Historial de Facturación por Contrato <br><span id="history-client-name"
-                        style="color: var(--primary-color);"></span></h3>
-                <button type="button" class="btn-icon" id="close-history-modal"
-                    style="font-size: 1.2rem;">&times;</button>
+    <!-- Modal para Fechas de Proyecto (Dinámico) -->
+    <div id="project-date-modal" class="modal-overlay" style="display: none;">
+        <div class="modal-card" style="max-width: 400px;">
+            <div class="modal-header">
+                <h3 id="date-modal-title">Actualizar Fecha</h3>
+                <button class="btn-icon" onclick="UI.closeModal('project-date-modal')">&times;</button>
             </div>
-            <div class="table-responsive">
-                <table class="data-table">
-                    <thead>
-                        <tr>
-                            <th>Mes de Servicio</th>
-                            <th>Fecha Emisión (Manual)</th>
-                            <th>Monto</th>
-                            <th>Ref. Deuda</th>
-                        </tr>
-                    </thead>
-                    <tbody id="history-contract-body">
-                        <!-- Inyectado por JS -->
-                    </tbody>
-                </table>
+            <div class="modal-body" style="padding: 1.5rem;">
+                <input type="hidden" id="date-modal-project-id">
+                <input type="hidden" id="date-modal-new-status">
+                <div class="form-group">
+                    <label id="date-modal-label">Nueva Fecha</label>
+                    <input type="date" id="date-modal-value" class="form-control" required>
+                </div>
+                <div class="form-group">
+                    <label>Comentario / Nota de Cambio</label>
+                    <textarea id="date-modal-note" class="form-control" rows="3"
+                        placeholder="Ej: Materiales recibidos completos."></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-text" onclick="UI.closeModal('project-date-modal')">Cancelar</button>
+                <button class="btn-primary" id="btn-save-project-date">Confirmar Cambio</button>
             </div>
         </div>
     </div>
+
+    <!-- Modal para Historial de Proyecto -->
+    <div id="project-history-modal" class="modal-overlay" style="display: none;">
+        <div class="modal-card" style="max-width: 600px;">
+            <div class="modal-header">
+                <h3>Historial de Actualizaciones</h3>
+                <button class="btn-icon" onclick="UI.closeModal('project-history-modal')">&times;</button>
+            </div>
+            <div class="modal-body" style="padding: 1.5rem; max-height: 400px; overflow-y: auto;">
+                <div id="project-history-container" class="activity-timeline">
+                    <!-- Inyectado por JS -->
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-secondary" onclick="UI.closeModal('project-history-modal')">Cerrar</button>
+            </div>
+        </div>
+    </div>
+    <!-- El modal de contratos ya fue definido arriba con el nuevo formato -->
 
     <!-- Scripts -->
     <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>

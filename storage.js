@@ -114,9 +114,9 @@ const Storage = {
         const users = syncRequest('GET', '/users') || [];
         if (users.length === 0) {
             const DEFAULT_USERS = [
-                { id: '1', username: 'administrador', password: 'S0p0rt3!!2025', role: 'administrador', name: 'Admin Simons', modules: ['finanzas', 'usuarios'] },
-                { id: '2', username: 'operador', password: 'operador123', role: 'operador', name: 'Operador Ventas', modules: ['finanzas'] },
-                { id: '3', username: 'lector', password: 'lector123', role: 'visualización', name: 'Invitado', modules: ['finanzas'] }
+                { id: '1', username: 'administrador', password: 'S0p0rt3!!2025', role: 'administrador', name: 'Admin Simons', modules: ['finanzas', 'ventas', 'usuarios'] },
+                { id: '2', username: 'operador', password: 'operador123', role: 'operador', name: 'Operador Ventas', modules: ['finanzas', 'ventas'] },
+                { id: '3', username: 'lector', password: 'lector123', role: 'visualización', name: 'Invitado', modules: ['finanzas', 'ventas'] }
             ];
             this.saveUsers(DEFAULT_USERS);
             return DEFAULT_USERS;
@@ -209,6 +209,20 @@ const Storage = {
         return syncRequest('GET', `/contracts/history/${clientId}`) || [];
     },
 
+    getProjects() {
+        return syncRequest('GET', '/projects') || [];
+    },
+
+    saveProject(project) {
+        syncRequest('POST', '/projects', project);
+        return this.getProjects();
+    },
+
+    deleteProject(id) {
+        syncRequest('DELETE', `/projects/${id}`);
+        return this.getProjects();
+    },
+
     // --- Métodos Asíncronos (Nuevos para SPA Reactiva) ---
     async: {
         getTransactions: () => asyncRequest('GET', '/transactions'),
@@ -234,7 +248,13 @@ const Storage = {
         saveLog: (log) => {
             const entry = { ...log, id: Date.now().toString(), timestamp: new Date().toISOString() };
             return asyncRequest('POST', '/logs', entry);
-        }
+        },
+
+        getProjects: () => asyncRequest('GET', '/projects'),
+        saveProject: (p) => asyncRequest('POST', '/projects', p),
+        deleteProject: (id) => asyncRequest('DELETE', `/projects/${id}`),
+        getProjectHistory: (id) => asyncRequest('GET', `/projects/${id}/history`),
+        addProjectHistory: (id, h) => asyncRequest('POST', `/projects/${id}/history`, h)
     }
 };
 
