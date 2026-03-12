@@ -592,7 +592,7 @@ const UI = {
         console.log("Aplicando privilegios para rol:", role);
 
         // 1. Ocultar botones de borrar si no es ADMIN
-        const deleteButtons = document.querySelectorAll('.btn-icon.text-danger');
+        const deleteButtons = document.querySelectorAll('.btn-icon.text-danger, .btn-mini-action.text-danger');
         deleteButtons.forEach(btn => {
             btn.style.display = (role === ROLES.ADMIN) ? 'inline-flex' : 'none';
         });
@@ -1440,6 +1440,7 @@ const UI = {
                 <td>${s.encargado || '-'}</td>
                 <td>${s.phone || '-'}</td>
                 <td>${s.email || '-'}</td>
+                <td>${s.address || '-'}</td>
                 <td class="actions">
                     <button class="btn-icon" title="Editar" onclick="UI.editSupplier('${s.id}')">
                         <i class="fa-solid fa-pen-to-square"></i>
@@ -1959,16 +1960,20 @@ const UI = {
             window.StorageAPI.saveClient(data);
             state.clients.push(data);
             this.renderClients();
+        } else if (type === 'projectHistory') {
+            window.StorageAPI.async.addProjectHistory(data.projectId, data.item);
+            this.renderProjects();
         }
 
         this.recordActivity('Restauración', type.charAt(0).toUpperCase() + type.slice(1), `Restaurado ítem eliminado anteriormente`);
+
         state.lastDeleted = null;
 
         // Quitar todos los toasts activos
         document.querySelectorAll('.toast').forEach(t => t.remove());
     },
 
-    handleUndoFromLog(logId) {
+    async handleUndoFromLog(logId) {
         const log = state.logs.find(l => l.id == logId);
         if (!log || !log.extraData || log.action !== 'Baja') {
             console.warn("No se puede deshacer: log inválido o sin datos extra", log);
@@ -1993,12 +1998,49 @@ const UI = {
             state.clients.push(item);
             this.renderClients();
             this.renderTransactionFormOptions();
+        } else if (type === 'project') {
+            try {
+                // 1. Restaurar el proyecto principal
+                await window.StorageAPI.async.saveProject(item);
+
+                // 2. Restaurar cada entrada del historial
+                const history = log.extraData.history || [];
+                for (const h of history) {
+                    await window.StorageAPI.async.addProjectHistory(item.id, {
+                        previousStatus: h.previousStatus,
+                        newStatus: h.newStatus,
+                        note: h.note,
+                        changeDate: h.changeDate
+                    });
+                }
+
+                // 3. Recargar estado local
+                const updatedProjects = await window.StorageAPI.async.getProjects();
+                state.projects = updatedProjects;
+                this.renderProjects();
+                this.showToast(`Proyecto de ${this.getClientName(item.clientId)} restaurado con ${history.length} fase(s)`, 'success');
+            } catch (err) {
+                console.error('Error al restaurar proyecto:', err);
+                this.showToast('Error al restaurar el proyecto', 'error');
+                return;
+            }
+        } else if (type === 'projectHistory') {
+            try {
+                await window.StorageAPI.async.addProjectHistory(log.extraData.projectId, item);
+                this.renderProjects();
+                this.showToast(`Registro de historial restaurado`, 'success');
+            } catch (err) {
+                console.error('Error al restaurar historial:', err);
+                this.showToast('Error al restaurar el registro', 'error');
+                return;
+            }
         }
 
         this.recordActivity('Restauración', log.module || log.category || 'Varios', `Restaurado desde historial: ${log.details}`);
 
+
         this.renderActivity();
-        this.showUndoToast("Elemento restaurado exitosamente");
+        this.showToast('Elemento restaurado exitosamente', 'success');
     },
 
     // --- GESTIÓN DE USUARIOS ---
@@ -2136,7 +2178,7 @@ const UI = {
                 const client = state.clients.find(c => c.id === t.clientId);
                 const clientName = client ? (client.razonSocial || client.name) : '-';
                 return {
-                    Fecha: t.date,
+                    Fecha: formatDate(t.date),
                     Tipo: t.type === 'income' ? 'Ingreso' : 'Egreso',
                     Concepto: conceptName,
                     Cliente: clientName,
@@ -2144,6 +2186,7 @@ const UI = {
                     Monto: parseFloat(t.amount)
                 };
             });
+
 
             // Crear Libro de Excel
             const wb = XLSX.utils.book_new();
@@ -2196,12 +2239,13 @@ const UI = {
             const client = state.clients.find(c => c.id === t.clientId);
             const clientName = client ? (client.razonSocial || client.name) : '-';
             return [
-                t.date,
+                formatDate(t.date),
                 t.type === 'income' ? 'Ingreso' : 'Egreso',
                 conceptName,
                 clientName,
                 formatCurrency(t.amount)
             ];
+
         });
 
         doc.autoTable({
@@ -2345,11 +2389,12 @@ const UI = {
         if (state.debts.length === 0) return this.showToast('No hay deudas para exportar', 'warning');
 
         const exportData = state.debts.map(d => ({
-            Fecha: d.date,
+            Fecha: formatDate(d.date),
             Titular: d.titular,
             Descripcion: d.description || '',
             Monto: d.amount
         }));
+
 
         const wb = XLSX.utils.book_new();
         const ws = XLSX.utils.json_to_sheet(exportData);
@@ -2373,11 +2418,12 @@ const UI = {
         doc.text(`Fecha: ${new Date().toLocaleDateString()}`, 14, 30);
 
         const tableBody = state.debts.map(d => [
-            d.date,
+            formatDate(d.date),
             d.titular,
             d.description || '',
             formatCurrency(d.amount)
         ]);
+
 
         doc.autoTable({
             startY: 40,
@@ -2399,11 +2445,12 @@ const UI = {
         if (state.debtors.length === 0) return this.showToast('No hay deudores para exportar', 'warning');
 
         const exportData = state.debtors.map(d => ({
-            Fecha: d.date,
+            Fecha: formatDate(d.date),
             Titular: d.titular,
             Descripcion: d.description || '',
             Monto: d.amount
         }));
+
 
         const wb = XLSX.utils.book_new();
         const ws = XLSX.utils.json_to_sheet(exportData);
@@ -2427,11 +2474,12 @@ const UI = {
         doc.text(`Fecha: ${new Date().toLocaleDateString()}`, 14, 30);
 
         const tableBody = state.debtors.map(d => [
-            d.date,
+            formatDate(d.date),
             d.titular,
             d.description || '',
             formatCurrency(d.amount)
         ]);
+
 
         doc.autoTable({
             startY: 40,
@@ -2756,29 +2804,41 @@ const UI = {
             const client = state.clients.find(c => c.id === p.clientId);
             const clientName = client ? (client.razonSocial || client.name) : 'Desconocido';
 
+            const history = window.StorageAPI.getProjectHistory(p.id) || [];
+            
+            // Construir el contenedor horizontal de evolución
+            const historyHtml = history.map(h => `
+                <div class="history-evolution-card" onclick="if(!event.target.closest('button')){UI.toggleHistoryNote(this)}">
+                    <div class="evolution-header">
+                        <span class="status-badge status-${h.newStatus.replace(/\s+/g, '-')}" style="padding: 2px 8px; font-size: 0.75rem;">
+                            ${h.newStatus}
+                        </span>
+                        <div class="evolution-actions">
+                            <button class="btn-mini-action text-primary" title="Editar nota" onclick="event.stopPropagation(); UI.editProjectHistory('${h.id}', '${p.id}', event)">
+                                <i class="fa-solid fa-pen"></i>
+                            </button>
+                            <button class="btn-mini-action text-danger" title="Borrar registro" onclick="event.stopPropagation(); UI.deleteProjectHistory('${h.id}', '${p.id}', event)">
+                                <i class="fa-solid fa-trash"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="evolution-date">${formatDate(h.changeDate)}</div>
+                    <div class="evolution-note">${h.note || 'Sin observaciones'}</div>
+                </div>
+            `).join('');
+
             tr.innerHTML = `
                 <td style="font-weight: 500;">${clientName}</td>
                 <td>
-                    <select class="status-dropdown status-${p.status.replace(/\s+/g, '-')}" onchange="UI.handleStatusChange('${p.id}', this.value)">
-                        <option value="Evaluación" ${p.status === 'Evaluación' ? 'selected' : ''}>[Evaluación]</option>
-                        <option value="Pendiente Planificación Cliente" ${p.status === 'Pendiente Planificación Cliente' ? 'selected' : ''}>[Planificación Cliente]</option>
-                        <option value="Cotizado" ${p.status === 'Cotizado' ? 'selected' : ''}>[Cotizado]</option>
-                        <option value="Aprobado" ${p.status === 'Aprobado' ? 'selected' : ''}>[Aprobado]</option>
-                        <option value="Materiales" ${p.status === 'Materiales' ? 'selected' : ''}>[Materiales]</option>
-                        <option value="Ejecución" ${p.status === 'Ejecución' ? 'selected' : ''}>[Ejecución]</option>
-                    </select>
+                    <div class="history-horizontal-container">
+                        ${historyHtml || '<span class="text-muted small">Sin historial</span>'}
+                    </div>
                 </td>
-                <td>${formatDate(p.visitDate)}</td>
-                <td>${formatDate(p.executionDate)}</td>
-                <td><small>${p.observations || '-'}</small></td>
                 <td class="actions">
-                    <button class="btn-icon" title="Ver Historial" onclick="UI.showProjectHistory('${p.id}')">
-                        <i class="fa-solid fa-clock-rotate-left"></i>
+                    <button class="btn-icon text-primary" title="Actualizar Proyecto (Nueva Fase)" onclick="UI.editProject('${p.id}', true)">
+                         <i class="fa-solid fa-arrows-rotate"></i>
                     </button>
-                    <button class="btn-icon" title="Editar" onclick="UI.editProject('${p.id}')">
-                        <i class="fa-solid fa-pen-to-square"></i>
-                    </button>
-                    <button class="btn-icon text-danger" title="Eliminar" onclick="UI.deleteProject('${p.id}')">
+                    <button class="btn-icon text-danger" title="Eliminar Proyecto" onclick="UI.deleteProject('${p.id}')">
                         <i class="fa-solid fa-trash"></i>
                     </button>
                 </td>
@@ -2793,38 +2853,56 @@ const UI = {
         const form = e.target;
         const formData = new FormData(form);
         const id = formData.get('id');
+        const historyId = formData.get('historyId');
         const isNew = !id;
-
-        const project = {
-            id: id || 'P' + Date.now().toString(),
-            clientId: formData.get('clientId'),
-            status: formData.get('status') || 'Evaluación',
-            observations: formData.get('observations'),
-            visitDate: formData.get('visitDate'),
-            executionDate: id ? (state.projects.find(p => p.id === id)?.executionDate) : null,
-            createdAt: id ? (state.projects.find(p => p.id === id)?.createdAt) : new Date().toISOString()
-        };
+        
+        console.log('handleProjectSubmit:', { id, historyId, isNew });
 
         try {
-            await window.StorageAPI.async.saveProject(project);
-
-            // Reactividad inmediata
-            if (isNew) {
-                state.projects = [project, ...state.projects];
-                // Log inicial en bitácora
-                await window.StorageAPI.async.addProjectHistory(project.id, {
-                    newStatus: project.status,
-                    note: 'Registro inicial del proyecto. ' + (project.observations || '')
+            if (historyId) {
+                // Modo edición de historial
+                await window.StorageAPI.async.updateProjectHistory(historyId, {
+                    note: formData.get('observations'),
+                    newStatus: formData.get('status'),
+                    changeDate: formData.get('visitDate')
                 });
+                this.showToast('Registro de historial actualizado', 'success');
             } else {
-                state.projects = state.projects.map(p => p.id === project.id ? project : p);
-            }
+                // Modo normal: Proyecto nuevo o actualización de estado (nueva fase)
+                const project = {
+                    id: id || 'P' + Date.now().toString(),
+                    clientId: formData.get('clientId'),
+                    status: formData.get('status') || 'Evaluación',
+                    observations: formData.get('observations'),
+                    visitDate: formData.get('visitDate'),
+                    executionDate: id ? (state.projects.find(p => p.id === id)?.executionDate) : null,
+                    createdAt: id ? (state.projects.find(p => p.id === id)?.createdAt) : new Date().toISOString()
+                };
 
-            this.showToast(isNew ? 'Proyecto registrado' : 'Proyecto actualizado', 'success');
+                // Log inicial en bitácora si el estado cambió o es nuevo
+                const oldProject = isNew ? null : state.projects.find(proj => proj.id === project.id);
+                const statusChanged = isNew || (oldProject && oldProject.status !== project.status);
+
+                await window.StorageAPI.async.saveProject(project);
+
+                if (statusChanged) {
+                    await window.StorageAPI.async.addProjectHistory(project.id, {
+                        previousStatus: oldProject ? oldProject.status : null,
+                        newStatus: project.status,
+                        note: project.observations || ''
+                    });
+                }
+
+                // Reactividad inmediata
+                if (isNew) {
+                    state.projects = [project, ...state.projects];
+                } else {
+                    state.projects = state.projects.map(p => p.id === project.id ? project : p);
+                }
+                this.showToast(isNew ? 'Proyecto registrado' : 'Proyecto actualizado', 'success');
+            }
             this.resetProjectForm();
             this.renderProjects();
-
-            if (project.status === 'Aprobado') this.checkContractForProject(project.clientId);
 
         } catch (error) {
             console.error("Error al guardar proyecto:", error);
@@ -2836,64 +2914,6 @@ const UI = {
     getClientName(id) {
         const c = state.clients.find(cl => cl.id === id);
         return c ? (c.razonSocial || c.name) : 'Cliente';
-    },
-
-    checkContractForProject(clientId) {
-        const hasContract = state.contracts.some(c => c.clientId === clientId);
-        if (!hasContract) {
-            setTimeout(() => {
-                const name = this.getClientName(clientId);
-                if (confirm(`El proyecto de "${name}" ha sido APROBADO.\n\n¿Deseas verificar si ya se registró su contrato en el módulo de Finanzas?`)) {
-                    UI.switchView('contracts');
-                }
-            }, 500);
-        }
-    },
-
-    handleStatusChange(id, newStatus) {
-        const project = state.projects.find(p => p.id === id);
-        if (!project) return;
-
-        // Si el estado requiere una fecha específica (ej: Ejecución)
-        if (newStatus === 'Ejecución') {
-            document.getElementById('date-modal-title').textContent = 'Confirmar Fecha de Ejecución';
-            document.getElementById('date-modal-label').textContent = 'Fecha Programada';
-            document.getElementById('date-modal-project-id').value = id;
-            document.getElementById('date-modal-new-status').value = newStatus;
-            document.getElementById('date-modal-value').value = project.executionDate || '';
-            this.openModal('project-date-modal');
-            return;
-        }
-
-        // Otros estados que podrían requerir confirmación o solo nota
-        this.updateProjectStatus(id, newStatus);
-    },
-
-    async updateProjectStatus(id, newStatus, date = null, note = '') {
-        const project = state.projects.find(p => p.id === id);
-        if (!project) return;
-
-        const oldStatus = project.status;
-        project.status = newStatus;
-        if (date && newStatus === 'Ejecución') project.executionDate = date;
-
-        try {
-            await window.StorageAPI.async.saveProject(project);
-            await window.StorageAPI.async.addProjectHistory(id, {
-                previousStatus: oldStatus,
-                newStatus: newStatus,
-                note: note || `Cambio de estado manual.`
-            });
-
-            this.showToast(`Estado actualizado: ${newStatus}`, 'success');
-            this.renderProjects();
-
-            if (newStatus === 'Aprobado') this.checkContractForProject(project.clientId);
-            this.closeModal('project-date-modal');
-        } catch (error) {
-            console.error("Error al actualizar estado:", error);
-            this.showToast('Error al actualizar estado', 'error');
-        }
     },
 
     async showProjectHistory(id) {
@@ -2911,7 +2931,11 @@ const UI = {
                 <div class="activity-content">
                     <div class="activity-header">
                         <span class="activity-action">${h.newStatus}</span>
-                        <span class="activity-time">${new Date(h.changeDate).toLocaleString()}</span>
+                        <span class="activity-time">${formatDate(h.changeDate)}</span>
+                        <button class="btn-icon text-danger" style="margin-left: auto; font-size: 0.8rem;" title="Eliminar registro" onclick="UI.deleteProjectHistory('${h.id}', '${id}')">
+
+                            <i class="fa-solid fa-trash"></i>
+                        </button>
                     </div>
                     ${h.previousStatus ? `<div class="activity-category">Anterior: ${h.previousStatus}</div>` : ''}
                     <div class="activity-details">${h.note || 'Sin comentarios.'}</div>
@@ -2923,7 +2947,80 @@ const UI = {
         this.openModal('project-history-modal');
     },
 
-    editProject(id) {
+    async deleteProjectHistory(historyId, projectId, e) {
+        if (e) e.stopPropagation();
+        console.log('UI.deleteProjectHistory llamado:', { historyId, projectId });
+        if (!confirm('¿Estás seguro de que quieres eliminar este registro del historial?')) return;
+
+        try {
+            // Obtener el registro antes de borrar para el log/undo
+            const history = await window.StorageAPI.async.getProjectHistory(projectId);
+            const item = history.find(h => h.id.toString() === historyId.toString());
+            
+            console.log('Enviando petición de eliminación para id:', historyId);
+            await window.StorageAPI.async.deleteProjectHistory(historyId);
+            
+            this.recordActivity(
+                'Baja', 
+                'Proyecto', 
+                `Eliminado registro de evolución: ${item?.newStatus || 'Sin estado'}`, 
+                { type: 'projectHistory', projectId: projectId, item: item }
+            );
+
+            state.lastDeleted = { 
+                type: 'projectHistory', 
+                data: { projectId: projectId, item: item } 
+            };
+
+            this.showUndoToast(`Registro de historial eliminado`);
+            
+            // Refrescar el pipeline si estamos en la vista de proyectos
+            const projectsView = document.getElementById('projects');
+            if (projectsView && projectsView.classList.contains('active')) {
+                this.renderProjects();
+            }
+            
+            // Refrescar el modal de historial si está abierto
+            const historyModal = document.getElementById('project-history-modal');
+            if (historyModal && historyModal.classList.contains('active')) {
+                this.showProjectHistory(projectId);
+            }
+        } catch (error) {
+            console.error("Error al eliminar historial:", error);
+            this.showToast('Error al eliminar registro de historial', 'error');
+        }
+
+    },
+
+    async editProjectHistory(historyId, projectId, e) {
+        if (e) e.stopPropagation();
+        const history = await window.StorageAPI.async.getProjectHistory(projectId);
+        const item = history.find(h => h.id.toString() === historyId.toString());
+        if (!item) return;
+
+        const p = state.projects.find(proj => proj.id === projectId);
+
+        const form = document.getElementById('add-project-form');
+        document.getElementById('project-id').value = projectId;
+        document.getElementById('project-history-id').value = historyId;
+
+        if (p) {
+            form.elements['clientId'].value = p.clientId;
+        }
+        form.elements['status'].value = item.newStatus;
+        form.elements['visitDate'].value = item.changeDate ? item.changeDate.split('T')[0] : '';
+        form.elements['observations'].value = item.note || '';
+
+        document.getElementById('project-form-title').textContent = 'Editar Historial de Fase';
+        document.querySelector('#add-project-form button[type="submit"]').textContent = 'Actualizar Registro';
+        
+        const cancelBtn = document.getElementById('cancel-project-edit');
+        if (cancelBtn) cancelBtn.style.display = 'inline-block';
+
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    },
+
+    editProject(id, quickUpdate = false) {
         const p = state.projects.find(proj => proj.id === id);
         if (!p) return;
 
@@ -2931,26 +3028,37 @@ const UI = {
         document.getElementById('project-id').value = p.id;
         form.elements['clientId'].value = p.clientId;
 
-        // Manejar el select de estado según el estado actual del proyecto
+        // Reset status select and set value
         const statusSelect = form.elements['status'];
-        if (p.status !== 'Evaluación') {
-            statusSelect.innerHTML = `
-                <option value="Evaluación">[Evaluación] Visita técnica</option>
-                <option value="${p.status}">${p.status}</option>
-            `;
-        } else {
-            statusSelect.innerHTML = `<option value="Evaluación">[Evaluación] Visita técnica</option>`;
-        }
+        statusSelect.innerHTML = `
+            <option value="Evaluación">Evaluación</option>
+            <option value="Espera Cliente">Espera Cliente</option>
+            <option value="Espera Simons">Espera Simons</option>
+            <option value="Cotizado">Cotizado</option>
+            <option value="Coordinado">Coordinado</option>
+            <option value="Aprobado">Aprobado</option>
+            <option value="Materiales">Materiales</option>
+            <option value="Ejecución">Ejecución</option>
+        `;
         statusSelect.value = p.status;
 
         form.elements['visitDate'].value = p.visitDate || '';
         form.elements['observations'].value = p.observations || '';
 
-        document.getElementById('project-form-title').textContent = 'Editar Proyecto';
+        if (quickUpdate) {
+            document.getElementById('project-form-title').textContent = 'Actualización de Estado';
+            document.querySelector('#add-project-form button[type="submit"]').textContent = 'Confirmar Actualización';
+            // Scroll to form and focus on status
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+            setTimeout(() => statusSelect.focus(), 500);
+        } else {
+            document.getElementById('project-form-title').textContent = 'Editar Proyecto';
+            document.querySelector('#add-project-form button[type="submit"]').textContent = 'Guardar Cambios';
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
         const cancelBtn = document.getElementById('cancel-project-edit');
         if (cancelBtn) cancelBtn.style.display = 'inline-block';
-
-        window.scrollTo({ top: 0, behavior: 'smooth' });
     },
 
     deleteProject(id) {
@@ -2958,9 +3066,19 @@ const UI = {
         if (!confirm('¿Estás seguro de que quieres eliminar este registro de proyecto?')) return;
 
         const p = state.projects.find(proj => proj.id === id);
+        if (!p) return;
+
+        // Guardar historial antes de eliminar para poder restaurar
+        const history = window.StorageAPI.getProjectHistory(id) || [];
+
         window.StorageAPI.deleteProject(id);
         state.projects = state.projects.filter(proj => proj.id !== id);
-        this.recordActivity('Baja', 'Proyecto', `Eliminado registro de ${this.getClientName(p?.clientId)}`);
+        this.recordActivity(
+            'Baja',
+            'Proyecto',
+            `Eliminado registro de ${this.getClientName(p?.clientId)}`,
+            { type: 'project', item: { ...p }, history: history }
+        );
         this.renderProjects();
     },
 
@@ -2969,12 +3087,23 @@ const UI = {
         if (form) {
             form.reset();
             document.getElementById('project-id').value = '';
+            document.getElementById('project-history-id').value = '';
             document.getElementById('project-form-title').textContent = 'Nueva Solicitud / Proyecto';
+            document.querySelector('#add-project-form button[type="submit"]').textContent = 'Guardar Proyecto';
 
             // Restaurar select de estado inicial
             const statusSelect = form.elements['status'];
             if (statusSelect) {
-                statusSelect.innerHTML = '<option value="Evaluación">[Evaluación] Visita técnica</option>';
+                statusSelect.innerHTML = `
+                    <option value="Evaluación">Evaluación</option>
+                    <option value="Espera Cliente">Espera Cliente</option>
+                    <option value="Espera Simons">Espera Simons</option>
+                    <option value="Cotizado">Cotizado</option>
+                    <option value="Coordinado">Coordinado</option>
+                    <option value="Aprobado">Aprobado</option>
+                    <option value="Materiales">Materiales</option>
+                    <option value="Ejecución">Ejecución</option>
+                `;
                 statusSelect.value = 'Evaluación';
             }
 
@@ -3005,6 +3134,14 @@ const UI = {
             });
         } else {
             console.warn("Flatpickr no está cargado.");
+        }
+    },
+
+    toggleHistoryNote(card) {
+        const obs = card.querySelector('.evolution-note');
+        if (obs) {
+            obs.classList.toggle('expanded');
+            card.classList.toggle('expanded');
         }
     }
 };

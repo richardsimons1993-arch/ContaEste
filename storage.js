@@ -223,6 +223,18 @@ const Storage = {
         return this.getProjects();
     },
 
+    getProjectHistory(id) {
+        return syncRequest('GET', `/projects/${id}/history`) || [];
+    },
+
+    deleteProjectHistory(id) {
+        return syncRequest('DELETE', `/projects/history/${id}`);
+    },
+
+    updateProjectHistory(id, data) {
+        return syncRequest('PUT', `/projects/history/${id}`, data);
+    },
+
     // --- Métodos Asíncronos (Nuevos para SPA Reactiva) ---
     async: {
         getTransactions: () => asyncRequest('GET', '/transactions'),
@@ -254,7 +266,9 @@ const Storage = {
         saveProject: (p) => asyncRequest('POST', '/projects', p),
         deleteProject: (id) => asyncRequest('DELETE', `/projects/${id}`),
         getProjectHistory: (id) => asyncRequest('GET', `/projects/${id}/history`),
-        addProjectHistory: (id, h) => asyncRequest('POST', `/projects/${id}/history`, h)
+        addProjectHistory: (id, h) => asyncRequest('POST', `/projects/${id}/history`, h),
+        deleteProjectHistory: (id) => asyncRequest('DELETE', `/projects/history/${id}`),
+        updateProjectHistory: (id, data) => asyncRequest('PUT', `/projects/history/${id}`, data)
     }
 };
 

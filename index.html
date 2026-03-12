@@ -62,7 +62,9 @@
         <!-- Barra Lateral -->
         <aside class="sidebar">
             <div class="brand">
-                <img src="logo.png" alt="Simons Logo" class="logo-img">
+                <a href="index.html">
+                    <img src="logo.png" alt="Simons Logo" class="logo-img">
+                </a>
             </div>
             <nav class="nav-menu">
                 <!-- Módulo Finanzas -->
@@ -702,6 +704,7 @@
                     <h2 id="project-form-title">Nueva Solicitud / Proyecto</h2>
                     <form id="add-project-form">
                         <input type="hidden" name="id" id="project-id">
+                        <input type="hidden" name="historyId" id="project-history-id">
                         <div class="grid-2">
                             <div class="form-group">
                                 <label for="project-client">Cliente</label>
@@ -713,13 +716,20 @@
                             <div class="form-group">
                                 <label for="project-status">Estado / Fase</label>
                                 <select id="project-status" name="status" required>
-                                    <option value="Evaluación">[Evaluación] Visita técnica</option>
+                                    <option value="Evaluación">Evaluación</option>
+                                    <option value="Espera Cliente">Espera Cliente</option>
+                                    <option value="Espera Simons">Espera Simons</option>
+                                    <option value="Cotizado">Cotizado</option>
+                                    <option value="Coordinado">Coordinado</option>
+                                    <option value="Aprobado">Aprobado</option>
+                                    <option value="Materiales">Materiales</option>
+                                    <option value="Ejecución">Ejecución</option>
                                 </select>
                             </div>
                         </div>
                         <div class="grid-2">
                             <div class="form-group">
-                                <label for="project-visit-date">Fecha de Visita / Primer Contacto</label>
+                                <label for="project-visit-date">Fecha Actualización</label>
                                 <input type="date" id="project-visit-date" name="visitDate" required>
                             </div>
                         </div>
@@ -746,8 +756,10 @@
                             <select id="project-filter-status" class="form-control" style="width: 180px;">
                                 <option value="all">Todos los Estados</option>
                                 <option value="Evaluación">Evaluación</option>
-                                <option value="Pendiente Planificación Cliente">Planificación Cliente</option>
+                                <option value="Espera Cliente">Espera Cliente</option>
+                                <option value="Espera Simons">Espera Simons</option>
                                 <option value="Cotizado">Cotizado</option>
+                                <option value="Coordinado">Coordinado</option>
                                 <option value="Aprobado">Aprobado</option>
                                 <option value="Materiales">Materiales</option>
                                 <option value="Ejecución">Ejecución</option>
@@ -759,10 +771,7 @@
                             <thead>
                                 <tr>
                                     <th>Cliente</th>
-                                    <th>Fase Actual</th>
-                                    <th>Fecha Visita</th>
-                                    <th>Fecha Ejecución</th>
-                                    <th>Observaciones</th>
+                                    <th>Fase / Evolución</th>
                                     <th>Acciones</th>
                                 </tr>
                             </thead>

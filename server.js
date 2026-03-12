@@ -701,7 +701,21 @@ app.get('/api/projects', async (req, res) => {
     }
 });
 
-app.delete('/api/projects/:id', (req, res) => deleteApi(req, res, 'Projects'));
+app.delete('/api/projects/:id', async (req, res) => {
+    try {
+        const pool = await getDbPool();
+        // Borrar historial primero para evitar error de FK
+        await pool.request()
+            .input('projectId', sql.VarChar(50), req.params.id)
+            .query('DELETE FROM ProjectHistory WHERE projectId = @projectId');
+        await pool.request()
+            .input('id', sql.VarChar(50), req.params.id)
+            .query('DELETE FROM Projects WHERE id = @id');
+        res.json({ success: true });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
 
 app.post('/api/projects', async (req, res) => {
     try {
@@ -750,12 +764,46 @@ app.post('/api/projects/:id/history', async (req, res) => {
     try {
         const h = req.body;
         const pool = await getDbPool();
-        await pool.request()
+        const req2 = pool.request()
             .input('projectId', sql.VarChar(50), req.params.id)
             .input('previousStatus', sql.VarChar(50), h.previousStatus || null)
             .input('newStatus', sql.VarChar(50), h.newStatus)
+            .input('note', sql.VarChar(sql.MAX), h.note || '');
+
+        if (h.changeDate) {
+            req2.input('changeDate', sql.Date, h.changeDate);
+            await req2.query(`INSERT INTO ProjectHistory (projectId, previousStatus, newStatus, note, changeDate) VALUES (@projectId, @previousStatus, @newStatus, @note, @changeDate)`);
+        } else {
+            await req2.query(`INSERT INTO ProjectHistory (projectId, previousStatus, newStatus, note) VALUES (@projectId, @previousStatus, @newStatus, @note)`);
+        }
+        res.json({ success: true });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.delete('/api/projects/history/:id', async (req, res) => {
+    try {
+        const pool = await getDbPool();
+        await pool.request()
+            .input('id', sql.Int, req.params.id)
+            .query('DELETE FROM ProjectHistory WHERE id = @id');
+        res.json({ success: true });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.put('/api/projects/history/:id', async (req, res) => {
+    try {
+        const h = req.body;
+        const pool = await getDbPool();
+        await pool.request()
+            .input('id', sql.Int, req.params.id)
             .input('note', sql.VarChar(sql.MAX), h.note || '')
-            .query(`INSERT INTO ProjectHistory (projectId, previousStatus, newStatus, note) VALUES (@projectId, @previousStatus, @newStatus, @note)`);
+            .input('newStatus', sql.VarChar(50), h.newStatus)
+            .input('changeDate', sql.Date, h.changeDate || null)
+            .query('UPDATE ProjectHistory SET note = @note, newStatus = @newStatus, changeDate = @changeDate WHERE id = @id');
         res.json({ success: true });
     } catch (err) {
         res.status(500).json({ error: err.message });
