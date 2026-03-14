@@ -156,6 +156,8 @@ body.login-pending .app-container {
 /* Barra Lateral */
 aside {
     width: 260px;
+    min-width: 260px;
+    flex-shrink: 0;
     background-color: var(--sidebar-bg);
     border-right: 1px solid var(--border-color);
     display: flex;
@@ -165,6 +167,9 @@ aside {
     top: 0;
     height: 100vh;
     z-index: 100;
+    overflow-y: auto;
+    overflow-x: hidden;
+    scrollbar-width: thin;
 }
 
 .brand {
@@ -241,6 +246,7 @@ nav {
 /* Contenido Principal */
 main {
     flex: 1;
+    min-width: 0;
     padding: 2rem 3rem;
     max-width: 1400px;
     margin: 0 auto;
@@ -1103,3 +1109,214 @@ body:not(.login-pending) .login-overlay {
     font-size: 0.9rem;
     color: var(--text-main);
 }
+
+/* ==========================================================================
+   Responsive Design (Media Queries)
+   ========================================================================== */
+
+/* Solo Desktop / Ocultar en móviles por defecto */
+.mobile-only {
+    display: none !important;
+}
+
+/* Tablets and below (max-width: 992px) */
+@media screen and (max-width: 992px) {
+    .mobile-only {
+        display: inline-flex !important;
+    }
+
+    /* Layout general */
+    .app-container {
+        flex-direction: column;
+    }
+
+    /* Sidebar - Convertido a menú lateral oculto (Off-canvas) */
+    aside.sidebar {
+        position: fixed;
+        left: -280px; /* Oculto fuera de pantalla */
+        top: 0;
+        bottom: 0;
+        width: 280px;
+        height: 100vh;
+        z-index: 10000;
+        transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        box-shadow: var(--shadow-lg);
+        background-color: var(--sidebar-bg);
+        overflow-y: auto;
+    }
+
+    aside.sidebar.active {
+        transform: translateX(280px);
+    }
+
+    /* Overlay oscuro cuando el menú está abierto */
+    .sidebar-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background-color: rgba(0, 0, 0, 0.5);
+        z-index: 9999;
+        opacity: 0;
+        visibility: hidden;
+        transition: opacity 0.3s ease, visibility 0.3s ease;
+        backdrop-filter: blur(2px);
+    }
+
+    .sidebar-overlay.active {
+        opacity: 1;
+        visibility: visible;
+    }
+
+    /* Contenido principal */
+    main.main-content {
+        padding: 1.5rem 1rem;
+        width: 100%;
+        max-width: 100vw;
+    }
+
+    /* Header / Top bar */
+    .top-bar {
+        padding: 0.5rem 0;
+        margin-bottom: 1.5rem;
+    }
+
+    #page-title {
+        font-size: 1.5rem;
+    }
+
+    /* Ocultar texto de usuario, mostrar solo avatar */
+    #display-username {
+        display: none;
+    }
+
+    .user-profile {
+        padding: 0.3rem; /* Hacerlo más circular */
+        border-radius: 50%;
+    }
+
+    .user-dropdown {
+        right: -10px; /* Ajustar posición */
+    }
+}
+
+/* Teléfonos móviles pequeños (max-width: 768px) */
+@media screen and (max-width: 768px) {
+    /* Ajustes generales */
+    main.main-content {
+        padding: 1rem 0.5rem;
+    }
+
+    /* Dashboard Stats Grid (1 columna) */
+    .stats-grid {
+        grid-template-columns: 1fr;
+        gap: 1rem;
+    }
+
+    .stat-card {
+        padding: 1.25rem;
+    }
+
+    /* Formularios (1 columna) */
+    .grid-2 {
+        grid-template-columns: 1fr;
+        gap: 0; /* Margin-bottom interno de form-group ya aplica */
+    }
+
+    .form-group {
+        margin-bottom: 1rem;
+    }
+
+    /* Acciones en formularios / Filtros */
+    .form-actions {
+        flex-direction: column;
+        width: 100%;
+    }
+
+    .filters {
+        flex-direction: column;
+        align-items: stretch !important;
+        width: 100%;
+    }
+
+    .card-header,
+    .card > div[style*="justify-content: space-between"] {
+        flex-direction: column;
+        align-items: flex-start !important;
+        gap: 1rem !important;
+    }
+
+    .card-header .actions,
+    .card > div[style*="justify-content: space-between"] .actions {
+        width: 100%;
+        display: grid !important;
+        grid-template-columns: 1fr 1fr;
+    }
+
+    .btn-primary, .btn-secondary, .btn-sm {
+        justify-content: center;
+        text-align: center;
+    }
+
+    /* Filtros específicos */
+    .filters .form-group,
+    .filters .custom-dropdown,
+    #project-search,
+    #project-filter-status {
+        width: 100% !important;
+    }
+
+    /* Cajas y padding */
+    .card {
+        padding: 1rem;
+    }
+
+    .card h2, .card h3 {
+        font-size: 1.25rem;
+        margin-bottom: 1rem;
+    }
+
+    /* Tablas: Forzar scroll horizontal, pero mantener estética */
+    .table-responsive {
+        width: 100%;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        margin-bottom: 1rem;
+        border: 1px solid var(--border-color);
+        border-radius: var(--radius);
+        scrollbar-width: thin;
+    }
+
+    .data-table {
+        min-width: 650px; /* Evita que columnas se aplasten */
+    }
+
+    .data-table th, .data-table td {
+        padding: 0.75rem 0.5rem;
+        font-size: 0.85rem;
+    }
+    
+    /* Login Card responsive */
+    .login-card {
+        padding: 1.5rem;
+        width: 90%;
+        max-width: 350px;
+    }
+
+    .login-header h2 {
+        font-size: 1.5rem;
+    }
+
+    /* Toasts responsive */
+    .toast-container {
+        bottom: 1rem;
+        right: 1rem;
+        left: 1rem;
+    }
+    .toast {
+        min-width: unset;
+        width: 100%;
+        box-sizing: border-box;
+    }
+}

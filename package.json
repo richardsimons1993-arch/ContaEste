@@ -20,6 +20,7 @@
   "homepage": "https://github.com/richardsimons1993-arch/ContaEste#readme",
   "dependencies": {
     "axios": "^1.13.6",
+    "bcrypt": "^6.0.0",
     "cors": "^2.8.6",
     "express": "^5.2.1",
     "msnodesqlv8": "^5.1.5",

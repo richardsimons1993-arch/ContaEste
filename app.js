@@ -183,44 +183,34 @@ const UI = {
         state.suppliers = window.StorageAPI.getSuppliers() || [];
         state.projects = window.StorageAPI.getProjects() || [];
 
-        // Cargar usuarios o inicializar con por defecto
+        // Cargar usuarios desde la BD (sin contraseñas - el servidor ya no las devuelve)
         state.users = window.StorageAPI.getUsers() || [];
-        if (state.users.length === 0) {
-            state.users = [...DEFAULT_USERS];
-            window.StorageAPI.saveUsers(state.users);
-        } else {
-            // Asegurar que el admin siempre tenga la contraseña solicitada si existe
-            const admin = state.users.find(u => u.username === 'administrador');
-            if (admin && admin.password !== 'S0p0rt3!!2025') {
-                admin.password = 'S0p0rt3!!2025';
-                window.StorageAPI.saveUsers(state.users);
-            }
-
-            // Migración: añadir módulos a usuarios existentes que no los tengan
-            let needsSave = false;
-            state.users.forEach(user => {
-                if (!user.modules) {
-                    if (user.role === ROLES.ADMIN) {
-                        user.modules = ['finanzas', 'usuarios'];
-                    } else if (user.role === ROLES.OPERATOR) {
-                        user.modules = ['finanzas'];
-                    } else {
-                        user.modules = ['finanzas'];
-                    }
-                    needsSave = true;
-                }
-            });
-            if (needsSave) {
-                window.StorageAPI.saveUsers(state.users);
-            }
-        }
+        // Los usuarios se inicializan en el servidor; si el array está vacío se cargan en el próximo getUsers()
     },
+
 
     setupEventListeners() {
         console.log("Configurando oyentes de eventos...");
         // Navegación
         const buttons = document.querySelectorAll('.nav-btn');
         if (buttons.length === 0) console.warn("¡No se encontraron botones de navegación!");
+
+        // Mobile Sidebar Toggle
+        const mobileMenuBtn = document.getElementById('mobile-menu-btn');
+        const sidebar = document.querySelector('.sidebar');
+        const sidebarOverlay = document.getElementById('sidebar-overlay');
+
+        if (mobileMenuBtn && sidebar && sidebarOverlay) {
+            mobileMenuBtn.addEventListener('click', () => {
+                sidebar.classList.toggle('active');
+                sidebarOverlay.classList.toggle('active');
+            });
+
+            sidebarOverlay.addEventListener('click', () => {
+                sidebar.classList.remove('active');
+                sidebarOverlay.classList.remove('active');
+            });
+        }
 
         buttons.forEach(btn => {
             btn.addEventListener('click', (e) => {
@@ -473,84 +463,264 @@ const UI = {
     checkSession() {
         const savedSession = localStorage.getItem('contabilidad_session');
         if (savedSession) {
-            const sessionUser = JSON.parse(savedSession);
-            // Sincronizar con datos actuales para obtener módulos actualizados
-            const freshUser = state.users.find(u => u.id === sessionUser.id);
+            const sessionData = JSON.parse(savedSession);
 
-            if (freshUser) {
-                state.currentUser = freshUser;
-                // Actualizar sesión almacenada
-                localStorage.setItem('contabilidad_session', JSON.stringify(freshUser));
-            } else {
-                state.currentUser = sessionUser;
+            // Validar que la sesión no haya expirado por inactividad (30 min)
+            const TIMEOUT_MS = 30 * 60 * 1000;
+            const lastActivity = sessionData.lastActivity || 0;
+            if (Date.now() - lastActivity > TIMEOUT_MS) {
+                // Sesión expirada
+                localStorage.removeItem('contabilidad_session');
+                document.body.classList.add('login-pending');
+                const errorEl = document.getElementById('login-error');
+                if (errorEl) {
+                    errorEl.textContent = 'Sesión expirada por inactividad. Por favor ingrese nuevamente.';
+                    errorEl.style.display = 'block';
+                }
+                return;
             }
+
+            state.currentUser = {
+                id: sessionData.id,
+                username: sessionData.username,
+                role: sessionData.role,
+                name: sessionData.name,
+                modules: sessionData.modules || []
+            };
+
+            // Renovar lastActivity
+            sessionData.lastActivity = Date.now();
+            localStorage.setItem('contabilidad_session', JSON.stringify(sessionData));
 
             document.body.classList.remove('login-pending');
             this.updateUserUI();
-            this.applyModuleAccess(); // Aplicar acceso por módulos al cargar sesión
+            this.applyModuleAccess();
+            this.startInactivityTimer();
         } else {
             document.body.classList.add('login-pending');
         }
     },
 
-    handleLogin(e) {
+    async handleLogin(e) {
         e.preventDefault();
         const usernameInput = document.getElementById('username');
         const passwordInput = document.getElementById('password');
         const username = usernameInput.value.trim().toLowerCase();
         const pass = passwordInput.value.trim();
         const errorEl = document.getElementById('login-error');
+        const submitBtn = e.target.querySelector('button[type="submit"]');
 
-        // Debug: Verificar si hay usuarios
-        if (!state.users || state.users.length === 0) {
-            errorEl.textContent = "Error: Sistema no inicializado. Recargue la página.";
+        if (!username || !pass) {
+            errorEl.textContent = 'Por favor ingrese usuario y contraseña.';
             errorEl.style.display = 'block';
             return;
         }
 
-        const user = state.users.find(u => u.username === username);
-
-        if (!user) {
-            errorEl.textContent = "Usuario no encontrado.";
-            errorEl.style.display = 'block';
-            usernameInput.focus();
-            return;
-        }
-
-        if (user.password !== pass) {
-            errorEl.textContent = "Contraseña incorrecta.";
-            errorEl.style.display = 'block';
-            passwordInput.value = ''; // Solo borrar la contraseña si el usuario es correcto
-            passwordInput.focus();
-            return;
-        }
-
-        // Si llega aquí, es exitoso
-        state.currentUser = {
-            id: user.id,
-            username: user.username,
-            role: user.role,
-            name: user.name,
-            modules: user.modules || []
-        };
-        localStorage.setItem('contabilidad_session', JSON.stringify(state.currentUser));
-        document.body.classList.remove('login-pending');
+        this.showLoading(submitBtn);
         errorEl.style.display = 'none';
-        e.target.reset();
 
-        this.updateUserUI();
-        this.applyPrivileges();
-        this.applyModuleAccess(); // Aplicar acceso por módulos
-        const firstView = this.getFirstAvailableView(state.currentUser.modules);
-        this.switchView(firstView);
-        this.recordActivity('Login', 'Sistema', `Usuario ${username} inició sesión`);
+        try {
+            const response = await fetch('/api/auth/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username, password: pass })
+            });
+
+            if (!response.ok) {
+                const err = await response.json();
+                errorEl.textContent = err.error || 'Credenciales incorrectas.';
+                errorEl.style.display = 'block';
+                passwordInput.value = '';
+                passwordInput.focus();
+                this.hideLoading(submitBtn);
+                return;
+            }
+
+            const user = await response.json();
+
+            // Guardar sesión con timestamps
+            const sessionData = {
+                ...user,
+                loginTime: Date.now(),
+                lastActivity: Date.now()
+            };
+            state.currentUser = user;
+            localStorage.setItem('contabilidad_session', JSON.stringify(sessionData));
+            document.body.classList.remove('login-pending');
+            errorEl.style.display = 'none';
+            e.target.reset();
+
+            this.updateUserUI();
+            this.applyPrivileges();
+            this.applyModuleAccess();
+            this.startInactivityTimer();
+            const firstView = this.getFirstAvailableView(state.currentUser.modules);
+            this.switchView(firstView);
+            this.recordActivity('Login', 'Sistema', `Usuario ${username} inició sesión`);
+        } catch (err) {
+            errorEl.textContent = 'Error de conexión con el servidor. Verifique que el servidor esté activo.';
+            errorEl.style.display = 'block';
+        } finally {
+            this.hideLoading(submitBtn);
+        }
     },
 
     handleLogout() {
         this.recordActivity('Logout', 'Sistema', `Usuario ${state.currentUser?.username} cerró sesión`);
+        this.stopInactivityTimer();
         state.currentUser = null;
         localStorage.removeItem('contabilidad_session');
         document.body.classList.add('login-pending');
+    },
+
+    // --- CONTROL DE INACTIVIDAD ---
+    _inactivityInterval: null,
+    _inactivityListeners: null,
+    _warningShown: false,
+    _lastActivityTs: Date.now(),
+    _resetDebounceTimer: null,
+
+    startInactivityTimer() {
+        this.stopInactivityTimer();
+        this._warningShown = false;
+        this._lastActivityTs = Date.now();
+
+        // Debounce: actualizar sólo tras 2 segundos sin nuevos eventos
+        const resetFn = () => {
+            this._lastActivityTs = Date.now();
+            if (this._resetDebounceTimer) clearTimeout(this._resetDebounceTimer);
+            this._resetDebounceTimer = setTimeout(() => this.resetInactivityTimer(), 2000);
+        };
+        this._inactivityListeners = resetFn;
+
+        ['mousemove', 'mousedown', 'keydown', 'scroll', 'touchstart', 'click'].forEach(evt => {
+            document.addEventListener(evt, resetFn, { passive: true });
+        });
+
+        // Verificar cada 30 segundos
+        this._inactivityInterval = setInterval(() => this.checkInactivity(), 30000);
+    },
+
+    resetInactivityTimer() {
+        this._warningShown = false;
+        const sessionData = JSON.parse(localStorage.getItem('contabilidad_session') || '{}');
+        if (sessionData.id) {
+            sessionData.lastActivity = Date.now();
+            localStorage.setItem('contabilidad_session', JSON.stringify(sessionData));
+        }
+        // Cerrar el modal de advertencia si estaba abierto
+        const warnModal = document.getElementById('inactivity-warning-modal');
+        if (warnModal && warnModal.style.display === 'flex') {
+            warnModal.style.display = 'none';
+        }
+    },
+
+    stopInactivityTimer() {
+        if (this._inactivityInterval) {
+            clearInterval(this._inactivityInterval);
+            this._inactivityInterval = null;
+        }
+        if (this._inactivityListeners) {
+            ['mousemove', 'mousedown', 'keydown', 'scroll', 'touchstart', 'click'].forEach(evt => {
+                document.removeEventListener(evt, this._inactivityListeners);
+            });
+            this._inactivityListeners = null;
+        }
+        // Cerrar modal si quedó abierto
+        const warnModal = document.getElementById('inactivity-warning-modal');
+        if (warnModal) warnModal.style.display = 'none';
+    },
+
+    checkInactivity() {
+        if (!state.currentUser) return;
+
+        // Usar el timestamp más reciente (en memoria o localStorage)
+        const sessionData = JSON.parse(localStorage.getItem('contabilidad_session') || '{}');
+        const storedActivity = sessionData.lastActivity || 0;
+        const memoryActivity = this._lastActivityTs || 0;
+        const lastActivity = Math.max(storedActivity, memoryActivity);
+        const elapsed = Date.now() - lastActivity;
+
+        const WARN_MS  = 28 * 60 * 1000; // 28 min → advertencia
+        const LIMIT_MS = 30 * 60 * 1000; // 30 min → cerrar sesión
+
+        if (elapsed >= LIMIT_MS) {
+            this.forceLogout();
+        } else if (elapsed >= WARN_MS && !this._warningShown) {
+            this._warningShown = true;
+            this.showInactivityWarning(Math.ceil((LIMIT_MS - elapsed) / 1000));
+        }
+    },
+
+    showInactivityWarning(remainingSeconds) {
+        let modal = document.getElementById('inactivity-warning-modal');
+        if (!modal) {
+            modal = document.createElement('div');
+            modal.id = 'inactivity-warning-modal';
+            modal.style.cssText = [
+                'display:flex', 'position:fixed', 'top:0', 'left:0', 'width:100%', 'height:100%',
+                'background:rgba(0,0,0,0.65)', 'z-index:99999',
+                'align-items:center', 'justify-content:center'
+            ].join(';');
+            modal.innerHTML = `
+                <div style="background:var(--bg-color,#fff);border-radius:12px;padding:32px 40px;max-width:400px;width:90%;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,0.3);">
+                    <div style="font-size:48px;margin-bottom:16px;">⏱️</div>
+                    <h3 style="margin:0 0 12px;color:var(--text-color,#333);font-size:1.25rem;">Sesión por expirar</h3>
+                    <p style="color:var(--text-muted,#666);margin:0 0 8px;">Por inactividad, su sesión se cerrará en:</p>
+                    <p id="inactivity-countdown" style="font-size:2rem;font-weight:700;color:#e74c3c;margin:12px 0;">0:00</p>
+                    <p style="color:var(--text-muted,#666);font-size:0.9rem;margin:0 0 24px;">Haga clic en continuar para mantener la sesión activa.</p>
+                    <button id="inactivity-continue-btn" style="background:var(--primary-color,#3498db);color:#fff;border:none;border-radius:8px;padding:12px 32px;font-size:1rem;cursor:pointer;font-weight:600;">Continuar sesión</button>
+                </div>
+            `;
+            document.body.appendChild(modal);
+
+            document.getElementById('inactivity-continue-btn').addEventListener('click', () => {
+                this.resetInactivityTimer();
+                this._warningShown = false;
+                modal.style.display = 'none';
+            });
+        } else {
+            modal.style.display = 'flex';
+        }
+
+        // Countdown visual
+        let secs = remainingSeconds;
+        const countdownEl = document.getElementById('inactivity-countdown');
+        if (countdownEl) {
+            const updateCountdown = () => {
+                const m = Math.floor(secs / 60);
+                const s = secs % 60;
+                countdownEl.textContent = `${m}:${String(s).padStart(2, '0')}`;
+                if (secs <= 0) return;
+                secs--;
+            };
+            updateCountdown();
+            const cInterval = setInterval(() => {
+                if (!state.currentUser || secs <= 0 || modal.style.display === 'none') {
+                    clearInterval(cInterval);
+                    return;
+                }
+                updateCountdown();
+            }, 1000);
+        }
+    },
+
+    forceLogout() {
+        this.recordActivity('Logout', 'Sistema', `Sesión cerrada por inactividad (usuario: ${state.currentUser?.username})`);
+        this.stopInactivityTimer();
+        state.currentUser = null;
+        localStorage.removeItem('contabilidad_session');
+        document.body.classList.add('login-pending');
+
+        // Mostrar mensaje en el login
+        setTimeout(() => {
+            const errorEl = document.getElementById('login-error');
+            if (errorEl) {
+                errorEl.textContent = 'Su sesión fue cerrada automáticamente por 30 minutos de inactividad.';
+                errorEl.style.display = 'block';
+                errorEl.style.color = 'var(--warning-color, #e67e22)';
+            }
+        }, 100);
     },
 
     updateUserUI() {
@@ -725,6 +895,17 @@ const UI = {
         const pageTitle = document.getElementById('page-title');
         if (pageTitle && titles[viewName]) {
             pageTitle.textContent = titles[viewName];
+            document.title = `${titles[viewName]} - Contabilidad Premium`;
+        }
+        
+        // Auto-close sidebar on mobile after navigation
+        if (window.innerWidth <= 992) {
+            const sidebar = document.querySelector('.sidebar');
+            const sidebarOverlay = document.getElementById('sidebar-overlay');
+            if (sidebar && sidebarOverlay) {
+                sidebar.classList.remove('active');
+                sidebarOverlay.classList.remove('active');
+            }
         }
 
         if (viewName === 'dashboard') this.renderDashboard();
@@ -2067,16 +2248,23 @@ const UI = {
         });
     },
 
-    handleUserSubmit(e) {
+    async handleUserSubmit(e) {
         e.preventDefault();
         const formData = new FormData(e.target);
-        const id = document.getElementById('edit-user-id').value; // Obtener directamente del campo
+        const id = document.getElementById('edit-user-id').value;
         const username = formData.get('username').toLowerCase();
+        const password = formData.get('password'); // Puede estar vacío en edición
 
-        // Evitar duplicados (solo al crear o si se cambia el username)
+        // Validar contraseña obligatoria en creación
+        if (!id && (!password || password.trim() === '')) {
+            this.showToast('La contraseña es obligatoria para usuarios nuevos', 'error');
+            return;
+        }
+
+        // Evitar duplicados
         const existingUser = state.users.find(u => u.username === username);
         if (existingUser && existingUser.id !== id) {
-            this.showUndoToast("Error: El nombre de usuario ya existe");
+            this.showToast('Error: El nombre de usuario ya existe', 'error');
             return;
         }
 
@@ -2085,27 +2273,52 @@ const UI = {
             document.querySelectorAll('.module-checkbox:checked')
         ).map(cb => cb.value);
 
+        const userId = id || Date.now().toString();
         const user = {
-            id: id || Date.now().toString(),
+            id: userId,
             name: formData.get('name'),
             username: username,
-            password: formData.get('password'),
+            password: password || '', // Vacío = no cambiar en servidor
             role: formData.get('role'),
             modules: selectedModules
         };
 
-        if (id) {
-            const index = state.users.findIndex(u => u.id === id);
-            state.users[index] = user;
-            this.recordActivity('Modificación', 'Usuario', `Actualizado: ${user.username}`);
-        } else {
-            state.users.push(user);
-            this.recordActivity('Alta', 'Usuario', `Creado: ${user.username}`);
-        }
+        const submitBtn = document.getElementById('btn-save-user');
+        this.showLoading(submitBtn);
 
-        window.StorageAPI.saveUsers(state.users);
-        this.resetUserForm();
-        this.renderUsers();
+        try {
+            const response = await fetch('/api/users', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(user)
+            });
+
+            if (!response.ok) {
+                const err = await response.json();
+                this.showToast('Error: ' + (err.error || 'No se pudo guardar el usuario'), 'error');
+                return;
+            }
+
+            const savedUser = await response.json(); // Sin contraseña
+
+            // Actualizar estado local
+            if (id) {
+                const index = state.users.findIndex(u => u.id === id);
+                if (index >= 0) state.users[index] = savedUser;
+                this.recordActivity('Modificación', 'Usuario', `Actualizado: ${savedUser.username}`);
+            } else {
+                state.users.push(savedUser);
+                this.recordActivity('Alta', 'Usuario', `Creado: ${savedUser.username}`);
+            }
+
+            this.showToast(id ? 'Usuario actualizado correctamente' : 'Usuario creado correctamente', 'success');
+            this.resetUserForm();
+            this.renderUsers();
+        } catch (err) {
+            this.showToast('Error de conexión con el servidor', 'error');
+        } finally {
+            this.hideLoading(submitBtn);
+        }
     },
 
     editUser(id) {
@@ -2115,7 +2328,12 @@ const UI = {
         document.getElementById('edit-user-id').value = user.id;
         document.getElementById('user-real-name').value = user.name;
         document.getElementById('user-username').value = user.username;
-        document.getElementById('user-password').value = user.password;
+        // No pre-rellenar la contraseña (buena práctica de seguridad)
+        const pwdField = document.getElementById('user-password');
+        if (pwdField) {
+            pwdField.value = '';
+            pwdField.placeholder = 'Dejar vacío para no cambiar';
+        }
         document.getElementById('user-role').value = user.role;
 
         // Marcar módulos
@@ -2132,14 +2350,21 @@ const UI = {
         window.scrollTo({ top: 0, behavior: 'smooth' });
     },
 
-    deleteUser(id) {
+    async deleteUser(id) {
         const user = state.users.find(u => u.id === id);
-        if (user.username === 'administrador') return; // No borrar admin principal
+        if (!user || user.username === 'administrador') return; // No borrar admin principal
 
-        state.users = state.users.filter(u => u.id !== id);
-        window.StorageAPI.saveUsers(state.users);
-        this.recordActivity('Baja', 'Usuario', `Eliminado: ${user.username}`);
-        this.renderUsers();
+        try {
+            const response = await fetch(`/api/users/${id}`, { method: 'DELETE' });
+            if (!response.ok) throw new Error('Error al eliminar');
+
+            state.users = state.users.filter(u => u.id !== id);
+            this.recordActivity('Baja', 'Usuario', `Eliminado: ${user.username}`);
+            this.showToast('Usuario eliminado', 'info');
+            this.renderUsers();
+        } catch (err) {
+            this.showToast('Error al eliminar usuario', 'error');
+        }
     },
 
     resetUserForm() {

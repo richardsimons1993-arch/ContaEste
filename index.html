@@ -59,6 +59,9 @@
     </div>
 
     <div class="app-container">
+        <!-- Overlay para Sidebar Móvil -->
+        <div id="sidebar-overlay" class="sidebar-overlay"></div>
+
         <!-- Barra Lateral -->
         <aside class="sidebar">
             <div class="brand">
@@ -126,7 +129,12 @@
         <main class="main-content">
             <!-- Barra Superior -->
             <header class="top-bar">
-                <h1 id="page-title">Registrar</h1>
+                <div class="header-title-area" style="display: flex; align-items: center; gap: 1rem;">
+                    <button id="mobile-menu-btn" class="btn-icon mobile-only" title="Menú">
+                        <i class="fa-solid fa-bars"></i>
+                    </button>
+                    <h1 id="page-title">Registrar</h1>
+                </div>
                 <div class="header-actions" style="display: flex; align-items: center; gap: 1rem;">
                     <button id="contracts-reminder-btn" class="btn-icon" title="Contratos Pendientes de Facturar"
                         style="position: relative; display: none;">
@@ -754,7 +762,7 @@
                             <input type="text" id="project-search" placeholder="Buscar por cliente..."
                                 class="form-control" style="width: 250px;">
                             <select id="project-filter-status" class="form-control" style="width: 180px;">
-                                <option value="all">Todos los Estados</option>
+                                <option value="all">Todos</option>
                                 <option value="Evaluación">Evaluación</option>
                                 <option value="Espera Cliente">Espera Cliente</option>
                                 <option value="Espera Simons">Espera Simons</option>

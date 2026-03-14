@@ -1,6 +1,9 @@
 const express = require('express');
 const cors = require('cors');
 const sql = require('mssql/msnodesqlv8');
+const bcrypt = require('bcrypt');
+
+const BCRYPT_ROUNDS = 10;
 
 const app = express();
 app.use(cors());
@@ -450,7 +453,7 @@ app.post('/api/debtors/:id/pay', async (req, res) => {
 app.get('/api/users', async (req, res) => {
     try {
         const pool = await getDbPool();
-        const result = await pool.request().query('SELECT * FROM Users');
+        const result = await pool.request().query('SELECT id, username, role, name, modules FROM Users');
         const users = result.recordset.map(u => ({
             ...u,
             modules: u.modules ? JSON.parse(u.modules) : []
@@ -461,16 +464,68 @@ app.get('/api/users', async (req, res) => {
     }
 });
 app.delete('/api/users/:id', (req, res) => deleteApi(req, res, 'Users'));
+
+// Guardar/actualizar un único usuario (con hash de contraseña)
+app.post('/api/users', async (req, res) => {
+    try {
+        const u = req.body;
+        const pool = await getDbPool();
+        const check = await pool.request().input('id', sql.VarChar(50), u.id).query('SELECT id, password FROM Users WHERE id = @id');
+
+        let hashedPassword;
+        if (u.password && u.password.trim() !== '') {
+            // Nueva contraseña o primera vez: hashear
+            hashedPassword = await bcrypt.hash(u.password, BCRYPT_ROUNDS);
+        } else if (check.recordset.length > 0) {
+            // Edición sin cambio de contraseña: conservar el hash actual
+            hashedPassword = check.recordset[0].password;
+        } else {
+            return res.status(400).json({ error: 'La contraseña es obligatoria para usuarios nuevos' });
+        }
+
+        const modulesJson = JSON.stringify(u.modules || []);
+
+        if (check.recordset.length > 0) {
+            await pool.request()
+                .input('id', sql.VarChar(50), u.id)
+                .input('username', sql.VarChar(50), u.username)
+                .input('password', sql.VarChar(100), hashedPassword)
+                .input('role', sql.VarChar(50), u.role)
+                .input('name', sql.VarChar(100), u.name)
+                .input('modules', sql.VarChar(sql.MAX), modulesJson)
+                .query(`UPDATE Users SET username=@username, password=@password, role=@role, name=@name, modules=@modules WHERE id=@id`);
+        } else {
+            await pool.request()
+                .input('id', sql.VarChar(50), u.id)
+                .input('username', sql.VarChar(50), u.username)
+                .input('password', sql.VarChar(100), hashedPassword)
+                .input('role', sql.VarChar(50), u.role)
+                .input('name', sql.VarChar(100), u.name)
+                .input('modules', sql.VarChar(sql.MAX), modulesJson)
+                .query(`INSERT INTO Users (id, username, password, role, name, modules) VALUES (@id, @username, @password, @role, @name, @modules)`);
+        }
+        // Retornar sin contraseña
+        res.json({ id: u.id, username: u.username, role: u.role, name: u.name, modules: u.modules || [] });
+    } catch (err) {
+        console.error('Error in POST /api/users:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Batch (legacy / inicialización): hashear contraseñas si aún no lo están
 app.post('/api/users/batch', async (req, res) => {
     try {
         const usersArray = req.body;
         const pool = await getDbPool();
         await pool.request().query('DELETE FROM Users');
         for (let u of usersArray) {
+            // Si la contraseña ya es un hash bcrypt, no volver a hashear
+            const alreadyHashed = u.password && u.password.startsWith('$2b$');
+            const hashedPassword = alreadyHashed ? u.password : await bcrypt.hash(u.password, BCRYPT_ROUNDS);
             await pool.request()
                 .input('id', sql.VarChar(50), u.id)
                 .input('username', sql.VarChar(50), u.username)
-                .input('password', sql.VarChar(100), u.password)
+                .input('password', sql.VarChar(100), hashedPassword)
                 .input('role', sql.VarChar(50), u.role)
                 .input('name', sql.VarChar(100), u.name)
                 .input('modules', sql.VarChar(sql.MAX), JSON.stringify(u.modules || []))
@@ -482,6 +537,67 @@ app.post('/api/users/batch', async (req, res) => {
         res.status(500).json({ error: err.message });
     }
 });
+
+// --- ENDPOINT DE AUTENTICACIÓN ---
+app.post('/api/auth/login', async (req, res) => {
+    try {
+        const { username, password } = req.body;
+        if (!username || !password) return res.status(400).json({ error: 'Credenciales requeridas' });
+
+        const pool = await getDbPool();
+        const result = await pool.request()
+            .input('username', sql.VarChar(50), username.toLowerCase())
+            .query('SELECT * FROM Users WHERE username = @username');
+
+        if (result.recordset.length === 0) {
+            return res.status(401).json({ error: 'Usuario no encontrado' });
+        }
+
+        const user = result.recordset[0];
+        const isMatch = await bcrypt.compare(password, user.password);
+
+        if (!isMatch) {
+            return res.status(401).json({ error: 'Contraseña incorrecta' });
+        }
+
+        // No enviar la contraseña al cliente
+        res.json({
+            id: user.id,
+            username: user.username,
+            role: user.role,
+            name: user.name,
+            modules: user.modules ? JSON.parse(user.modules) : []
+        });
+    } catch (err) {
+        console.error('Error in POST /api/auth/login:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Migrar contraseñas de texto plano a hash bcrypt (se llama al iniciar el servidor)
+async function migratePasswords() {
+    try {
+        const pool = await getDbPool();
+        const result = await pool.request().query('SELECT id, password FROM Users');
+        let migrated = 0;
+        for (const user of result.recordset) {
+            if (!user.password || user.password.startsWith('$2b$')) continue;
+            const hashed = await bcrypt.hash(user.password, BCRYPT_ROUNDS);
+            await pool.request()
+                .input('id', sql.VarChar(50), user.id)
+                .input('password', sql.VarChar(100), hashed)
+                .query('UPDATE Users SET password = @password WHERE id = @id');
+            migrated++;
+        }
+        if (migrated > 0) {
+            console.log(`✅ Migración: ${migrated} contraseña(s) convertida(s) a hash bcrypt`);
+        } else {
+            console.log('✅ Contraseñas: todas ya tienen hash bcrypt');
+        }
+    } catch (err) {
+        console.error('⚠️  Error en migración de contraseñas:', err.message);
+    }
+}
 
 // --- ENDPOINTS PARA CONTRACTS ---
 app.get('/api/contracts', (req, res) => getApi(req, res, 'Contracts'));
@@ -850,4 +966,6 @@ app.listen(PORT, '0.0.0.0', () => {
     console.log(`🚀 Servidor iniciado y accesible en red local`);
     console.log(`🏠 Local: http://localhost:${PORT}`);
     console.log(`🌐 Red:  http://192.168.130.129:${PORT}`);
+    // Migrar contraseñas automáticamente al arrancar
+    setTimeout(() => migratePasswords(), 2000);
 });
