@@ -13,7 +13,8 @@ const rawState = {
     users: [],
     currentUser: null,
     lastDeleted: null,
-    projects: []
+    projects: [],
+    invoicedContractsCurrent: []
 };
 
 // --- Store Reactivo ---
@@ -30,7 +31,7 @@ const Store = new Proxy(rawState, {
             'clients': () => { UI.renderClients(); UI.renderTransactionFormOptions(); },
             'debts': () => UI.renderDebts(),
             'debtors': () => UI.renderDebtors(),
-            'suppliers': () => UI.renderSuppliers(),
+            'suppliers': () => { UI.renderSuppliers(); UI.renderTransactionFormOptions(); UI.populateDebtSupplierSelect(); },
             'contracts': () => UI.renderContracts(),
             'pendingContracts': () => UI.checkPendingContracts(),
             'users': () => UI.renderUsers(),
@@ -40,7 +41,11 @@ const Store = new Proxy(rawState, {
 
         if (renderMap[property]) {
             console.log(`Store: Cambio detectado en '${property}', actualizando UI...`);
-            renderMap[property](value);
+            try {
+                renderMap[property](value);
+            } catch (err) {
+                console.error(`Error en renderizador para '${property}':`, err);
+            }
         }
 
         return true;
@@ -68,14 +73,40 @@ const formatCurrency = (amount) => {
     return new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP' }).format(amount);
 };
 
-// Ayudante de Formateo de Fecha (DD/MM/YYYY)
-const formatDate = (dateStr) => {
-    if (!dateStr) return '-';
+// Ayudante de Formateo de Fecha (DD-MM-YYYY)
+const formatDate = (date) => {
+    if (!date) return '-';
+    
+    let dateStr = date;
+    if (date instanceof Date) {
+        if (isNaN(date.getTime())) return '-';
+        // Formato local YYYY-MM-DD para evitar desfase de zona horaria
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        dateStr = `${year}-${month}-${day}`;
+    }
+
+    if (typeof dateStr !== 'string') return String(dateStr);
+
+    // Si ya viene como DD-MM-YYYY (ej. parts[0] tiene 2 digitos y parts[2] tiene 4)
+    // Usar regex para detectar DD-MM-YYYY o DD/MM/YYYY
+    const dmyMatch = dateStr.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})/);
+    if (dmyMatch) {
+        return `${dmyMatch[1].padStart(2, '0')}-${dmyMatch[2].padStart(2, '0')}-${dmyMatch[3]}`;
+    }
+
     // Tomar solo la parte de la fecha (YYYY-MM-DD) si viene con hora
-    const cleanDate = dateStr.includes('T') ? dateStr.split('T')[0] : dateStr;
-    const parts = cleanDate.split('-');
+    const cleanD = dateStr.includes('T') ? dateStr.split('T')[0] : dateStr;
+    const parts = cleanD.split(/[-/]/);
     if (parts.length !== 3) return dateStr;
-    return `${parts[2]}/${parts[1]}/${parts[0]}`;
+    
+    // Si es YYYY-MM-DD
+    if (parts[0].length === 4) {
+        return `${parts[2].padStart(2, '0')}-${parts[1].padStart(2, '0')}-${parts[0]}`;
+    }
+    
+    return cleanD;
 };
 
 // Formatear monto con puntos mientras se escribe
@@ -95,14 +126,24 @@ const parseAmount = (formattedValue) => {
 
 // Controlador de la Interfaz de Usuario (UI)
 const UI = {
-    init() {
+    async init() {
+        // Global Error Catcher
+        window.addEventListener('error', (event) => {
+            console.error('Error no capturado:', event.error);
+            if (this.showToast) this.showToast(`Error Crítico: ${event.message}`, "error");
+        });
+        window.addEventListener('unhandledrejection', (event) => {
+            console.error('Promesa rechazada no capturada:', event.reason);
+            if (this.showToast) this.showToast(`Error de Red: ${event.reason?.message || "Servidor no responde"}`, "error");
+        });
+
         try {
-            console.log("Inicializando aplicación...");
+            console.log("🚀 Inicializando aplicación...");
             if (!window.StorageAPI) {
                 console.error("Error Crítico: ¡StorageAPI no encontrado!");
                 return;
             }
-            this.loadData();
+            await this.loadData();
             this.checkSession(); // Verificar si ya hay una sesión
             this.initTheme(); // Inicializar tema (claro/oscuro)
             this.setupEventListeners();
@@ -110,8 +151,6 @@ const UI = {
             this.renderClients();
             this.setupCustomDropdowns(); // Inicializar oyentes para menús desplegables
             this.renderTransactionFormOptions(); // Rellenar formulario y filtros
-            this.initDatePickers(); // Inicializar Flatpickr
-            this.checkPendingContracts(); // Verificar contratos pendientes
             this.renderSuppliers();
             this.renderDebts();
             this.renderDebtors();
@@ -121,15 +160,24 @@ const UI = {
             this.populateProjectClientSelect();
             this.renderProjects();
 
+            // Establecer fecha por defecto a hoy (Hacerlo ANTES de Flatpickr)
+            const dateInput = document.getElementById('date');
+            if (dateInput) {
+                if (dateInput.type === 'date') {
+                    dateInput.valueAsDate = new Date();
+                } else {
+                    dateInput.value = new Date().toISOString().split('T')[0];
+                }
+            }
+
+            this.initDatePickers(); // Inicializar Flatpickr después de poner el valor
+            this.checkPendingContracts(); // Verificar contratos pendientes
+
             // Si hay sesión, cargar la UI normal
             if (state.currentUser) {
                 this.applyPrivileges();
                 this.switchView(state.currentView);
             }
-
-            // Establecer fecha por defecto a hoy
-            const dateInput = document.getElementById('date');
-            if (dateInput) dateInput.valueAsDate = new Date();
         } catch (error) {
             console.error("Error en UI.init: " + error.message);
         }
@@ -169,23 +217,95 @@ const UI = {
         }
     },
 
-    loadData() {
-        const cleanDate = (d) => (d && d.includes('T')) ? d.split('T')[0] : d;
+    async loadData() {
+        const cleanDate = (d) => {
+            if (!d) return null;
+            try {
+                if (typeof d === 'string') {
+                    if (d.includes('T')) return d.split('T')[0];
+                    return d;
+                }
+                if (d instanceof Date) {
+                    if (isNaN(d.getTime())) return null;
+                    return d.toISOString().split('T')[0];
+                }
+            } catch (e) {
+                console.warn('cleanDate error for:', d, e);
+            }
+            return d;
+        };
 
-        state.transactions = (window.StorageAPI.getTransactions() || []).map(t => ({ ...t, date: cleanDate(t.date) }));
-        state.concepts = window.StorageAPI.getConcepts() || [];
-        state.clients = window.StorageAPI.getClients() || [];
-        state.debts = (window.StorageAPI.getDebts() || []).map(d => ({ ...d, dueDate: cleanDate(d.dueDate || d.date), date: cleanDate(d.date) }));
-        state.debtors = (window.StorageAPI.getDebtors() || []).map(d => ({ ...d, date: cleanDate(d.date) }));
-        state.contracts = (window.StorageAPI.getContracts() || []).map(c => ({ ...c, startDate: cleanDate(c.startDate), endDate: cleanDate(c.endDate) }));
-        state.pendingContracts = window.StorageAPI.getPendingContracts() || [];
-        state.logs = window.StorageAPI.getLogs() || [];
-        state.suppliers = window.StorageAPI.getSuppliers() || [];
-        state.projects = window.StorageAPI.getProjects() || [];
+        try {
+            console.log('--- Iniciando Sincronización de Datos ---');
+            
+            // Paralelizar solicitudes de red para mejorar rendimiento
+            // AHORA USAMOS EXCLUSIVAMENTE METODOS ASINCRONOS
+            const results = await Promise.allSettled([
+                window.StorageAPI.async.getTransactions(),
+                window.StorageAPI.async.getConcepts(),
+                window.StorageAPI.async.getClients(),
+                window.StorageAPI.async.getDebts(),
+                window.StorageAPI.async.getDebtors(),
+                window.StorageAPI.async.getContracts(),
+                window.StorageAPI.async.getPendingContracts(),
+                window.StorageAPI.async.getInvoicedContractsCurrent(),
+                window.StorageAPI.async.getLogs(),
+                window.StorageAPI.async.getSuppliers(),
+                window.StorageAPI.async.getProjects(),
+                window.StorageAPI.async.getUsers()
+            ]);
 
-        // Cargar usuarios desde la BD (sin contraseñas - el servidor ya no las devuelve)
-        state.users = window.StorageAPI.getUsers() || [];
-        // Los usuarios se inicializan en el servidor; si el array está vacío se cargan en el próximo getUsers()
+            // Verificar si alguna falló y reportar
+            let failedCount = 0;
+            results.forEach((res, i) => {
+                if (res.status === 'rejected') {
+                    console.warn(`Fallo en carga de dato indice ${i}:`, res.reason);
+                    failedCount++;
+                }
+            });
+
+            if (failedCount > 0) {
+                this.showToast(`Advertencia: ${failedCount} módulos no cargaron correctamente`, "warning");
+            }
+
+            const getData = (i) => {
+                const val = results[i].status === 'fulfilled' ? results[i].value : null;
+                return Array.isArray(val) ? val : [];
+            };
+
+            const assign = (prop, data) => {
+                try {
+                    state[prop] = data;
+                } catch (e) {
+                    console.error(`Error al asignar estado.${prop}:`, e);
+                }
+            };
+
+            assign('transactions', (getData(0)).map(t => ({ ...t, date: cleanDate(t.date) })));
+            assign('concepts', getData(1));
+            assign('clients', getData(2));
+            assign('debts', (getData(3)).map(d => ({ ...d, dueDate: cleanDate(d.dueDate || d.date), date: cleanDate(d.date) })));
+            assign('debtors', (getData(4)).map(d => ({ ...d, date: cleanDate(d.date) })));
+            assign('contracts', (getData(5)).map(c => ({ ...c, startDate: cleanDate(c.startDate), endDate: cleanDate(c.endDate) })));
+            
+            assign('pendingContracts', getData(6));
+            assign('invoicedContractsCurrent', getData(7));
+            
+            assign('logs', getData(8));
+            assign('suppliers', getData(9));
+            assign('projects', getData(10));
+            assign('users', getData(11));
+            
+            console.log('✅ Sincronización completada');
+            try {
+                this.checkPendingContracts(); // Forzar renderizado inmediato
+            } catch (e) {
+                console.error('Error in checkPendingContracts:', e);
+            }
+        } catch (err) {
+            console.error("Error crítico en loadData:", err);
+            this.showToast(`Error de Sincronización: ${err.message}`, "error");
+        }
     },
 
 
@@ -248,6 +368,11 @@ const UI = {
 
         const conceptForm = document.getElementById('add-concept-form');
         if (conceptForm) conceptForm.addEventListener('submit', (e) => this.handleConceptSubmit(e));
+
+        const cancelConceptEditBtn = document.getElementById('cancel-concept-edit');
+        if (cancelConceptEditBtn) {
+            cancelConceptEditBtn.addEventListener('click', () => this.resetConceptForm());
+        }
 
         const clientForm = document.getElementById('add-client-form');
         if (clientForm) clientForm.addEventListener('submit', (e) => this.handleClientSubmit(e));
@@ -369,8 +494,33 @@ const UI = {
         const filterDateEnd = document.getElementById('filter-date-end');
 
         if (filterType) filterType.addEventListener('change', () => this.renderTransactionsList());
-        if (filterDateStart) filterDateStart.addEventListener('change', () => this.renderTransactionsList());
-        if (filterDateEnd) filterDateEnd.addEventListener('change', () => this.renderTransactionsList());
+        
+        // --- DINAMISMO EN FORMULARIO DE TRANSACCIÓN ---
+        const conceptSelect = document.getElementById('concept');
+        if (conceptSelect) {
+            conceptSelect.addEventListener('change', () => this.updateTransactionPersonDropdown());
+        }
+
+        const filterMonth = document.getElementById('filter-month');
+        if (filterMonth) filterMonth.addEventListener('change', () => {
+            // Si seleccionamos un mes, limpiamos los filtros de fecha específicos para evitar confusión
+            const start = document.getElementById('filter-date-start');
+            const end = document.getElementById('filter-date-end');
+            if (filterMonth.value) {
+                if (start) start.value = '';
+                if (end) end.value = '';
+            }
+            this.renderTransactionsList();
+        });
+        if (filterDateStart) filterDateStart.addEventListener('change', () => {
+             // Si ponemos una fecha manual, limpiamos el filtro de mes
+             if (filterMonth) filterMonth.value = '';
+             this.renderTransactionsList();
+        });
+        if (filterDateEnd) filterDateEnd.addEventListener('change', () => {
+             if (filterMonth) filterMonth.value = '';
+             this.renderTransactionsList();
+        });
 
         // --- EXPORTAR ---
         const btnExportTxExcel = document.getElementById('btn-export-transactions-excel');
@@ -456,47 +606,64 @@ const UI = {
         document.querySelectorAll('.amount-input').forEach(input => {
             input.addEventListener('input', (e) => formatAmountInput(e.target));
         });
+
+        // Global error handler
+        window.onerror = function(message, source, lineno, colno, error) {
+            console.error("Uncaught error:", { message, source, lineno, colno, error });
+            UI.showToast(`Error inesperado: ${message}`, 'error');
+            return true; // Prevent default error handling
+        };
     },
 
     // --- AUTENTICACIÓN ---
 
     checkSession() {
         const savedSession = localStorage.getItem('contabilidad_session');
+        console.log("Sesión guardada encontrada:", !!savedSession);
         if (savedSession) {
-            const sessionData = JSON.parse(savedSession);
+            try {
+                const sessionData = JSON.parse(savedSession);
+                console.log("Datos de sesión:", sessionData);
 
-            // Validar que la sesión no haya expirado por inactividad (30 min)
-            const TIMEOUT_MS = 30 * 60 * 1000;
-            const lastActivity = sessionData.lastActivity || 0;
-            if (Date.now() - lastActivity > TIMEOUT_MS) {
-                // Sesión expirada
+                // Validar que la sesión no haya expirado por inactividad (30 min)
+                const TIMEOUT_MS = 30 * 60 * 1000;
+                const lastActivity = sessionData.lastActivity || 0;
+                if (Date.now() - lastActivity > TIMEOUT_MS) {
+                    console.warn("Sesión expirada por inactividad");
+                    localStorage.removeItem('contabilidad_session');
+                    document.body.classList.add('login-pending');
+                    const errorEl = document.getElementById('login-error');
+                    if (errorEl) {
+                        errorEl.textContent = 'Sesión expirada por inactividad. Por favor ingrese nuevamente.';
+                        errorEl.style.display = 'block';
+                    }
+                    return;
+                }
+
+                state.currentUser = {
+                    id: sessionData.id,
+                    username: sessionData.username,
+                    role: sessionData.role,
+                    name: sessionData.name,
+                    modules: sessionData.modules || []
+                };
+
+                // Renovar lastActivity
+                sessionData.lastActivity = Date.now();
+                localStorage.setItem('contabilidad_session', JSON.stringify(sessionData));
+
+                document.body.classList.remove('login-pending');
+                this.updateUserUI();
+                this.applyModuleAccess();
+                this.startInactivityTimer();
+                console.log("Sesión validada y aplicada.");
+            } catch (e) {
+                console.error("Error al parsear sesión guardada:", e);
                 localStorage.removeItem('contabilidad_session');
                 document.body.classList.add('login-pending');
-                const errorEl = document.getElementById('login-error');
-                if (errorEl) {
-                    errorEl.textContent = 'Sesión expirada por inactividad. Por favor ingrese nuevamente.';
-                    errorEl.style.display = 'block';
-                }
-                return;
             }
-
-            state.currentUser = {
-                id: sessionData.id,
-                username: sessionData.username,
-                role: sessionData.role,
-                name: sessionData.name,
-                modules: sessionData.modules || []
-            };
-
-            // Renovar lastActivity
-            sessionData.lastActivity = Date.now();
-            localStorage.setItem('contabilidad_session', JSON.stringify(sessionData));
-
-            document.body.classList.remove('login-pending');
-            this.updateUserUI();
-            this.applyModuleAccess();
-            this.startInactivityTimer();
         } else {
+            console.log("No hay sesión guardada. Solicitando login...");
             document.body.classList.add('login-pending');
         }
     },
@@ -851,18 +1018,22 @@ const UI = {
     },
 
     switchView(viewName) {
-        if (!state.currentUser) return; // No permitir navegar sin login
+        console.log(`Intentando cambiar vista a: ${viewName}`);
+        if (!state.currentUser) {
+            console.warn("Bloqueado: Intento de navegación sin usuario activo.");
+            return;
+        }
 
         // Proteger vista usuarios
         if (viewName === 'users' && state.currentUser.role !== ROLES.ADMIN) {
+            console.warn("Acceso denegado a Usuarios. Redirigiendo...");
             this.switchView('transaction-form');
             return;
         }
 
-        console.log("Cambiando vista a:", viewName);
-
         // Actualizar estado (sin disparar el Proxy recursivamente si ya se está en esta vista)
         if (rawState.currentView !== viewName) {
+            console.log(`Actualizando currentView a ${viewName}`);
             rawState.currentView = viewName;
         }
 
@@ -921,6 +1092,7 @@ const UI = {
 
         // Resetear formularios si se sale de la sección
         if (viewName !== 'transaction-form') this.cancelTransactionEdit();
+        if (viewName !== 'concepts') this.resetConceptForm();
         if (viewName !== 'clients') this.resetClientForm();
         if (viewName !== 'debts') this.resetDebtForm();
         if (viewName !== 'debtors') this.resetDebtorForm();
@@ -1054,15 +1226,20 @@ const UI = {
             displayedTransactions = displayedTransactions.filter(t => t.type === filterType.value);
         }
 
-        // 2. Filtro Fechas
+        // 2. Filtro Fechas o Mes
+        const filterMonth = document.getElementById('filter-month');
         const filterDateStart = document.getElementById('filter-date-start');
         const filterDateEnd = document.getElementById('filter-date-end');
 
-        if (filterDateStart && filterDateStart.value) {
-            displayedTransactions = displayedTransactions.filter(t => t.date >= filterDateStart.value);
-        }
-        if (filterDateEnd && filterDateEnd.value) {
-            displayedTransactions = displayedTransactions.filter(t => t.date <= filterDateEnd.value);
+        if (filterMonth && filterMonth.value) {
+            displayedTransactions = displayedTransactions.filter(t => t.date && t.date.startsWith(filterMonth.value));
+        } else {
+            if (filterDateStart && filterDateStart.value) {
+                displayedTransactions = displayedTransactions.filter(t => t.date >= filterDateStart.value);
+            }
+            if (filterDateEnd && filterDateEnd.value) {
+                displayedTransactions = displayedTransactions.filter(t => t.date <= filterDateEnd.value);
+            }
         }
 
         // 3. Filtro Conceptos (Checkboxes)
@@ -1088,8 +1265,16 @@ const UI = {
         // Obtener Transacciones Filtradas
         const displayedTransactions = this.getFilteredTransactions();
 
-        // Ordenar
-        const sorted = [...displayedTransactions].sort((a, b) => new Date(b.date) - new Date(a.date));
+        // Ordenar: primero por fecha desc, y luego por orden de registro desc (ID)
+        const sorted = [...displayedTransactions].sort((a, b) => {
+            const dateA = new Date(a.date);
+            const dateB = new Date(b.date);
+            if (dateB - dateA !== 0) return dateB - dateA;
+            
+            // Si son de la misma fecha, el más reciente registrado va arriba.
+            // Los IDs de transacciones empiezan por 'T' seguido del timestamp.
+            return String(b.id).localeCompare(String(a.id));
+        });
 
         let totalSum = 0;
 
@@ -1104,8 +1289,7 @@ const UI = {
             // Lógica para Titular (Cliente o Proveedor)
             let titularName = '-';
             if (t.clientId) {
-                const client = state.clients.find(c => c.id === t.clientId);
-                titularName = client ? (client.razonSocial || client.name) : '-';
+                titularName = this.getClientName(t.clientId);
             } else if (t.supplierId) {
                 const supplier = state.suppliers.find(s => s.id === t.supplierId);
                 titularName = supplier ? supplier.name : '-';
@@ -1171,7 +1355,7 @@ const UI = {
             state.clients.forEach(c => {
                 const option = document.createElement('option');
                 option.value = c.id;
-                option.textContent = c.razonSocial || c.name || 'Sin Nombre';
+                option.textContent = this.getClientName(c.id);
                 clientSelect.appendChild(option);
 
                 if (contractClientSelect) {
@@ -1180,10 +1364,69 @@ const UI = {
                 }
             });
         }
-
+ 
+        // Inicializar dropdown de personas (Clientes por defecto)
+        this.updateTransactionPersonDropdown();
+ 
         // 2. Desplegables de Filtros Personalizados
         this.renderCustomDropdownOptions('concept', state.concepts, 'name');
-        this.renderCustomDropdownOptions('client', state.clients, 'razonSocial');
+        this.renderCustomDropdownOptions('client', state.clients, 'nombreFantasia');
+    },
+
+    updateTransactionPersonDropdown() {
+        try {
+            const conceptSelect = document.getElementById('concept');
+            const clientSelect = document.getElementById('client');
+            const label = document.getElementById('label-transaction-person');
+            if (!conceptSelect || !clientSelect) return;
+
+            const conceptId = conceptSelect.value;
+            const concept = (state.concepts || []).find(c => String(c.id) === String(conceptId));
+
+            // Normalización para comparaciones robustas (sin tildes, minúsculas)
+            const normalize = (str) => str ? str.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim() : "";
+            
+            const conceptName = normalize(concept?.name);
+
+            // Verificar si el concepto requiere proveedores en lugar de clientes
+            const isSupplierConcept = conceptName && (
+                conceptName.includes('mano de obra') || 
+                conceptName.includes('materiales') ||
+                conceptName.includes('proveedor')
+            );
+
+            console.log("updateTransactionPersonDropdown:", { conceptName, isSupplierConcept });
+
+            if (label) {
+                label.textContent = isSupplierConcept ? 'Proveedor' : 'Cliente (Opcional)';
+            }
+
+            // Preservar valor seleccionado si es posible
+            const currentValue = clientSelect.value;
+
+            // Rellenar con la lista correcta
+            clientSelect.innerHTML = isSupplierConcept 
+                ? '<option value="">Seleccionar Proveedor</option>' 
+                : '<option value="">Seleccionar Cliente</option>';
+
+            const list = isSupplierConcept ? (state.suppliers || []) : (state.clients || []);
+            list.forEach(item => {
+                const option = document.createElement('option');
+                option.value = item.id;
+                // Usar razónSocial/name para proveedores, o el helper para clientes
+                if (isSupplierConcept) {
+                   option.textContent = item.razonSocial || item.name || 'Sin Nombre';
+                } else {
+                   option.textContent = this.getClientName(item.id);
+                }
+                clientSelect.appendChild(option);
+            });
+
+            // Intentar restaurar valor si es compatible
+            if (currentValue) clientSelect.value = currentValue;
+        } catch (err) {
+            console.error("Error en updateTransactionPersonDropdown:", err);
+        }
     },
 
     // --- AYUDANTES DE DESPLEGABLES PERSONALIZADOS ---
@@ -1252,7 +1495,7 @@ const UI = {
             label.htmlFor = `cb-${type}-${item.id}`;
             label.style.flex = '1';
             label.style.cursor = 'pointer';
-            label.textContent = item[displayField];
+            label.textContent = item[displayField] || item.razonSocial || item.name || 'Sin Nombre';
 
             div.appendChild(checkbox);
             div.appendChild(label);
@@ -1287,6 +1530,9 @@ const UI = {
                 <td>${c.name}</td>
                 <td><span class="tag ${c.type}">${c.type === 'income' ? 'Ingreso' : 'Egreso'}</span></td>
                 <td class="actions">
+                    <button class="btn-icon" title="Editar" onclick="UI.editConcept('${c.id}')">
+                        <i class="fa-solid fa-pen-to-square"></i>
+                    </button>
                     <button class="btn-icon text-danger" title="Eliminar" onclick="UI.handleConceptDelete('${c.id}')">
                         <i class="fa-solid fa-trash"></i>
                     </button>
@@ -1324,8 +1570,8 @@ const UI = {
         state.clients.forEach(c => {
             const tr = document.createElement('tr');
             tr.innerHTML = `
-                <td>${c.razonSocial || '---'}</td>
                 <td>${c.nombreFantasia || '---'}</td>
+                <td>${c.razonSocial || '---'}</td>
                 <td>${c.rut || '---'}</td>
                 <td>${c.encargado || '---'}</td>
                 <td>${c.telefono || '---'}</td>
@@ -1390,7 +1636,7 @@ const UI = {
         const clientNameSpan = document.getElementById('history-client-name');
         const historyBody = document.getElementById('history-contract-body');
 
-        if (clientNameSpan) clientNameSpan.textContent = client.razonSocial || client.name;
+        if (clientNameSpan) clientNameSpan.textContent = this.getClientName(client.id);
         if (historyBody) historyBody.innerHTML = '<tr><td colspan="4" style="text-align:center;">Cargando...</td></tr>';
 
         if (historyModal) historyModal.style.display = 'flex';
@@ -1444,8 +1690,8 @@ const UI = {
         window.StorageAPI.deleteClient(id);
         state.clients = state.clients.filter(c => c.id !== id);
 
-        this.recordActivity('Baja', 'Cliente', `Eliminado: ${client?.razonSocial}`, { type: 'client', item: client });
-        this.showUndoToast(`Cliente "${client?.razonSocial}" eliminado`);
+        this.recordActivity('Baja', 'Cliente', `Eliminado: ${this.getClientName(client?.id)}`, { type: 'client', item: client });
+        this.showUndoToast(`Cliente "${this.getClientName(client?.id)}" eliminado`);
         this.renderClients();
     },
 
@@ -1527,7 +1773,13 @@ const UI = {
         document.getElementById('debt-id').value = debt.id;
         form.elements['supplierId'].value = debt.supplierId || '';
         form.elements['amount'].value = new Intl.NumberFormat('es-CL').format(debt.amount);
-        form.elements['dueDate'].value = debt.dueDate || debt.date;
+        const dateEl = form.elements['dueDate'];
+        const dateVal = debt.dueDate || debt.date;
+        if (dateEl._flatpickr) {
+            dateEl._flatpickr.setDate(dateVal);
+        } else {
+            dateEl.value = dateVal;
+        }
         form.elements['conceptId'].value = debt.conceptId || '';
         form.elements['description'].value = debt.description || '';
 
@@ -1636,7 +1888,7 @@ const UI = {
         this.applyPrivileges();
     },
 
-    handleSupplierSubmit(e) {
+    async handleSupplierSubmit(e) {
         e.preventDefault();
         const formData = new FormData(e.target);
         const id = formData.get('id');
@@ -1659,10 +1911,8 @@ const UI = {
             this.recordActivity('Alta', 'Proveedor', `Registrado proveedor ${supplier.name}`);
         }
 
-        this.loadData();
+        await this.loadData();
         this.resetSupplierForm();
-        this.renderSuppliers();
-        this.populateDebtSupplierSelect();
     },
 
     editSupplier(id) {
@@ -1736,9 +1986,17 @@ const UI = {
 
         state.debtors.forEach(d => {
             const tr = document.createElement('tr');
+            
+            // Intentar encontrar si el titular es un cliente para mostrar nombre de fantasía
+            let displayName = d.titular;
+            const client = state.clients.find(c => c.name === d.titular || c.razonSocial === d.titular || c.nombreFantasia === d.titular);
+            if (client) {
+                displayName = this.getClientName(client.id);
+            }
+
             tr.innerHTML = `
                 <td>${formatDate(d.date)}</td>
-                <td>${d.titular}</td>
+                <td>${displayName}</td>
                 <td>${d.description || '-'}</td>
                 <td style="font-weight:bold; color: var(--secondary-color)">${formatCurrency(d.amount)}</td>
                 <td class="actions">
@@ -1794,7 +2052,12 @@ const UI = {
         document.getElementById('debtor-id').value = debtor.id;
         form.elements['titular'].value = debtor.titular;
         form.elements['amount'].value = new Intl.NumberFormat('es-CL').format(debtor.amount);
-        form.elements['date'].value = debtor.date;
+        const dateEl = form.elements['date'];
+        if (dateEl._flatpickr) {
+            dateEl._flatpickr.setDate(debtor.date);
+        } else {
+            dateEl.value = debtor.date;
+        }
         form.elements['description'].value = debtor.description || '';
 
         document.getElementById('debtor-form-title').textContent = 'Editar Deudor';
@@ -1821,11 +2084,16 @@ const UI = {
         if (!sel) return;
         sel.innerHTML = '<option value="">Seleccionar Cliente</option>';
         state.clients.forEach(c => {
-            const name = c.razonSocial || c.name;
+            const fantasyName = this.getClientName(c.id);
             const opt = document.createElement('option');
-            opt.value = name;
-            opt.textContent = name;
-            if (selectedName && selectedName === name) opt.selected = true;
+            opt.value = fantasyName;
+            opt.textContent = fantasyName;
+            
+            // Si el nombre seleccionado coincide con cualquiera de los nombres del cliente, marcar como seleccionado
+            if (selectedName && (selectedName === fantasyName || selectedName === c.razonSocial || selectedName === c.name)) {
+                opt.selected = true;
+            }
+            
             sel.appendChild(opt);
         });
     },
@@ -1856,13 +2124,20 @@ const UI = {
 
             const debtor = originalDebtors.find(d => d.id === id);
             if (debtor) {
+                // Resolver nombre para la observación
+                let displayName = debtor.titular;
+                const client = state.clients.find(c => c.name === debtor.titular || c.razonSocial === debtor.titular || c.nombreFantasia === debtor.titular);
+                if (client) {
+                    displayName = this.getClientName(client.id);
+                }
+
                 const newTx = {
                     id: Date.now().toString(),
                     type: 'income',
                     amount: debtor.amount,
                     conceptId: 'cobro-deudor', // Concepto harcodeado o buscar uno similar
                     date: new Date().toISOString().split('T')[0],
-                    observation: `Cobro a deudor: ${debtor.titular}`
+                    observation: `Cobro a deudor: ${displayName}`
                 };
                 state.transactions = [newTx, ...state.transactions];
             }
@@ -1906,11 +2181,8 @@ const UI = {
         state.logs.forEach(log => {
             const date = new Date(log.timestamp);
             const timeStr = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-            // Formato DD/MM/YYYY manual para coherencia
-            const day = String(date.getDate()).padStart(2, '0');
-            const month = String(date.getMonth() + 1).padStart(2, '0');
-            const year = date.getFullYear();
-            const dateStr = `${day}/${month}/${year}`;
+            // Usar formatDate para consistencia (DD-MM-YYYY)
+            const dateStr = formatDate(log.timestamp);
 
             const logEntry = document.createElement('div');
             logEntry.className = 'activity-item';
@@ -1957,55 +2229,67 @@ const UI = {
 
         let type = formData.get('type');
         const conceptId = formData.get('concept');
-        const concept = state.concepts.find(c => c.id === conceptId);
+        const concept = (state.concepts || []).find(c => c.id === conceptId);
+        const personId = formData.get('client'); // This is the 'client' select, which will now hold either client or supplier ID
 
-        if (concept && concept.type) {
-            type = concept.type;
-        }
+        // Verificar si el concepto requiere proveedores en lugar de clientes
+        const isSupplierConcept = concept && concept.name && (
+            concept.name.toLowerCase().includes('mano de obra') || 
+            concept.name.toLowerCase().includes('materiales')
+        );
+
+        const dateVal = formData.get('date');
+        console.log('--- Intentando Guardar Movimiento ---');
+        console.log('ID:', id || 'Nuevo');
+        console.log('Concepto:', concept?.name || 'Varios');
+        console.log('Entidad:', isSupplierConcept ? 'Proveedor' : 'Cliente');
 
         const transaction = {
             id: id || Date.now().toString(),
             type: type,
             amount: parseAmount(formData.get('amount')),
             conceptId: conceptId,
-            clientId: formData.get('client') || null,
-            date: formData.get('date'),
+            clientId: !isSupplierConcept ? personId : null,
+            supplierId: isSupplierConcept ? personId : null,
+            date: dateVal,
             observation: formData.get('observation')
         };
 
-        // --- Actualización Optimista ---
-        const originalTransactions = [...state.transactions];
+        console.log('Objeto Transacción:', transaction);
 
-        if (id) {
-            // Edición: Reemplazar en el estado local
-            state.transactions = state.transactions.map(t => t.id === id ? transaction : t);
-        } else {
-            // Alta: Prepend al estado local para que aparezca arriba
-            state.transactions = [transaction, ...state.transactions];
+        if (!transaction.date) {
+            this.showToast('La fecha es obligatoria', 'warning');
+            return;
         }
 
         UI.showLoading(form);
-        UI.switchView('transactions');
 
         try {
-            await window.StorageAPI.async.saveTransaction(transaction);
+            // Guardado pesimista: Esperamos a que el backend confirme
+            console.log('Enviando a StorageAPI...');
+            const savedTx = await window.StorageAPI.async.saveTransaction(transaction);
+            console.log('Respuesta Servidor:', savedTx);
 
+            // Si llegamos aquí, se guardó correctamente en la DB
             if (id) {
+                // Edición: Reemplazar en el estado local
+                state.transactions = state.transactions.map(t => t.id === id ? transaction : t);
                 this.recordActivity('Modificación', 'Movimiento', `Actualizado: ${concept?.name || 'Varios'} por ${formatCurrency(transaction.amount)}`);
             } else {
+                // Alta: Prepend al estado local para que aparezca arriba
+                state.transactions = [transaction, ...state.transactions];
                 this.recordActivity('Alta', 'Movimiento', `Registrado: ${concept?.name || 'Varios'} por ${formatCurrency(transaction.amount)}`);
             }
 
-            this.showToast('Movimiento guardado con éxito', 'success');
+            this.showToast('Movimiento guardado y validado en la base de datos', 'success');
             this.cancelTransactionEdit();
+            UI.switchView('transactions');
+            this.renderDashboard(); // Asegurar balance o datos globales actualizados
         } catch (error) {
             console.error("Error al guardar transacción:", error);
-            // Rollback en caso de error
-            state.transactions = originalTransactions;
-            this.showToast('Error al guardar en el servidor. Los cambios han sido revertidos.', 'error');
+            this.showToast('Error: ' + (error.message || 'No se pudo registrar el movimiento'), 'error');
         } finally {
             UI.hideLoading(form);
-            this.renderDashboard(); // Asegurar balance actualizado
         }
     },
 
@@ -2023,7 +2307,12 @@ const UI = {
         form.elements['amount'].value = new Intl.NumberFormat('es-CL').format(transaction.amount);
         form.elements['concept'].value = transaction.conceptId;
         form.elements['client'].value = transaction.clientId || '';
-        form.elements['date'].value = transaction.date;
+        const dateEl = form.elements['date'];
+        if (dateEl._flatpickr) {
+            dateEl._flatpickr.setDate(transaction.date);
+        } else {
+            dateEl.value = transaction.date;
+        }
         form.elements['observation'].value = transaction.observation || '';
 
         document.getElementById('transaction-form-title').textContent = 'Editar Movimiento';
@@ -2042,10 +2331,16 @@ const UI = {
             if (idInput) idInput.value = '';
             document.getElementById('transaction-form-title').textContent = 'Registrar Movimiento';
             document.getElementById('btn-save-transaction').textContent = 'Guardar Movimiento';
-            document.getElementById('cancel-transaction-edit').style.display = 'none';
             // Volver a poner la fecha de hoy
             const dateInput = document.getElementById('date');
-            if (dateInput) dateInput.valueAsDate = new Date();
+            if (dateInput) {
+                const today = new Date().toISOString().split('T')[0];
+                if (dateInput._flatpickr) {
+                    dateInput._flatpickr.setDate(today);
+                } else {
+                    dateInput.value = today;
+                }
+            }
         }
     },
 
@@ -2456,7 +2751,7 @@ const UI = {
         doc.setFontSize(18);
         doc.text("Reporte de Movimientos", 14, 22);
         doc.setFontSize(11);
-        doc.text(`Fecha de emisión: ${new Date().toLocaleDateString()}`, 14, 30);
+        doc.text(`Fecha de emisión: ${formatDate(new Date().toISOString())}`, 14, 30);
 
         // Datos para tabla
         const tableBody = dataToExport.map(t => {
@@ -2592,7 +2887,7 @@ const UI = {
         doc.setFontSize(18);
         doc.text(`Balance Anual - ${currentYear}`, 14, 22);
         doc.setFontSize(11);
-        doc.text(`Fecha de emisión: ${new Date().toLocaleDateString()}`, 14, 30);
+        doc.text(`Fecha de emisión: ${formatDate(new Date().toISOString())}`, 14, 30);
 
         doc.autoTable({
             startY: 40,
@@ -2640,7 +2935,7 @@ const UI = {
         doc.setFontSize(18);
         doc.text("Listado de Deudas", 14, 22);
         doc.setFontSize(11);
-        doc.text(`Fecha: ${new Date().toLocaleDateString()}`, 14, 30);
+        doc.text(`Fecha: ${formatDate(new Date())}`, 14, 30);
 
         const tableBody = state.debts.map(d => [
             formatDate(d.date),
@@ -2696,7 +2991,7 @@ const UI = {
         doc.setFontSize(18);
         doc.text("Listado de Deudores", 14, 22);
         doc.setFontSize(11);
-        doc.text(`Fecha: ${new Date().toLocaleDateString()}`, 14, 30);
+        doc.text(`Fecha: ${formatDate(new Date())}`, 14, 30);
 
         const tableBody = state.debtors.map(d => [
             formatDate(d.date),
@@ -2721,22 +3016,64 @@ const UI = {
     handleConceptSubmit(e) {
         e.preventDefault();
         const formData = new FormData(e.target);
+        const id = formData.get('id');
+
         const concept = {
-            id: Date.now().toString(),
+            id: id || Date.now().toString(),
             name: formData.get('name'),
             type: formData.get('type')
         };
 
         window.StorageAPI.saveConcept(concept);
-        state.concepts.push(concept);
 
-        this.recordActivity('Alta', 'Concepto', `Creado concepto: ${concept.name}`);
+        if (id) {
+            const index = state.concepts.findIndex(c => c.id === id);
+            if (index >= 0) state.concepts[index] = concept;
+            this.recordActivity('Modificación', 'Concepto', `Actualizado concepto: ${concept.name}`);
+        } else {
+            state.concepts.push(concept);
+            this.recordActivity('Alta', 'Concepto', `Creado concepto: ${concept.name}`);
+        }
 
-        e.target.reset();
-        this.renderConcepts();
+        this.resetConceptForm();
+        // El renderizado está manejado por el Proxy de state, pero renderTransactionFormOptions podría no actualizarse sola si modificamos in-place
+        // Para forzar la actualización en la UI global de conceptos y form de transacciones (aunque el proxy llama a UI.renderConcepts() y UI.renderTransactionFormOptions()):
+        state.concepts = [...state.concepts]; // Trigger setter
     },
 
-    handleClientSubmit(e) {
+    editConcept(id) {
+        const concept = state.concepts.find(c => c.id === id);
+        if (!concept) return;
+
+        const form = document.getElementById('add-concept-form');
+        document.getElementById('concept-id').value = concept.id;
+        form.elements['name'].value = concept.name || '';
+        form.elements['type'].value = concept.type || 'expense';
+
+        document.getElementById('concept-form-title').textContent = 'Editar Concepto';
+        const btnSave = document.getElementById('btn-save-concept');
+        if (btnSave) btnSave.textContent = 'Actualizar Concepto';
+        const cancelBtn = document.getElementById('cancel-concept-edit');
+        if (cancelBtn) cancelBtn.style.display = 'inline-block';
+
+        this.switchView('concepts');
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    },
+
+    resetConceptForm() {
+        const form = document.getElementById('add-concept-form');
+        if (form) {
+            form.reset();
+            document.getElementById('concept-id').value = '';
+            document.getElementById('concept-form-title').textContent = 'Crear Concepto';
+            const btnSave = document.getElementById('btn-save-concept');
+            if (btnSave) btnSave.textContent = 'Agregar Concepto';
+            const cancelBtn = document.getElementById('cancel-concept-edit');
+            if (cancelBtn) cancelBtn.style.display = 'none';
+        }
+    },
+
+    async handleClientSubmit(e) {
         e.preventDefault();
         const formData = new FormData(e.target);
         const id = formData.get('id');
@@ -2769,7 +3106,7 @@ const UI = {
         const cancelBtn = document.getElementById('cancel-client-edit');
         if (cancelBtn) cancelBtn.style.display = 'none';
 
-        this.loadData();
+        await this.loadData();
         this.switchView('clients');
         this.renderClients();
     },
@@ -2783,14 +3120,14 @@ const UI = {
 
         state.contracts.forEach(c => {
             const tr = document.createElement('tr');
-            const client = state.clients.find(cl => cl.id === c.clientId);
-            const clientName = client ? (client.razonSocial || client.name) : '-';
-
+            const amountText = c.currency?.toUpperCase() === 'UF' ? `${c.amount} UF` : formatCurrency(c.amount);
             tr.innerHTML = `
-                <td>${clientName}</td>
-                <td style="font-weight:bold; color: var(--secondary-color)">${formatCurrency(c.amount)}</td>
-                <td>${formatDate(c.startDate)} al ${formatDate(c.endDate)}</td>
-                <td>Día ${c.billingDay} (${c.frequency})</td>
+                <td>${this.getClientName(c.clientId)}</td>
+                <td style="font-weight:bold;">${amountText}</td>
+                <td>${formatDate(c.startDate)}</td>
+                <td>${formatDate(c.endDate)}</td>
+                <td>Día ${c.billingDay}</td>
+                <td>${c.frequency || 'Mensual'}</td>
                 <td class="actions">
                     <button class="btn-icon" title="Editar" onclick="UI.editContract('${c.id}')">
                         <i class="fa-solid fa-pen-to-square"></i>
@@ -2805,7 +3142,7 @@ const UI = {
         this.applyPrivileges();
     },
 
-    handleContractSubmit(e) {
+    async handleContractSubmit(e) {
         e.preventDefault();
         const formData = new FormData(e.target);
         const id = formData.get('id');
@@ -2817,7 +3154,8 @@ const UI = {
             startDate: formData.get('startDate'),
             endDate: formData.get('endDate'),
             billingDay: parseInt(formData.get('billingDay')),
-            frequency: formData.get('frequency')
+            frequency: formData.get('frequency'),
+            currency: formData.get('currency') || 'CLP'
         };
 
         window.StorageAPI.saveContract(contract);
@@ -2828,9 +3166,8 @@ const UI = {
             this.recordActivity('Alta', 'Contrato', `Registrado contrato`);
         }
 
-        this.loadData();
+        await this.loadData();
         this.switchView('contracts');
-        this.checkPendingContracts();
     },
 
     editContract(id) {
@@ -2841,10 +3178,18 @@ const UI = {
         document.getElementById('contract-id').value = contract.id;
         form.elements['clientId'].value = contract.clientId;
         form.elements['amount'].value = new Intl.NumberFormat('es-CL').format(contract.amount);
-        form.elements['startDate'].value = contract.startDate;
-        form.elements['endDate'].value = contract.endDate;
+        
+        const startEl = form.elements['startDate'];
+        const endEl = form.elements['endDate'];
+        if (startEl._flatpickr) startEl._flatpickr.setDate(contract.startDate);
+        else startEl.value = contract.startDate;
+        
+        if (endEl._flatpickr) endEl._flatpickr.setDate(contract.endDate);
+        else endEl.value = contract.endDate;
+
         form.elements['billingDay'].value = contract.billingDay;
         form.elements['frequency'].value = contract.frequency || 'mensual';
+        form.elements['currency'].value = contract.currency || 'CLP';
 
         document.getElementById('contract-form-title').textContent = 'Editar Contrato';
         const cancelBtn = document.getElementById('cancel-contract-edit');
@@ -2863,13 +3208,12 @@ const UI = {
         }
     },
 
-    deleteContract(id) {
+    async deleteContract(id) {
         if (state.currentUser.role !== ROLES.ADMIN) return;
-        window.StorageAPI.deleteContract(id);
+        await window.StorageAPI.async.deleteContract(id);
         this.recordActivity('Baja', 'Contrato', `Eliminado contrato`);
-        this.loadData();
+        await this.loadData();
         this.renderContracts();
-        this.checkPendingContracts();
     },
 
     checkPendingContracts() {
@@ -2898,20 +3242,36 @@ const UI = {
         if (pendingBody) {
             pendingBody.innerHTML = '';
             contracts.forEach(c => {
-                const client = state.clients.find(cl => cl.id === c.clientId);
-                const clientName = client ? (client.razonSocial || client.name) : '-';
+                const clientName = this.getClientName(c.clientId);
                 const conceptText = `Mensualidad Contrato - ${clientName}`;
+
+                let amountHtml = '';
+                let actionsHtml = '';
+
+                if (c.currency?.toUpperCase() === 'UF') {
+                    amountHtml = `<span style="font-weight:bold; color: var(--danger-color);">${c.amount} UF</span>`;
+                    actionsHtml = `
+                        <button class="btn-sm btn-outline-primary btn-convert" onclick="UI.convertContractUF('${c.id}')">
+                            <i class="fa-solid fa-calculator"></i> Convertir a Pesos
+                        </button>
+                    `;
+                } else {
+                    amountHtml = `<span style="font-weight:bold; color: var(--danger-color);">${formatCurrency(c.amount)}</span>`;
+                    actionsHtml = `
+                        <button class="btn-sm btn-outline-success" onclick="UI.markContractInvoiced('${c.id}')">
+                            <i class="fa-solid fa-check"></i> Factura Emitida
+                        </button>
+                    `;
+                }
 
                 const tr = document.createElement('tr');
                 tr.id = `pending-row-${c.id}`;
                 tr.innerHTML = `
                     <td>${clientName}</td>
-                    <td style="font-weight:bold; color: var(--danger-color);">${formatCurrency(c.amount)}</td>
+                    <td class="amount-cell">${amountHtml}</td>
                     <td>${conceptText}</td>
-                    <td>
-                        <button class="btn-sm btn-outline-success" onclick="UI.markContractInvoiced('${c.id}')">
-                            <i class="fa-solid fa-check"></i> Factura Emitida
-                        </button>
+                    <td class="action-cell">
+                        ${actionsHtml}
                     </td>
                 `;
                 pendingBody.appendChild(tr);
@@ -2922,17 +3282,23 @@ const UI = {
             invoicedBody.innerHTML = '';
             const now = new Date();
             const currentPeriod = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-            const invoicedThisMonth = state.contracts.filter(c => c.lastInvoicedPeriod === currentPeriod);
-            invoicedThisMonth.forEach(c => {
-                const client = state.clients.find(cl => cl.id === c.clientId);
-                const clientName = client ? (client.razonSocial || client.name) : '-';
+            
+            // Usar datos del historial si están disponibles, si no fallback al estado local (menos preciso)
+            const invoicedData = state.invoicedContractsCurrent || [];
+            
+            invoicedData.forEach(c => {
+                const clientName = c.clientFantasyName || c.clientName || this.getClientName(c.clientId);
                 const tr = document.createElement('tr');
+                
+                // El monto en la historia ya es el CLP neto. Agregamos el IVA.
+                const amountWithIva = Math.round(c.amountCLP * 1.19);
+                
                 tr.innerHTML = `
                     <td>${clientName}</td>
-                    <td style="font-weight:bold; color: var(--secondary-color);">${formatCurrency(c.amount)}</td>
-                    <td>${currentPeriod}</td>
-                    <td class="actions">
-                        <button class="btn-icon text-danger" title="Revertir Emisión" onclick="UI.undoContractInvoice('${c.id}')">
+                    <td style="font-weight:bold; color: var(--secondary-color);">${formatCurrency(amountWithIva)}</td>
+                    <td>${c.periodName}</td>
+                    <td class="action-cell">
+                        <button class="btn-sm btn-outline-danger" title="Revertir Emisión" onclick="UI.undoContractInvoice('${c.contractId}')">
                             <i class="fa-solid fa-clock-rotate-left"></i> Revertir
                         </button>
                     </td>
@@ -2942,49 +3308,113 @@ const UI = {
         }
     },
 
-    async markContractInvoiced(id) {
+    async markContractInvoiced(id, clpAmount = null) {
         const row = document.getElementById(`pending-row-${id}`);
-        if (row) row.classList.add('fade-out');
+        const contract = state.pendingContracts.find(c => c.id === id);
+        if (!contract) return;
 
-        const originalPending = [...state.pendingContracts];
-        const originalDebtors = [...state.debtors];
+        // Feedback visual inmediato
+        const btn = row?.querySelector('button');
+        if (btn) {
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Procesando...';
+        }
+
+        if (contract.currency === 'UF' && !clpAmount) {
+            this.showToast('Debe convertir el monto UF a pesos primero.', 'info');
+            if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fa-solid fa-calculator"></i> Convertir a Pesos';
+            }
+            return;
+        }
 
         try {
-            // Actualización optimista del contador
-            const badge = document.getElementById('contracts-badge');
-            if (badge) {
-                let count = parseInt(badge.textContent) || 0;
-                if (count > 1) badge.textContent = count - 1;
-                else badge.style.display = 'none';
-            }
-
-            await window.StorageAPI.async.invoiceContract(id);
-
-            // Actualizar estado local
-            state.pendingContracts = state.pendingContracts.filter(c => c.id !== id);
-
-            // Refrescar data para que 'Movimientos' o 'Deudores' se vean actualizados si se navega a ellos
-            // invoiceContract suele crear un deudor o movimiento
-            const invoicedContract = originalPending.find(c => c.id === id);
-            if (invoicedContract) {
-                const newDebtor = {
-                    id: Date.now().toString(),
-                    titular: invoicedContract.clientName || 'Cliente',
-                    amount: invoicedContract.amount,
-                    date: new Date().toISOString().split('T')[0],
-                    description: `Factura Contrato ${new Date().getMonth() + 1}/${new Date().getFullYear()}`
-                };
-                state.debtors = [newDebtor, ...state.debtors];
+            const response = await window.StorageAPI.async.invoiceContract(id);
+            
+            // Actualización optimista: mover el contrato de "pendiente" a "emitido" localmente
+            // Esto permite que el cambio sea instantáneo en el DOM
+            const invoicedItem = state.pendingContracts.find(c => c.id === id);
+            if (invoicedItem) {
+                state.pendingContracts = state.pendingContracts.filter(c => c.id !== id);
+                // Si el servidor nos devuelve el periodo, lo usamos
+                const now = new Date();
+                const currentPeriod = response.period || `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+                
+                // Agregar al historial local temporal (esto ayuda a la actualización inmediata)
+                // Usamos clpAmount si venía de una conversión UF, o el monto original en CLP
+                const neto = clpAmount ? Math.round(clpAmount / 1.19) : invoicedItem.amount;
+                
+                state.invoicedContractsCurrent.unshift({
+                    contractId: id,
+                    clientId: invoicedItem.clientId,
+                    periodName: currentPeriod,
+                    amountCLP: neto,
+                    issueDate: new Date().toISOString()
+                });
             }
 
             this.showToast('Factura Emitida Correctamente', 'success');
+            
+            // Renderizamos inmediatamente sin esperar al servidor
+            this.checkPendingContracts();
+            
+            // Luego actualizamos todo silenciosamente en segundo plano
+            this.loadData(); 
         } catch (error) {
             console.error("Error al facturar contrato:", error);
-            if (row) row.classList.remove('fade-out');
-            state.pendingContracts = originalPending;
-            state.debtors = originalDebtors;
             this.showToast('Error al procesar facturación.', 'error');
-            this.checkPendingContracts(); // Resetear badges
+            if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fa-solid fa-check"></i> Emitir Factura';
+            }
+            this.loadData();
+        }
+    },
+
+    async convertContractUF(id) {
+        const btn = document.querySelector(`#pending-row-${id} .btn-convert`);
+        if (btn) {
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Consultando...';
+        }
+
+        try {
+            const data = await window.StorageAPI.async.getUF();
+            const uf = data.valor;
+            const contract = state.pendingContracts.find(c => c.id === id);
+            const clpNeto = Math.round(contract.amount * uf);
+            const clpTotal = Math.round(clpNeto * 1.19);
+
+            const amountCell = document.querySelector(`#pending-row-${id} .amount-cell`);
+            const actionCell = document.querySelector(`#pending-row-${id} .action-cell`);
+
+            if (amountCell && actionCell) {
+                amountCell.innerHTML = `
+                    <div style="display: flex; flex-direction: column;">
+                        <span style="font-weight:bold; color: var(--danger-color);">${contract.amount} UF</span>
+                        <small class="text-muted">Neto: ${formatCurrency(clpNeto)}</small>
+                        <small class="text-success"><strong>Total c/IVA: ${formatCurrency(clpTotal)}</strong></small>
+                        <small class="text-muted" style="font-size: 0.7rem;">Valor UF: ${formatCurrency(uf)}</small>
+                    </div>
+                `;
+
+                actionCell.innerHTML = `
+                    <button class="btn-sm btn-success" onclick="UI.markContractInvoiced('${id}', ${clpTotal})">
+                        <i class="fa-solid fa-check"></i> Emitir por ${formatCurrency(clpTotal)}
+                    </button>
+                    <button class="btn-sm btn-text" onclick="UI.checkPendingContracts()" style="margin-top: 5px;">
+                        Cancelar
+                    </button>
+                `;
+            }
+        } catch (error) {
+            console.error("Error al convertir UF:", error);
+            this.showToast('No se pudo obtener el valor de la UF.', 'error');
+            if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fa-solid fa-rotate"></i> Reintentar';
+            }
         }
     },
 
@@ -3014,8 +3444,7 @@ const UI = {
         }
         if (searchText) {
             filtered = filtered.filter(p => {
-                const client = state.clients.find(c => c.id === p.clientId);
-                const name = (client ? (client.razonSocial || client.name) : '').toLowerCase();
+                const name = this.getClientName(p.clientId).toLowerCase();
                 const obs = (p.observations || '').toLowerCase();
                 return name.includes(searchText) || obs.includes(searchText);
             });
@@ -3026,8 +3455,7 @@ const UI = {
         filtered.forEach(p => {
             const tr = document.createElement('tr');
             tr.id = `project-row-${p.id}`;
-            const client = state.clients.find(c => c.id === p.clientId);
-            const clientName = client ? (client.razonSocial || client.name) : 'Desconocido';
+            const clientName = this.getClientName(p.clientId);
 
             const history = window.StorageAPI.getProjectHistory(p.id) || [];
             
@@ -3053,7 +3481,7 @@ const UI = {
             `).join('');
 
             tr.innerHTML = `
-                <td style="font-weight: 500;">${clientName}</td>
+                <td style="font-weight: 500;">${this.getClientName(p.clientId)}</td>
                 <td>
                     <div class="history-horizontal-container">
                         ${historyHtml || '<span class="text-muted small">Sin historial</span>'}
@@ -3099,7 +3527,7 @@ const UI = {
                     clientId: formData.get('clientId'),
                     status: formData.get('status') || 'Evaluación',
                     observations: formData.get('observations'),
-                    visitDate: formData.get('visitDate'),
+                    visitDate: formData.get('visitDate') || new Date().toISOString().split('T')[0],
                     executionDate: id ? (state.projects.find(p => p.id === id)?.executionDate) : null,
                     createdAt: id ? (state.projects.find(p => p.id === id)?.createdAt) : new Date().toISOString()
                 };
@@ -3138,7 +3566,7 @@ const UI = {
 
     getClientName(id) {
         const c = state.clients.find(cl => cl.id === id);
-        return c ? (c.razonSocial || c.name) : 'Cliente';
+        return c ? (c.nombreFantasia || c.razonSocial || c.name || 'Cliente') : 'Cliente';
     },
 
     async showProjectHistory(id) {
@@ -3233,7 +3661,10 @@ const UI = {
             form.elements['clientId'].value = p.clientId;
         }
         form.elements['status'].value = item.newStatus;
-        form.elements['visitDate'].value = item.changeDate ? item.changeDate.split('T')[0] : '';
+        const visitEl = form.elements['visitDate'];
+        const visitVal = item.changeDate ? item.changeDate.split('T')[0] : '';
+        if (visitEl._flatpickr) visitEl._flatpickr.setDate(visitVal);
+        else visitEl.value = visitVal;
         form.elements['observations'].value = item.note || '';
 
         document.getElementById('project-form-title').textContent = 'Editar Historial de Fase';
@@ -3267,7 +3698,10 @@ const UI = {
         `;
         statusSelect.value = p.status;
 
-        form.elements['visitDate'].value = p.visitDate || '';
+        const visitEl = form.elements['visitDate'];
+        if (visitEl._flatpickr) visitEl._flatpickr.setDate(p.visitDate || '');
+        else visitEl.value = p.visitDate || '';
+
         form.elements['observations'].value = p.observations || '';
 
         if (quickUpdate) {
@@ -3345,17 +3779,36 @@ const UI = {
         state.clients.forEach(c => {
             const opt = document.createElement('option');
             opt.value = c.id;
-            opt.textContent = c.razonSocial || c.name;
+            opt.textContent = this.getClientName(c.id);
             sel.appendChild(opt);
         });
     },
 
     initDatePickers() {
         if (typeof flatpickr !== 'undefined') {
-            flatpickr('input[type="date"]', {
+            flatpickr('input[type="date"], .datepicker', {
                 locale: 'es',
                 dateFormat: 'Y-m-d',
-                allowInput: true
+                altInput: true,
+                altFormat: 'd-m-Y',
+                allowInput: true,
+                parseDate: (datestr, format) => {
+                    if (!datestr) return null;
+                    // Limpiar y normalizar separadores
+                    const normalized = datestr.replace(/\//g, '-');
+                    const parts = normalized.split('-');
+                    if (parts.length === 3) {
+                        // Caso DD-MM-YYYY
+                        if (parts[0].length <= 2 && parts[2].length === 4) {
+                            return new Date(`${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}T00:00:00`);
+                        }
+                        // Caso YYYY-MM-DD
+                        if (parts[0].length === 4) {
+                            return new Date(`${parts[0]}-${parts[1].padStart(2, '0')}-${parts[2].padStart(2, '0')}T00:00:00`);
+                        }
+                    }
+                    return flatpickr.parseDate(datestr, format) || flatpickr.parseDate(datestr, 'd-m-Y');
+                }
             });
         } else {
             console.warn("Flatpickr no está cargado.");

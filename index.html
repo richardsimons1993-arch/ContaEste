@@ -165,7 +165,7 @@
             <!-- Vistas (Secciones SPA) -->
 
             <!-- VISTA DASHBOARD -->
-            <section id="dashboard" class="view-section active">
+            <section id="dashboard" class="view-section">
                 <div class="stats-grid">
                     <div class="stat-card balance">
                         <h3>Saldo Total</h3>
@@ -219,7 +219,7 @@
             </section>
 
             <!-- VISTA FORMULARIO DE TRANSACCIÓN -->
-            <section id="transaction-form" class="view-section">
+            <section id="transaction-form" class="view-section active">
                 <!-- El formulario se inyectará aquí -->
                 <div class="card form-card">
                     <h2 id="transaction-form-title">Registrar Movimiento</h2>
@@ -254,10 +254,10 @@
                         </div>
 
                         <div class="form-group">
-                            <label for="client">Cliente (Opcional)</label>
+                            <label for="client" id="label-transaction-person">Cliente (Opcional)</label>
                             <select id="client" name="client">
                                 <option value="">Seleccionar Cliente</option>
-                                <!-- Clientes inyectados por JS -->
+                                <!-- Inyectado por JS -->
                             </select>
                         </div>
 
@@ -303,7 +303,12 @@
                                 </select>
                             </div>
 
-                            <!-- Filtro Fechas -->
+                            <!-- Filtro Mes -->
+                            <div class="form-group" style="margin-bottom: 0;">
+                                <label style="font-size: 0.8rem; margin-bottom: 2px;">Mes</label>
+                                <input type="month" id="filter-month" class="form-control"
+                                    style="padding: 4px 8px; height: 32px; width: 140px;">
+                            </div>
                             <div class="form-group" style="margin-bottom: 0;">
                                 <label style="font-size: 0.8rem; margin-bottom: 2px;">Desde</label>
                                 <input type="date" id="filter-date-start" class="form-control"
@@ -375,8 +380,9 @@
             <!-- VISTA CONCEPTOS -->
             <section id="concepts" class="view-section">
                 <div class="card form-card">
-                    <h2>Crear Concepto</h2>
+                    <h2 id="concept-form-title">Crear Concepto</h2>
                     <form id="add-concept-form">
+                        <input type="hidden" id="concept-id" name="id">
                         <div class="grid-2">
                             <div class="form-group">
                                 <label>Nombre del Concepto</label>
@@ -394,7 +400,10 @@
                                 </select>
                             </div>
                         </div>
-                        <button type="submit" class="btn-secondary">Agregar Concepto</button>
+                        <div class="form-actions mt-3">
+                            <button type="submit" class="btn-secondary" id="btn-save-concept">Agregar Concepto</button>
+                            <button type="button" class="btn-text" id="cancel-concept-edit" style="display: none;">Cancelar</button>
+                        </div>
                     </form>
                 </div>
 
@@ -806,8 +815,21 @@
                                 </select>
                             </div>
                             <div class="form-group">
+                                <label>Moneda</label>
+                                <select name="currency" required>
+                                    <option value="CLP" selected>Pesos (CLP)</option>
+                                    <option value="UF">UF</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="grid-2">
+                            <div class="form-group">
                                 <label>Monto a Facturar</label>
                                 <input type="text" name="amount" class="amount-input" required placeholder="0">
+                            </div>
+                            <div class="form-group">
+                                <label>Día de Facturación (1-31)</label>
+                                <input type="number" name="billingDay" min="1" max="31" required placeholder="Ej: 1">
                             </div>
                         </div>
                         <div class="grid-2">
@@ -821,10 +843,6 @@
                             </div>
                         </div>
                         <div class="grid-2">
-                            <div class="form-group">
-                                <label>Día de Facturación (1-31)</label>
-                                <input type="number" name="billingDay" min="1" max="31" required placeholder="Ej: 1">
-                            </div>
                             <div class="form-group">
                                 <label>Frecuencia</label>
                                 <select name="frequency" required>
@@ -847,9 +865,11 @@
                             <thead>
                                 <tr>
                                     <th>Cliente</th>
-                                    <th>Monto</th>
-                                    <th>Vigencia</th>
+                                    <th>Monto Neto</th>
+                                    <th>Inicio</th>
+                                    <th>Fin</th>
                                     <th>Día Facturación</th>
+                                    <th>Frecuencia</th>
                                     <th>Acciones</th>
                                 </tr>
                             </thead>
@@ -896,15 +916,15 @@
                     </div>
 
                     <div id="tab-invoiced-month" class="alert-tab-content" style="display: none;">
-                        <h3>Contratos Emitidos este Mes</h3>
+                        <h3>Facturas Emitidas este Mes</h3>
                         <div class="table-responsive">
                             <table class="data-table">
                                 <thead>
                                     <tr>
                                         <th>Cliente</th>
-                                        <th>Monto</th>
+                                        <th>Monto (c/IVA)</th>
                                         <th>Periodo</th>
-                                        <th>Acción</th>
+                                        <th>Acciones</th>
                                     </tr>
                                 </thead>
                                 <tbody id="alerts-invoiced-body">

@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const sql = require('mssql/msnodesqlv8');
 const bcrypt = require('bcrypt');
+const axios = require('axios');
 
 const BCRYPT_ROUNDS = 10;
 
@@ -14,6 +15,23 @@ app.use(express.static(__dirname)); // Sirve HTML, JS y CSS automáticamente
 const dbConfig = {
     connectionString: 'Driver={ODBC Driver 18 for SQL Server};Server=localhost\\SIMONS;Database=ContabilidadDB;UID=sa;PWD=S0p0rt3!!2025;Encrypt=yes;TrustServerCertificate=yes;'
 };
+
+// Helper para parsear fechas de forma robusta (DD-MM-YYYY o YYYY-MM-DD)
+function tryParseDate(dateStr) {
+    if (!dateStr) return null;
+    if (dateStr instanceof Date) return dateStr;
+
+    // Si ya viene como YYYY-MM-DD, intentar parsear directamente
+    if (/^\d{4}-\d{2}-\d{2}/.test(dateStr)) return new Date(dateStr);
+
+    // Si viene como DD-MM-YYYY
+    const parts = dateStr.split('-');
+    if (parts.length === 3 && parts[2].length === 4) {
+        return new Date(`${parts[2]}-${parts[1]}-${parts[0]}`);
+    }
+
+    return new Date(dateStr); // Fallback
+}
 
 let poolPromise = null;
 
@@ -32,6 +50,34 @@ function getDbPool() {
             });
     }
     return poolPromise;
+}
+
+// UF Cache
+let cachedUF = {
+    valor: null,
+    timestamp: 0
+};
+
+// Fetch UF from mindicador.cl
+async function fetchUF() {
+    const now = Date.now();
+    // Cache por 1 hora (3600000 ms)
+    if (cachedUF.valor && (now - cachedUF.timestamp < 3600000)) {
+        return cachedUF.valor;
+    }
+
+    try {
+        console.log('Fetching UF from external API...');
+        const response = await axios.get('https://mindicador.cl/api/uf', { timeout: 15000 });
+        if (response.data && response.data.serie && response.data.serie.length > 0) {
+            cachedUF.valor = response.data.serie[0].valor;
+            cachedUF.timestamp = now;
+            return cachedUF.valor;
+        }
+    } catch (error) {
+        console.error('Error fetching UF:', error.message);
+    }
+    return cachedUF.valor; // Fallback al cache si falla la API
 }
 
 // Rutas Genéricas
@@ -71,6 +117,9 @@ app.delete('/api/transactions/:id', (req, res) => deleteApi(req, res, 'Transacti
 app.post('/api/transactions', async (req, res) => {
     try {
         const t = req.body;
+        console.log('--- POST /api/transactions ---');
+        console.log('Body:', t);
+
         const pool = await getDbPool();
 
         // Validar tipo según concepto (Seguridad extra)
@@ -79,36 +128,46 @@ app.post('/api/transactions', async (req, res) => {
             .query('SELECT type FROM Concepts WHERE id = @cid');
 
         const finalType = conceptCheck.recordset.length > 0 ? conceptCheck.recordset[0].type : t.type;
+        const finalDate = tryParseDate(t.date);
+
+        if (!finalDate) {
+            console.error('Error: Fecha inválida recibida:', t.date);
+            return res.status(400).json({ error: 'Fecha inválida. Use formato YYYY-MM-DD o DD-MM-YYYY.' });
+        }
 
         const check = await pool.request().input('id', sql.VarChar(50), t.id).query('SELECT id FROM Transactions WHERE id = @id');
 
         if (check.recordset.length > 0) {
+            console.log('Actualizando transacción existente:', t.id);
             await pool.request()
                 .input('id', sql.VarChar(50), t.id)
-                .input('date', sql.Date, t.date)
+                .input('date', sql.Date, finalDate)
                 .input('type', sql.VarChar(50), finalType)
                 .input('conceptId', sql.VarChar(50), t.conceptId)
-                .input('clientId', sql.VarChar(50), t.clientId)
+                .input('clientId', sql.VarChar(50), t.clientId || null)
                 .input('supplierId', sql.VarChar(50), t.supplierId || null)
                 .input('amount', sql.Decimal(18, 2), t.amount)
-                .input('observation', sql.VarChar(sql.MAX), t.observation)
+                .input('observation', sql.VarChar(sql.MAX), t.observation || '')
                 .query(`UPDATE Transactions SET date=@date, type=@type, conceptId=@conceptId, clientId=@clientId, supplierId=@supplierId, amount=@amount, observation=@observation WHERE id=@id`);
         } else {
+            console.log('Insertando nueva transacción:', t.id);
             await pool.request()
                 .input('id', sql.VarChar(50), t.id)
-                .input('date', sql.Date, t.date)
+                .input('date', sql.Date, finalDate)
                 .input('type', sql.VarChar(50), finalType)
                 .input('conceptId', sql.VarChar(50), t.conceptId)
-                .input('clientId', sql.VarChar(50), t.clientId)
+                .input('clientId', sql.VarChar(50), t.clientId || null)
                 .input('supplierId', sql.VarChar(50), t.supplierId || null)
                 .input('amount', sql.Decimal(18, 2), t.amount)
-                .input('observation', sql.VarChar(sql.MAX), t.observation)
+                .input('observation', sql.VarChar(sql.MAX), t.observation || '')
                 .query(`INSERT INTO Transactions (id, date, type, conceptId, clientId, supplierId, amount, observation) VALUES (@id, @date, @type, @conceptId, @clientId, @supplierId, @amount, @observation)`);
         }
+        console.log('✅ Operación exitosa');
         res.json({ ...t, type: finalType });
     } catch (err) {
-        console.error(err);
-        res.status(500).json({ error: err.message });
+        console.error('❌ ERROR en POST /api/transactions:', err.message);
+        if (err.number) console.error('SQL Error Number:', err.number);
+        res.status(500).json({ error: 'Error de base de datos: ' + err.message });
     }
 });
 
@@ -622,35 +681,36 @@ app.post('/api/contracts', async (req, res) => {
     try {
         const c = req.body;
         const pool = await getDbPool();
-        const check = await pool.request().input('id', sql.VarChar(50), c.id).query('SELECT id FROM Contracts WHERE id = @id');
-        if (check.recordset.length > 0) {
-            await pool.request()
-                .input('id', sql.VarChar(50), c.id)
-                .input('clientId', sql.VarChar(50), c.clientId)
-                .input('amount', sql.Decimal(18, 2), c.amount)
-                .input('startDate', sql.Date, c.startDate)
-                .input('endDate', sql.Date, c.endDate)
-                .input('billingDay', sql.Int, c.billingDay)
-                .input('frequency', sql.VarChar(50), c.frequency || 'mensual')
-                .input('lastInvoicedPeriod', sql.VarChar(50), c.lastInvoicedPeriod || '')
-                .query(`UPDATE Contracts SET clientId=@clientId, amount=@amount, startDate=@startDate, endDate=@endDate, billingDay=@billingDay, frequency=@frequency, lastInvoicedPeriod=@lastInvoicedPeriod WHERE id=@id`);
-        } else {
-            await pool.request()
-                .input('id', sql.VarChar(50), c.id)
-                .input('clientId', sql.VarChar(50), c.clientId)
-                .input('amount', sql.Decimal(18, 2), c.amount)
-                .input('startDate', sql.Date, c.startDate)
-                .input('endDate', sql.Date, c.endDate)
-                .input('billingDay', sql.Int, c.billingDay)
-                .input('frequency', sql.VarChar(50), c.frequency || 'mensual')
-                .input('lastInvoicedPeriod', sql.VarChar(50), c.lastInvoicedPeriod || '')
-                .query(`INSERT INTO Contracts (id, clientId, amount, startDate, endDate, billingDay, frequency, lastInvoicedPeriod) VALUES (@id, @clientId, @amount, @startDate, @endDate, @billingDay, @frequency, @lastInvoicedPeriod)`);
-        }
-        res.json(c);
+        await pool.request()
+            .input('id', sql.VarChar, c.id)
+            .input('clientId', sql.VarChar, c.clientId)
+            .input('amount', sql.Decimal(18, 2), c.amount)
+            .input('startDate', sql.Date, c.startDate)
+            .input('endDate', sql.Date, c.endDate)
+            .input('billingDay', sql.Int, c.billingDay)
+            .input('frequency', sql.VarChar, c.frequency || 'mensual')
+            .input('currency', sql.VarChar, c.currency || 'CLP')
+            .query(`
+                IF EXISTS (SELECT 1 FROM Contracts WHERE id = @id)
+                UPDATE Contracts SET 
+                    clientId = @clientId, amount = @amount, startDate = @startDate, 
+                    endDate = @endDate, billingDay = @billingDay, frequency = @frequency,
+                    currency = @currency
+                WHERE id = @id
+                ELSE
+                INSERT INTO Contracts (id, clientId, amount, startDate, endDate, billingDay, frequency, currency)
+                VALUES (@id, @clientId, @amount, @startDate, @endDate, @billingDay, @frequency, @currency)
+            `);
+        res.json({ success: true });
     } catch (err) {
-        console.error('Error in POST /api/contracts:', err);
         res.status(500).json({ error: err.message });
     }
+});
+
+app.get('/api/uf', async (req, res) => {
+    const uf = await fetchUF();
+    if (uf) res.json({ valor: uf });
+    else res.status(500).json({ error: "No se pudo obtener el valor de la UF" });
 });
 
 app.get('/api/contracts/pending', async (req, res) => {
@@ -694,7 +754,7 @@ app.post('/api/contracts/:id/invoice', async (req, res) => {
 
         const contractRes = await pool.request()
             .input('id', sql.VarChar(50), contractId)
-            .query(`SELECT c.amount, c.clientId, cl.name as clientName 
+            .query(`SELECT c.*, cl.name as clientName, cl.nombreFantasia as clientFantasyName
                     FROM Contracts c
                     LEFT JOIN Clients cl ON c.clientId = cl.id
                     WHERE c.id = @id`);
@@ -705,7 +765,18 @@ app.post('/api/contracts/:id/invoice', async (req, res) => {
 
         const contract = contractRes.recordset[0];
         const debtorName = contract.clientName || 'Cliente Desconocido';
-        const amount = contract.amount;
+        let amount = contract.amount;
+        let ufValueUsed = null;
+
+        if (contract.currency === 'UF') {
+            ufValueUsed = await fetchUF();
+            if (!ufValueUsed) {
+                return res.status(500).json({ error: "No se pudo obtener el valor de la UF. Verifique conexión." });
+            }
+            amount = Math.round(amount * ufValueUsed);
+        }
+
+        const amountFinal = Math.round(amount * 1.19); // Aplicar 19% IVA
 
         await pool.request()
             .input('id', sql.VarChar(50), contractId)
@@ -716,15 +787,14 @@ app.post('/api/contracts/:id/invoice', async (req, res) => {
         const dueDate = new Date();
         const newDebtorId = 'D' + Date.now().toString() + Math.floor(Math.random() * 1000);
 
-        // Determinar nombre del mes
-        const monthNames = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
-        const periodNameStr = `${monthNames[now.getMonth()]} ${currentYear}`;
-        const descriptionStr = `Outsourcing Mes ${monthNames[now.getMonth()]}`;
+        // Determinar nombre del periodo (YYYY-MM para consistencia)
+        const periodNameStr = currentPeriod;
+        const descriptionStr = `Mensualidad Contrato ${currentPeriod} (INC. IVA)`;
 
         await pool.request()
             .input('id', sql.VarChar(50), newDebtorId)
             .input('debtor', sql.VarChar(255), debtorName)
-            .input('amount', sql.Decimal(18, 2), amount)
+            .input('amount', sql.Decimal(18, 2), amountFinal)
             .input('dueDate', sql.Date, dueDate)
             .input('description', sql.VarChar(sql.MAX), descriptionStr)
             .input('status', sql.VarChar(50), 'pending')
@@ -739,13 +809,40 @@ app.post('/api/contracts/:id/invoice', async (req, res) => {
             .input('clientId', sql.VarChar(50), contract.clientId || '')
             .input('periodName', sql.VarChar(100), periodNameStr)
             .input('issueDate', sql.Date, dueDate)
-            .input('amount', sql.Decimal(18, 2), amount)
+            .input('amount', sql.Decimal(18, 2), contract.amount)
+            .input('amountCLP', sql.Decimal(18, 2), amount)
+            .input('ufValue', sql.Decimal(18, 4), ufValueUsed)
             .input('debtorId', sql.VarChar(50), newDebtorId)
-            .query(`INSERT INTO ContractHistory (id, contractId, clientId, periodName, issueDate, amount, debtorId) VALUES (@id, @contractId, @clientId, @periodName, @issueDate, @amount, @debtorId)`);
+            .query(`INSERT INTO ContractHistory (id, contractId, clientId, periodName, issueDate, amount, amountCLP, ufValue, debtorId) VALUES (@id, @contractId, @clientId, @periodName, @issueDate, @amount, @amountCLP, @ufValue, @debtorId)`);
 
         res.json({ success: true, period: currentPeriod });
     } catch (err) {
         console.error('Error in POST /api/contracts/:id/invoice:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.get('/api/contracts/invoiced-current', async (req, res) => {
+    try {
+        const pool = await getDbPool();
+        const now = new Date();
+        const currentYear = now.getFullYear();
+        const currentMonth = String(now.getMonth() + 1).padStart(2, '0');
+        const currentPeriod = `${currentYear}-${currentMonth}`;
+
+        const query = `
+            SELECT ch.*, cl.nombreFantasia as clientFantasyName, cl.name as clientName
+            FROM ContractHistory ch
+            LEFT JOIN Clients cl ON ch.clientId = cl.id
+            WHERE ch.periodName = @period
+            ORDER BY ch.issueDate DESC
+        `;
+        const result = await pool.request()
+            .input('period', sql.VarChar, currentPeriod)
+            .query(query);
+
+        res.json(result.recordset);
+    } catch (err) {
         res.status(500).json({ error: err.message });
     }
 });
@@ -810,7 +907,7 @@ app.get('/api/contracts/history/:clientId', async (req, res) => {
 app.get('/api/projects', async (req, res) => {
     try {
         const pool = await getDbPool();
-        const result = await pool.request().query('SELECT p.*, c.name as clientName FROM Projects p LEFT JOIN Clients c ON p.clientId = c.id');
+        const result = await pool.request().query('SELECT p.*, c.name as clientName, c.nombreFantasia as clientFantasyName FROM Projects p LEFT JOIN Clients c ON p.clientId = c.id');
         res.json(result.recordset);
     } catch (err) {
         res.status(500).json({ error: err.message });

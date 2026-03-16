@@ -16,10 +16,8 @@ function syncRequest(method, endpoint, body) {
             return xhr.responseText ? JSON.parse(xhr.responseText) : null;
         } else if (xhr.status === 0 || xhr.status >= 500) {
             console.error("API o Base de Datos no disponible. Status:", xhr.status);
-            if (!window.hasShownDbError) {
-                alert("No se pudo conectar con la base de datos o el servidor.\nPor favor, espere unos momentos o reinicie la aplicación.");
-                window.hasShownDbError = true;
-            }
+            // Ya no usamos alert aquí para no bloquear el hilo principal, 
+            // delegamos el manejo de errores al llamador o al sistema de Toasts.
         }
         return null;
     } catch (e) {
@@ -40,7 +38,20 @@ async function asyncRequest(method, endpoint, body) {
 
     try {
         const response = await fetch(API_BASE + endpoint, options);
-        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+        if (!response.ok) {
+            let errorMsg = `HTTP error! status: ${response.status}`;
+            try {
+                const errorData = await response.json();
+                if (errorData && errorData.error) errorMsg = errorData.error;
+            } catch (jsonErr) {
+                // Si no es JSON, intentar como texto
+                try {
+                    const errorText = await response.text();
+                    if (errorText) errorMsg = errorText;
+                } catch (textErr) {}
+            }
+            throw new Error(errorMsg);
+        }
         const text = await response.text();
         return text ? JSON.parse(text) : null;
     } catch (e) {
@@ -253,10 +264,12 @@ const Storage = {
 
         getContracts: () => asyncRequest('GET', '/contracts'),
         getPendingContracts: () => asyncRequest('GET', '/contracts/pending'),
+        getInvoicedContractsCurrent: () => asyncRequest('GET', '/contracts/invoiced-current'),
         saveContract: (c) => asyncRequest('POST', '/contracts', c),
         deleteContract: (id) => asyncRequest('DELETE', `/contracts/${id}`),
         invoiceContract: (id) => asyncRequest('POST', `/contracts/${id}/invoice`),
 
+        getUF: () => asyncRequest('GET', '/uf'),
         saveLog: (log) => {
             const entry = { ...log, id: Date.now().toString(), timestamp: new Date().toISOString() };
             return asyncRequest('POST', '/logs', entry);
@@ -268,7 +281,13 @@ const Storage = {
         getProjectHistory: (id) => asyncRequest('GET', `/projects/${id}/history`),
         addProjectHistory: (id, h) => asyncRequest('POST', `/projects/${id}/history`, h),
         deleteProjectHistory: (id) => asyncRequest('DELETE', `/projects/history/${id}`),
-        updateProjectHistory: (id, data) => asyncRequest('PUT', `/projects/history/${id}`, data)
+        updateProjectHistory: (id, data) => asyncRequest('PUT', `/projects/history/${id}`, data),
+
+        getConcepts: () => asyncRequest('GET', '/concepts'),
+        getClients: () => asyncRequest('GET', '/clients'),
+        getSuppliers: () => asyncRequest('GET', '/suppliers'),
+        getLogs: () => asyncRequest('GET', '/logs'),
+        getUsers: () => asyncRequest('GET', '/users')
     }
 };
 
