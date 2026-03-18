@@ -9,7 +9,9 @@ async function runMigration() {
     try {
         console.log("Conectando a la DB...");
         await sql.connect(config);
-        const script = fs.readFileSync('update_db_v10.sql', 'utf8');
+        const migrationFile = process.argv[2] || 'update_db_v10.sql';
+        console.log(`Leyendo script: ${migrationFile}`);
+        const script = fs.readFileSync(migrationFile, 'utf8');
         
         // El script tiene GO, mssql no soporta GO nativamente. Hay que splitear.
         const commands = script.split(/\bGO\b/i);

@@ -190,6 +190,20 @@ const Storage = {
         return this.getDebtors();
     },
 
+    getAvailables() {
+        return syncRequest('GET', '/availables') || [];
+    },
+
+    saveAvailable(available) {
+        syncRequest('POST', '/availables', available);
+        return this.getAvailables();
+    },
+
+    deleteAvailable(id) {
+        syncRequest('DELETE', `/availables/${id}`);
+        return this.getAvailables();
+    },
+
     getContracts() {
         return syncRequest('GET', '/contracts') || [];
     },
@@ -261,6 +275,10 @@ const Storage = {
         saveDebtor: (d) => asyncRequest('POST', '/debtors', d),
         deleteDebtor: (id) => asyncRequest('DELETE', `/debtors/${id}`),
         payDebtor: (id) => asyncRequest('POST', `/debtors/${id}/pay`),
+
+        getAvailables: () => asyncRequest('GET', '/availables'),
+        saveAvailable: (a) => asyncRequest('POST', '/availables', a),
+        deleteAvailable: (id) => asyncRequest('DELETE', `/availables/${id}`),
 
         getContracts: () => asyncRequest('GET', '/contracts'),
         getPendingContracts: () => asyncRequest('GET', '/contracts/pending'),

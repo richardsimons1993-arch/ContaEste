@@ -14,7 +14,8 @@ const rawState = {
     currentUser: null,
     lastDeleted: null,
     projects: [],
-    invoicedContractsCurrent: []
+    invoicedContractsCurrent: [],
+    availables: []
 };
 
 // --- Store Reactivo ---
@@ -36,6 +37,7 @@ const Store = new Proxy(rawState, {
             'pendingContracts': () => UI.checkPendingContracts(),
             'users': () => UI.renderUsers(),
             'projects': () => UI.renderProjects(),
+            'availables': () => UI.renderAvailables(),
             'currentView': (val) => UI.switchView(val)
         };
 
@@ -159,6 +161,7 @@ const UI = {
             this.populateDebtorClientSelect();
             this.populateProjectClientSelect();
             this.renderProjects();
+            this.renderAvailables();
 
             // Establecer fecha por defecto a hoy (Hacerlo ANTES de Flatpickr)
             const dateInput = document.getElementById('date');
@@ -252,7 +255,8 @@ const UI = {
                 window.StorageAPI.async.getLogs(),
                 window.StorageAPI.async.getSuppliers(),
                 window.StorageAPI.async.getProjects(),
-                window.StorageAPI.async.getUsers()
+                window.StorageAPI.async.getUsers(),
+                window.StorageAPI.async.getAvailables()
             ]);
 
             // Verificar si alguna falló y reportar
@@ -295,6 +299,8 @@ const UI = {
             assign('suppliers', getData(9));
             assign('projects', getData(10));
             assign('users', getData(11));
+            assign('availables', (getData(12)).map(a => ({ ...a, placementDate: cleanDate(a.placementDate), dueDate: cleanDate(a.dueDate) })));
+
             
             console.log('✅ Sincronización completada');
             try {
@@ -419,6 +425,17 @@ const UI = {
         const cancelContractEditBtn = document.getElementById('cancel-contract-edit');
         if (cancelContractEditBtn) cancelContractEditBtn.addEventListener('click', () => this.resetContractForm());
 
+        const indefiniteCheckbox = document.getElementById('contract-indefinite');
+        const endDateInput = document.getElementById('contract-end-date');
+        if (indefiniteCheckbox && endDateInput) {
+            indefiniteCheckbox.addEventListener('change', (e) => {
+                endDateInput.disabled = e.target.checked;
+                if (e.target.checked && endDateInput._flatpickr) {
+                    endDateInput._flatpickr.clear();
+                }
+            });
+        }
+
         // --- PROYECTOS ---
         const projectForm = document.getElementById('add-project-form');
         if (projectForm) projectForm.addEventListener('submit', (e) => this.handleProjectSubmit(e));
@@ -501,24 +518,19 @@ const UI = {
             conceptSelect.addEventListener('change', () => this.updateTransactionPersonDropdown());
         }
 
-        const filterMonth = document.getElementById('filter-month');
-        if (filterMonth) filterMonth.addEventListener('change', () => {
-            // Si seleccionamos un mes, limpiamos los filtros de fecha específicos para evitar confusión
-            const start = document.getElementById('filter-date-start');
-            const end = document.getElementById('filter-date-end');
-            if (filterMonth.value) {
-                if (start) start.value = '';
-                if (end) end.value = '';
-            }
-            this.renderTransactionsList();
-        });
+        // El filtro de mes ahora se maneja dentro de initDatePickers (onChange de Flatpickr)
+
         if (filterDateStart) filterDateStart.addEventListener('change', () => {
              // Si ponemos una fecha manual, limpiamos el filtro de mes
-             if (filterMonth) filterMonth.value = '';
+             const fm = document.getElementById('filter-month');
+             if (fm && fm._flatpickr) fm._flatpickr.clear(false);
+             else if (fm) fm.value = '';
              this.renderTransactionsList();
         });
         if (filterDateEnd) filterDateEnd.addEventListener('change', () => {
-             if (filterMonth) filterMonth.value = '';
+             const fm = document.getElementById('filter-month');
+             if (fm && fm._flatpickr) fm._flatpickr.clear(false);
+             else if (fm) fm.value = '';
              this.renderTransactionsList();
         });
 
@@ -601,6 +613,26 @@ const UI = {
             const menu = document.getElementById('user-dropdown-menu');
             if (menu) menu.classList.remove('active');
         });
+
+        // --- GESTIÓN DE DISPONIBLE ---
+        const availableForm = document.getElementById('add-available-form');
+        if (availableForm) availableForm.addEventListener('submit', (e) => this.handleAvailableSubmit(e));
+
+        const classificationSelect = document.getElementById('available-classification');
+        if (classificationSelect) {
+            classificationSelect.addEventListener('change', () => this.updateAvailableFields());
+        }
+
+        const instrumentSelect = document.getElementById('available-instrument');
+        if (instrumentSelect) {
+            instrumentSelect.addEventListener('change', () => this.updateAvailableFields());
+        }
+
+        const cancelAvailableEditBtn = document.getElementById('cancel-available-edit');
+        if (cancelAvailableEditBtn) {
+            cancelAvailableEditBtn.addEventListener('click', () => this.resetAvailableForm());
+        }
+
 
         // --- FORMATEO DE MONTOS EN TIEMPO REAL ---
         document.querySelectorAll('.amount-input').forEach(input => {
@@ -995,10 +1027,11 @@ const UI = {
             'transactions': 'finanzas',
             'debts': 'finanzas',
             'debtors': 'finanzas',
-            'contracts': 'finanzas',
             'suppliers': 'finanzas',
             'dashboard': 'finanzas',
+            'available-funds': 'finanzas',
             'projects': 'ventas',
+            'contracts': 'ventas',
             'activity': 'finanzas',
             'users': 'usuarios'
         };
@@ -1060,6 +1093,7 @@ const UI = {
             'contracts': 'Contratos',
             'projects': 'Gestión de Proyectos',
             'activity': 'Actividad',
+            'available-funds': 'Disponible',
             'users': 'Usuarios'
         };
 
@@ -1088,6 +1122,7 @@ const UI = {
         if (viewName === 'contracts') this.renderContracts();
         if (viewName === 'projects') this.renderProjects();
         if (viewName === 'activity') this.renderActivity();
+        if (viewName === 'available-funds') this.renderAvailables();
         if (viewName === 'users') this.renderUsers();
 
         // Resetear formularios si se sale de la sección
@@ -1131,7 +1166,15 @@ const UI = {
             if (t.type === 'income') totalIncome += parseFloat(t.amount);
             if (t.type === 'expense') totalExpense += parseFloat(t.amount);
         });
-        const totalBalance = totalIncome - totalExpense;
+
+        // Activos Disponibles (Módulo Disponible)
+        let totalAvailableFunds = 0;
+        state.availables.forEach(a => {
+            totalAvailableFunds += parseFloat(a.amount || 0);
+        });
+
+        const totalBalance = totalIncome - totalExpense + totalAvailableFunds;
+
 
         const elBalance = document.getElementById('total-balance');
         const elIncome = document.getElementById('month-income');
@@ -1140,6 +1183,11 @@ const UI = {
         if (elBalance) elBalance.textContent = formatCurrency(totalBalance);
         if (elIncome) elIncome.textContent = formatCurrency(income);
         if (elExpense) elExpense.textContent = formatCurrency(expense);
+
+        // Actualizar Activo Disponible en el Dashboard (si el elemento existe)
+        const elAvailable = document.getElementById('dashboard-available-funds');
+        if (elAvailable) elAvailable.textContent = formatCurrency(totalAvailableFunds);
+
 
         // Actualizar Año en la UI
         const yearEl = document.getElementById('current-year');
@@ -1232,7 +1280,12 @@ const UI = {
         const filterDateEnd = document.getElementById('filter-date-end');
 
         if (filterMonth && filterMonth.value) {
-            displayedTransactions = displayedTransactions.filter(t => t.date && t.date.startsWith(filterMonth.value));
+            const filterVal = filterMonth.value; // ej: "2026-03"
+            displayedTransactions = displayedTransactions.filter(t => {
+                if (!t.date) return false;
+                const tDate = String(t.date);
+                return tDate.startsWith(filterVal);
+            });
         } else {
             if (filterDateStart && filterDateStart.value) {
                 displayedTransactions = displayedTransactions.filter(t => t.date >= filterDateStart.value);
@@ -1701,8 +1754,11 @@ const UI = {
         const tbody = document.getElementById('debts-list-body');
         if (!tbody) return;
         tbody.innerHTML = '';
+        
+        let totalAmount = 0;
 
         state.debts.forEach(d => {
+            totalAmount += Number(d.amount) || 0;
             const tr = document.createElement('tr');
             // Mapear IDs a nombres para mostrar
             const supplier = state.suppliers.find(s => s.id === d.supplierId);
@@ -1730,6 +1786,18 @@ const UI = {
             `;
             tbody.appendChild(tr);
         });
+
+        const tfoot = document.getElementById('debts-list-footer');
+        if (tfoot) {
+            tfoot.innerHTML = `
+                <tr>
+                    <td colspan="3" style="text-align: right; font-weight: bold;">Total:</td>
+                    <td style="font-weight: bold; color: var(--danger-color);">${formatCurrency(totalAmount)}</td>
+                    <td colspan="2"></td>
+                </tr>
+            `;
+        }
+
         this.applyPrivileges();
     },
 
@@ -1983,8 +2051,11 @@ const UI = {
         const tbody = document.getElementById('debtors-list-body');
         if (!tbody) return;
         tbody.innerHTML = '';
+        
+        let totalAmount = 0;
 
         state.debtors.forEach(d => {
+            totalAmount += Number(d.amount) || 0;
             const tr = document.createElement('tr');
             
             // Intentar encontrar si el titular es un cliente para mostrar nombre de fantasía
@@ -2013,6 +2084,18 @@ const UI = {
             `;
             tbody.appendChild(tr);
         });
+
+        const tfoot = document.getElementById('debtors-list-footer');
+        if (tfoot) {
+            tfoot.innerHTML = `
+                <tr>
+                    <td colspan="3" style="text-align: right; font-weight: bold;">Total:</td>
+                    <td style="font-weight: bold; color: var(--secondary-color);">${formatCurrency(totalAmount)}</td>
+                    <td></td>
+                </tr>
+            `;
+        }
+
         this.applyPrivileges();
         this.populateDebtorClientSelect();
     },
@@ -3125,7 +3208,7 @@ const UI = {
                 <td>${this.getClientName(c.clientId)}</td>
                 <td style="font-weight:bold;">${amountText}</td>
                 <td>${formatDate(c.startDate)}</td>
-                <td>${formatDate(c.endDate)}</td>
+                <td>${c.endDate ? formatDate(c.endDate) : '<span class="tag-status" style="background: var(--primary-light); color: var(--primary-color)">Indefinido</span>'}</td>
                 <td>Día ${c.billingDay}</td>
                 <td>${c.frequency || 'Mensual'}</td>
                 <td class="actions">
@@ -3147,12 +3230,13 @@ const UI = {
         const formData = new FormData(e.target);
         const id = formData.get('id');
 
+        const isIndefinite = formData.get('indefinite') === 'on';
         const contract = {
             id: id || Date.now().toString(),
             clientId: formData.get('clientId'),
             amount: parseAmount(formData.get('amount')),
             startDate: formData.get('startDate'),
-            endDate: formData.get('endDate'),
+            endDate: isIndefinite ? null : formData.get('endDate'),
             billingDay: parseInt(formData.get('billingDay')),
             frequency: formData.get('frequency'),
             currency: formData.get('currency') || 'CLP'
@@ -3184,8 +3268,22 @@ const UI = {
         if (startEl._flatpickr) startEl._flatpickr.setDate(contract.startDate);
         else startEl.value = contract.startDate;
         
-        if (endEl._flatpickr) endEl._flatpickr.setDate(contract.endDate);
-        else endEl.value = contract.endDate;
+        const isIndefinite = !contract.endDate;
+        const indefiniteCheckbox = document.getElementById('contract-indefinite');
+        if (indefiniteCheckbox) {
+            indefiniteCheckbox.checked = isIndefinite;
+            endEl.disabled = isIndefinite;
+        }
+
+        if (endEl._flatpickr) {
+            if (isIndefinite) {
+                endEl._flatpickr.clear();
+            } else {
+                endEl._flatpickr.setDate(contract.endDate);
+            }
+        } else {
+            endEl.value = contract.endDate || '';
+        }
 
         form.elements['billingDay'].value = contract.billingDay;
         form.elements['frequency'].value = contract.frequency || 'mensual';
@@ -3205,6 +3303,11 @@ const UI = {
             document.getElementById('contract-form-title').textContent = 'Registrar Contrato';
             const cancelBtn = document.getElementById('cancel-contract-edit');
             if (cancelBtn) cancelBtn.style.display = 'none';
+            
+            const endDateInput = document.getElementById('contract-end-date');
+            if (endDateInput) {
+                endDateInput.disabled = false;
+            }
         }
     },
 
@@ -3445,8 +3548,9 @@ const UI = {
         if (searchText) {
             filtered = filtered.filter(p => {
                 const name = this.getClientName(p.clientId).toLowerCase();
+                const projName = (p.projectName || '').toLowerCase();
                 const obs = (p.observations || '').toLowerCase();
-                return name.includes(searchText) || obs.includes(searchText);
+                return name.includes(searchText) || projName.includes(searchText) || obs.includes(searchText);
             });
         }
 
@@ -3481,7 +3585,12 @@ const UI = {
             `).join('');
 
             tr.innerHTML = `
-                <td style="font-weight: 500;">${this.getClientName(p.clientId)}</td>
+                <td style="font-weight: 500;">
+                    ${p.projectName || 'Sin nombre de proyecto'}
+                    <div style="font-size: 0.8rem; color: var(--text-muted); font-weight: 400; margin-top: 2px;">
+                        ${clientName}
+                    </div>
+                </td>
                 <td>
                     <div class="history-horizontal-container">
                         ${historyHtml || '<span class="text-muted small">Sin historial</span>'}
@@ -3524,6 +3633,7 @@ const UI = {
                 // Modo normal: Proyecto nuevo o actualización de estado (nueva fase)
                 const project = {
                     id: id || 'P' + Date.now().toString(),
+                    projectName: formData.get('projectName'),
                     clientId: formData.get('clientId'),
                     status: formData.get('status') || 'Evaluación',
                     observations: formData.get('observations'),
@@ -3656,8 +3766,8 @@ const UI = {
         const form = document.getElementById('add-project-form');
         document.getElementById('project-id').value = projectId;
         document.getElementById('project-history-id').value = historyId;
-
         if (p) {
+            document.getElementById('project-name').value = p.projectName || '';
             form.elements['clientId'].value = p.clientId;
         }
         form.elements['status'].value = item.newStatus;
@@ -3682,6 +3792,7 @@ const UI = {
 
         const form = document.getElementById('add-project-form');
         document.getElementById('project-id').value = p.id;
+        document.getElementById('project-name').value = p.projectName || '';
         form.elements['clientId'].value = p.clientId;
 
         // Reset status select and set value
@@ -3746,6 +3857,7 @@ const UI = {
         if (form) {
             form.reset();
             document.getElementById('project-id').value = '';
+            document.getElementById('project-name').value = '';
             document.getElementById('project-history-id').value = '';
             document.getElementById('project-form-title').textContent = 'Nueva Solicitud / Proyecto';
             document.querySelector('#add-project-form button[type="submit"]').textContent = 'Guardar Proyecto';
@@ -3810,6 +3922,38 @@ const UI = {
                     return flatpickr.parseDate(datestr, format) || flatpickr.parseDate(datestr, 'd-m-Y');
                 }
             });
+
+            // Month picker para filtros
+            const filterMonthEl = document.getElementById('filter-month');
+            if (filterMonthEl) {
+                flatpickr(filterMonthEl, {
+                    locale: 'es',
+                    altInput: true,
+                    altInputClass: "form-control",
+                    plugins: [
+                        new monthSelectPlugin({
+                            shorthand: true,
+                            dateFormat: "Y-m",
+                            altFormat: "F Y",
+                            theme: "light"
+                        })
+                    ],
+                    onChange: (selectedDates, dateStr) => {
+                        console.log("Month picker changed:", dateStr);
+                        // Limpiar filtros específicos si se usa el mes
+                        const start = document.getElementById('filter-date-start');
+                        const end = document.getElementById('filter-date-end');
+                        if (dateStr) {
+                            if (start && start._flatpickr) start._flatpickr.clear(false);
+                            else if (start) start.value = '';
+                            
+                            if (end && end._flatpickr) end._flatpickr.clear(false);
+                            else if (end) end.value = '';
+                        }
+                        this.renderTransactionsList();
+                    }
+                });
+            }
         } else {
             console.warn("Flatpickr no está cargado.");
         }
@@ -3821,6 +3965,189 @@ const UI = {
             obs.classList.toggle('expanded');
             card.classList.toggle('expanded');
         }
+    },
+
+    // --- MÓDULO DISPONIBLE ---
+
+    renderAvailables() {
+        const tbody = document.getElementById('availables-list-body');
+        if (!tbody) return;
+        tbody.innerHTML = '';
+
+        let total = 0;
+        state.availables.forEach(a => {
+            total += parseFloat(a.amount || 0);
+            const row = document.createElement('tr');
+            
+            let liquidityStatus = 'Inmediata';
+            if (a.instrument === 'Depósito a Plazo') {
+                const today = new Date().toISOString().split('T')[0];
+                liquidityStatus = (a.dueDate && a.dueDate > today) ? `Vence: ${formatDate(a.dueDate)}` : 'Vencido / Disponible';
+            } else if (a.instrument === 'Fondo Mutuo') {
+                liquidityStatus = '48 hrs';
+            }
+
+            row.innerHTML = `
+                <td>${a.location}</td>
+                <td>${a.classification}</td>
+                <td>${a.instrument || '-'}</td>
+                <td style="font-weight: bold;">${formatCurrency(a.amount)}</td>
+                <td><span class="tag ${liquidityStatus.includes('Vence') ? 'expense' : 'income'}">${liquidityStatus}</span></td>
+                <td class="actions">
+                    <button class="btn-icon" title="Editar" onclick="UI.editAvailable('${a.id}')">
+                        <i class="fa-solid fa-pen-to-square"></i>
+                    </button>
+                    <button class="btn-icon text-danger" title="Eliminar" onclick="UI.deleteAvailable('${a.id}')">
+                        <i class="fa-solid fa-trash-can"></i>
+                    </button>
+                </td>
+            `;
+            tbody.appendChild(row);
+        });
+
+        const tfoot = document.getElementById('availables-list-footer');
+        if (tfoot) {
+            tfoot.innerHTML = `
+                <tr>
+                    <td colspan="3" style="text-align: right; font-weight: bold; padding-right: 1rem;">Total Activo Disponible:</td>
+                    <td colspan="3" style="font-weight: bold; font-size: 1.1rem; color: var(--primary-color)">
+                        ${formatCurrency(total)}
+                    </td>
+                </tr>
+            `;
+        }
+        this.applyPrivileges();
+    },
+
+    updateAvailableFields() {
+        const classification = document.getElementById('available-classification').value;
+        const instrument = document.getElementById('available-instrument').value;
+        const investmentFields = document.getElementById('investment-fields');
+        const nonInvestmentFields = document.getElementById('non-investment-fields');
+        const termDepositFields = document.getElementById('term-deposit-fields');
+        const mutualFundNote = document.getElementById('mutual-fund-note');
+
+        const amtInv = document.getElementById('available-amount-investment');
+        const amtSim = document.getElementById('available-amount-simple');
+        const fCol = document.getElementById('available-placement-date');
+        const fVenc = document.getElementById('available-due-date');
+
+        // Reset requirements
+        amtInv.required = false;
+        amtSim.required = false;
+        fCol.required = false;
+        fVenc.required = false;
+
+        if (classification === 'Inversiones') {
+            investmentFields.style.display = 'block';
+            nonInvestmentFields.style.display = 'none';
+            amtInv.required = true;
+
+            if (instrument === 'Depósito a Plazo') {
+                termDepositFields.style.display = 'grid';
+                mutualFundNote.style.display = 'none';
+                fCol.required = true;
+                fVenc.required = true;
+            } else {
+                termDepositFields.style.display = 'none';
+                mutualFundNote.style.display = 'block';
+            }
+        } else {
+            investmentFields.style.display = 'none';
+            nonInvestmentFields.style.display = 'block';
+            amtSim.required = true;
+        }
+    },
+
+    resetAvailableForm() {
+        const form = document.getElementById('add-available-form');
+        if (form) {
+            form.reset();
+            document.getElementById('available-id').value = '';
+            document.getElementById('available-form-title').textContent = 'Gestionar Activos Disponibles';
+            const cancelBtn = document.getElementById('cancel-available-edit');
+            if (cancelBtn) cancelBtn.style.display = 'none';
+            this.updateAvailableFields();
+        }
+    },
+
+    async handleAvailableSubmit(e) {
+        e.preventDefault();
+        const form = e.target;
+        const formData = new FormData(form);
+        const classification = formData.get('classification');
+        
+        // El monto puede venir de dos campos dependiendo de la clasificación
+        let amountStr = classification === 'Inversiones' ? formData.get('amount') : formData.get('amount_simple');
+        let amount = parseFloat(amountStr.replace(/\./g, '').replace(',', '.')) || 0;
+
+        const available = {
+            id: formData.get('id') || 'A' + Date.now().toString(),
+            location: formData.get('location'),
+            classification: classification,
+            instrument: classification === 'Inversiones' ? formData.get('instrument') : null,
+            amount: amount,
+            placementDate: classification === 'Inversiones' && formData.get('instrument') === 'Depósito a Plazo' ? formData.get('placementDate') : null,
+            dueDate: classification === 'Inversiones' && formData.get('instrument') === 'Depósito a Plazo' ? formData.get('dueDate') : null,
+            observation: formData.get('observation')
+        };
+
+        this.showLoading(form);
+        try {
+            await window.StorageAPI.async.saveAvailable(available);
+            this.showToast('Activo guardado exitosamente', 'success');
+            this.resetAvailableForm();
+            // Recargar datos y renderizar
+            await this.loadData();
+            this.renderAvailables();
+            this.renderDashboard(); // Actualizar balance si fuera necesario
+        } catch (err) {
+            console.error(err);
+            this.showToast('Error al guardar activo: ' + err.message, 'error');
+        } finally {
+            this.hideLoading(form);
+        }
+    },
+
+    async deleteAvailable(id) {
+        if (!confirm('¿Está seguro de eliminar este registro de activo disponible?')) return;
+        try {
+            await window.StorageAPI.async.deleteAvailable(id);
+            this.showToast('Activo eliminado', 'success');
+            await this.loadData();
+            this.renderAvailables();
+            this.renderDashboard();
+        } catch (err) {
+            this.showToast('Error al eliminar: ' + err.message, 'error');
+        }
+    },
+
+    editAvailable(id) {
+        const a = state.availables.find(item => item.id === id);
+        if (!a) return;
+
+        document.getElementById('available-id').value = a.id;
+        document.querySelector('[name="location"]').value = a.location;
+        document.getElementById('available-classification').value = a.classification;
+        
+        if (a.classification === 'Inversiones') {
+            document.getElementById('available-instrument').value = a.instrument;
+            document.querySelector('[name="amount"]').value = a.amount.toLocaleString('es-CL');
+            if (a.instrument === 'Depósito a Plazo') {
+                document.querySelector('[name="placementDate"]').value = a.placementDate || '';
+                document.querySelector('[name="dueDate"]').value = a.dueDate || '';
+            }
+        } else {
+            document.querySelector('[name="amount_simple"]').value = a.amount.toLocaleString('es-CL');
+        }
+
+        document.querySelector('[name="observation"]').value = a.observation || '';
+        
+        document.getElementById('available-form-title').textContent = 'Editar Activo Disponible';
+        document.getElementById('cancel-available-edit').style.display = 'inline-block';
+        
+        this.updateAvailableFields();
+        window.scrollTo({ top: 0, behavior: 'smooth' });
     }
 };
 

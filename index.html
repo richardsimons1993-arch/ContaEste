@@ -13,6 +13,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <!-- Flatpickr (Calendario) -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/plugins/monthSelect/style.css">
     <!-- SheetJS (Excel) -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <!-- jsPDF & AutoTable (PDF) -->
@@ -86,20 +87,20 @@
                     <button class="nav-btn" data-target="suppliers">
                         <i class="fa-solid fa-truck"></i> Proveedores
                     </button>
-                    <button class="nav-btn" data-target="transactions">
-                        <i class="fa-solid fa-list-ul"></i> Movimientos
-                    </button>
                     <button class="nav-btn" data-target="debts">
                         <i class="fa-solid fa-hand-holding-dollar"></i> Deudas
                     </button>
                     <button class="nav-btn" data-target="debtors">
                         <i class="fa-solid fa-hand-holding-hand"></i> Deudores
                     </button>
-                    <button class="nav-btn" data-target="contracts">
-                        <i class="fa-solid fa-file-contract"></i> Contratos
+                    <button class="nav-btn" data-target="transactions">
+                        <i class="fa-solid fa-list-ul"></i> Movimientos
                     </button>
                     <button class="nav-btn" data-target="dashboard">
                         <i class="fa-solid fa-chart-pie"></i> Balance
+                    </button>
+                    <button class="nav-btn" data-target="available-funds">
+                        <i class="fa-solid fa-wallet"></i> Disponible
                     </button>
                     <button class="nav-btn" data-target="activity">
                         <i class="fa-solid fa-clock-rotate-left"></i> Actividad
@@ -111,6 +112,9 @@
                     <div class="nav-section-header">VENTAS</div>
                     <button class="nav-btn" data-target="projects">
                         <i class="fa-solid fa-diagram-project"></i> Proyectos
+                    </button>
+                    <button class="nav-btn" data-target="contracts">
+                        <i class="fa-solid fa-file-contract"></i> Contratos
                     </button>
                 </div>
 
@@ -179,6 +183,10 @@
                     <div class="stat-card expense">
                         <h3>Gastos del Mes</h3>
                         <p class="amount" id="month-expense">$0.00</p>
+                    </div>
+                    <div class="stat-card">
+                        <h3>Activo Disponible</h3>
+                        <p class="amount" id="dashboard-available-funds">$0.00</p>
                     </div>
                 </div>
 
@@ -307,7 +315,8 @@
                             <!-- Filtro Mes -->
                             <div class="form-group" style="margin-bottom: 0;">
                                 <label style="font-size: 0.8rem; margin-bottom: 2px;">Mes</label>
-                                <input type="month" id="filter-month" class="form-control"
+                                <input type="text" id="filter-month" class="form-control"
+                                    placeholder="Seleccionar Mes"
                                     style="padding: 4px 8px; height: 32px; width: 140px;">
                             </div>
                             <div class="form-group" style="margin-bottom: 0;">
@@ -639,6 +648,9 @@
                             <tbody id="debts-list-body">
                                 <!-- Inyectado por JS -->
                             </tbody>
+                            <tfoot id="debts-list-footer">
+                                <!-- Total inyectado por JS -->
+                            </tfoot>
                         </table>
                     </div>
                 </div>
@@ -711,6 +723,101 @@
                             <tbody id="debtors-list-body">
                                 <!-- Inyectado por JS -->
                             </tbody>
+                            <tfoot id="debtors-list-footer">
+                                <!-- Total inyectado por JS -->
+                            </tfoot>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <!-- VISTA GESTIÓN DE DISPONIBLE -->
+            <section id="available-funds" class="view-section">
+                <div class="card form-card">
+                    <h2 id="available-form-title">Gestionar Activos Disponibles</h2>
+                    <form id="add-available-form">
+                        <input type="hidden" name="id" id="available-id">
+                        <div class="grid-2">
+                            <div class="form-group">
+                                <label>Ubicación del Dinero</label>
+                                <input type="text" name="location" required placeholder="Ej: Banco Estado, Caja Fuerte, etc.">
+                            </div>
+                            <div class="form-group">
+                                <label>Clasificación</label>
+                                <select name="classification" id="available-classification" required>
+                                    <option value="Caja">Caja</option>
+                                    <option value="Bancos">Bancos</option>
+                                    <option value="Inversiones">Inversiones</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div id="investment-fields" style="display: none;">
+                            <div class="grid-2">
+                                <div class="form-group">
+                                    <label>Instrumento de Inversión</label>
+                                    <select name="instrument" id="available-instrument">
+                                        <option value="Depósito a Plazo">Depósito a Plazo</option>
+                                        <option value="Fondo Mutuo">Fondo Mutuo</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label>Monto</label>
+                                    <input type="text" name="amount" id="available-amount-investment" class="amount-input" placeholder="0">
+                                </div>
+                            </div>
+                            <div id="term-deposit-fields" class="grid-2">
+                                <div class="form-group">
+                                    <label>Fecha de Colocación</label>
+                                    <input type="text" name="placementDate" id="available-placement-date">
+                                </div>
+                                <div class="form-group">
+                                    <label>Fecha de Vencimiento</label>
+                                    <input type="text" name="dueDate" id="available-due-date">
+                                </div>
+                            </div>
+                            <div id="mutual-fund-note" style="display: none; margin-bottom: 1rem;">
+                                <div class="alert alert-info" style="background: rgba(30, 144, 255, 0.1); border: 1px solid var(--primary-color); padding: 0.75rem; border-radius: 8px; color: var(--text-color);">
+                                    <i class="fa-solid fa-circle-info"></i> <strong>Nota:</strong> Liquidez estimada: 48 horas hábiles.
+                                </div>
+                            </div>
+                        </div>
+                        <div id="non-investment-fields" class="grid-2">
+                            <div class="form-group">
+                                <label>Monto</label>
+                                <input type="text" name="amount_simple" id="available-amount-simple" class="amount-input" placeholder="0">
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label>Observación (Opcional)</label>
+                            <input type="text" name="observation" placeholder="Detalles adicionales...">
+                        </div>
+                        <div class="form-actions mt-3">
+                            <button type="submit" class="btn-secondary">Guardar Activo</button>
+                            <button type="button" id="cancel-available-edit" class="btn-text" style="display: none;">Cancelar</button>
+                        </div>
+                    </form>
+                </div>
+
+                <div class="card mt-4">
+                    <h3>Resumen de Activos Disponibles</h3>
+                    <div class="table-responsive">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Ubicación</th>
+                                    <th>Tipo</th>
+                                    <th>Instrumento</th>
+                                    <th>Monto</th>
+                                    <th>Liquidez</th>
+                                    <th>Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody id="availables-list-body">
+                                <!-- Inyectado por JS -->
+                            </tbody>
+                            <tfoot id="availables-list-footer">
+                                <!-- Total inyectado por JS -->
+                            </tfoot>
                         </table>
                     </div>
                 </div>
@@ -723,6 +830,12 @@
                     <form id="add-project-form">
                         <input type="hidden" name="id" id="project-id">
                         <input type="hidden" name="historyId" id="project-history-id">
+                        <div class="form-group">
+                            <label for="project-name">Nombre del Proyecto</label>
+                            <input type="text" id="project-name" name="projectName" required placeholder="Ej: Instalación Eléctrica Local X"
+                                oninvalid="this.setCustomValidity('Por favor, ingrese el nombre del proyecto')"
+                                oninput="this.setCustomValidity('')">
+                        </div>
                         <div class="grid-2">
                             <div class="form-group">
                                 <label for="project-client">Cliente</label>
@@ -788,7 +901,7 @@
                         <table class="data-table">
                             <thead>
                                 <tr>
-                                    <th>Cliente</th>
+                                    <th>Proyecto</th>
                                     <th>Fase / Evolución</th>
                                     <th>Acciones</th>
                                 </tr>
@@ -839,8 +952,13 @@
                                 <input type="date" name="startDate" required>
                             </div>
                             <div class="form-group">
-                                <label>Fecha de Fin (Vigencia)</label>
-                                <input type="date" name="endDate" required>
+                                <div style="display: flex; justify-content: space-between; align-items: center;">
+                                    <label>Fecha de Fin (Vigencia)</label>
+                                    <label style="font-size: 0.8rem; font-weight: normal; margin-bottom: 0;">
+                                        <input type="checkbox" id="contract-indefinite" name="indefinite"> Indefinido
+                                    </label>
+                                </div>
+                                <input type="date" name="endDate" id="contract-end-date">
                             </div>
                         </div>
                         <div class="grid-2">
@@ -1102,7 +1220,8 @@
 
     <!-- Scripts -->
     <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
-    <script src="https://npmcdn.com/flatpickr/dist/l10n/es.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/es.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/plugins/monthSelect/index.js"></script>
     <script src="storage.js"></script>
     <script src="app.js"></script>
 </body>

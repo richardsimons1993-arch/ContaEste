@@ -90,6 +90,7 @@ const getApi = async (req, res, table) => {
         if (table === 'Clients') query = `SELECT *, name as razonSocial FROM Clients`;
         if (table === 'Debts') query = `SELECT *, creditor as titular, dueDate as date FROM Debts`;
         if (table === 'Debtors') query = `SELECT *, debtor as titular, dueDate as date FROM Debtors`;
+        if (table === 'Availables') query = `SELECT * FROM Availables`;
 
         const result = await pool.request().query(query);
         res.json(result.recordset);
@@ -508,6 +509,48 @@ app.post('/api/debtors/:id/pay', async (req, res) => {
     }
 });
 
+// --- ENDPOINTS PARA AVAILABLES (DISPONIBLE) ---
+app.get('/api/availables', (req, res) => getApi(req, res, 'Availables'));
+app.delete('/api/availables/:id', (req, res) => deleteApi(req, res, 'Availables'));
+app.post('/api/availables', async (req, res) => {
+    try {
+        const a = req.body;
+        const pool = await getDbPool();
+        const check = await pool.request().input('id', sql.VarChar(50), a.id).query('SELECT id FROM Availables WHERE id = @id');
+        
+        const placementDate = a.placementDate ? tryParseDate(a.placementDate) : null;
+        const dueDate = a.dueDate ? tryParseDate(a.dueDate) : null;
+
+        if (check.recordset.length > 0) {
+            await pool.request()
+                .input('id', sql.VarChar(50), a.id)
+                .input('location', sql.VarChar(255), a.location)
+                .input('classification', sql.VarChar(50), a.classification)
+                .input('instrument', sql.VarChar(100), a.instrument || null)
+                .input('amount', sql.Decimal(18, 2), a.amount)
+                .input('placementDate', sql.Date, placementDate)
+                .input('dueDate', sql.Date, dueDate)
+                .input('observation', sql.VarChar(sql.MAX), a.observation || '')
+                .query(`UPDATE Availables SET location=@location, classification=@classification, instrument=@instrument, amount=@amount, placementDate=@placementDate, dueDate=@dueDate, observation=@observation WHERE id=@id`);
+        } else {
+            await pool.request()
+                .input('id', sql.VarChar(50), a.id)
+                .input('location', sql.VarChar(255), a.location)
+                .input('classification', sql.VarChar(50), a.classification)
+                .input('instrument', sql.VarChar(100), a.instrument || null)
+                .input('amount', sql.Decimal(18, 2), a.amount)
+                .input('placementDate', sql.Date, placementDate)
+                .input('dueDate', sql.Date, dueDate)
+                .input('observation', sql.VarChar(sql.MAX), a.observation || '')
+                .query(`INSERT INTO Availables (id, location, classification, instrument, amount, placementDate, dueDate, observation) VALUES (@id, @location, @classification, @instrument, @amount, @placementDate, @dueDate, @observation)`);
+        }
+        res.json(a);
+    } catch (err) {
+        console.error('Error in POST /api/availables:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
 // --- ENDPOINTS PARA USERS ---
 app.get('/api/users', async (req, res) => {
     try {
@@ -726,7 +769,7 @@ app.get('/api/contracts/pending', async (req, res) => {
         const query = `
             SELECT * FROM Contracts 
             WHERE startDate <= @currentDate 
-              AND endDate >= @currentDate
+              AND (endDate IS NULL OR endDate >= @currentDate)
               AND billingDay <= @currentDay
               AND (lastInvoicedPeriod IS NULL OR lastInvoicedPeriod != @currentPeriod)
         `;
@@ -940,20 +983,22 @@ app.post('/api/projects', async (req, res) => {
             await pool.request()
                 .input('id', sql.VarChar(50), p.id)
                 .input('clientId', sql.VarChar(50), p.clientId)
+                .input('projectName', sql.VarChar(255), p.projectName || null)
                 .input('status', sql.VarChar(50), p.status)
                 .input('observations', sql.VarChar(sql.MAX), p.observations || '')
                 .input('visitDate', sql.Date, p.visitDate || null)
                 .input('executionDate', sql.Date, p.executionDate || null)
-                .query(`UPDATE Projects SET clientId=@clientId, status=@status, observations=@observations, visitDate=@visitDate, executionDate=@executionDate WHERE id=@id`);
+                .query(`UPDATE Projects SET projectName=@projectName, clientId=@clientId, status=@status, observations=@observations, visitDate=@visitDate, executionDate=@executionDate WHERE id=@id`);
         } else {
             await pool.request()
                 .input('id', sql.VarChar(50), p.id)
+                .input('projectName', sql.VarChar(255), p.projectName || null)
                 .input('clientId', sql.VarChar(50), p.clientId)
                 .input('status', sql.VarChar(50), p.status || 'Evaluación')
                 .input('observations', sql.VarChar(sql.MAX), p.observations || '')
                 .input('visitDate', sql.Date, p.visitDate || null)
                 .input('executionDate', sql.Date, p.executionDate || null)
-                .query(`INSERT INTO Projects (id, clientId, status, observations, visitDate, executionDate) VALUES (@id, @clientId, @status, @observations, @visitDate, @executionDate)`);
+                .query(`INSERT INTO Projects (id, projectName, clientId, status, observations, visitDate, executionDate) VALUES (@id, @projectName, @clientId, @status, @observations, @visitDate, @executionDate)`);
         }
         res.json(p);
     } catch (err) {
@@ -1017,6 +1062,64 @@ app.put('/api/projects/history/:id', async (req, res) => {
             .input('newStatus', sql.VarChar(50), h.newStatus)
             .input('changeDate', sql.Date, h.changeDate || null)
             .query('UPDATE ProjectHistory SET note = @note, newStatus = @newStatus, changeDate = @changeDate WHERE id = @id');
+        res.json({ success: true });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// --- ENDPOINTS PARA DISPONIBLE ---
+app.get('/api/availables', async (req, res) => {
+    try {
+        const pool = await getDbPool();
+        const result = await pool.request().query('SELECT * FROM AvailableFunds');
+        res.json(result.recordset);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.post('/api/availables', async (req, res) => {
+    try {
+        const a = req.body;
+        const pool = await getDbPool();
+        const request = pool.request()
+            .input('id', sql.VarChar(50), a.id)
+            .input('location', sql.VarChar(255), a.location)
+            .input('classification', sql.VarChar(50), a.classification)
+            .input('instrument', sql.VarChar(100), a.instrument || null)
+            .input('amount', sql.Decimal(18, 2), a.amount)
+            .input('placementDate', sql.Date, a.placementDate || null)
+            .input('dueDate', sql.Date, a.dueDate || null)
+            .input('observation', sql.VarChar(sql.MAX), a.observation || '');
+
+        await request.query(`
+            IF EXISTS (SELECT 1 FROM AvailableFunds WHERE id = @id)
+                UPDATE AvailableFunds SET 
+                    location = @location, 
+                    classification = @classification, 
+                    instrument = @instrument, 
+                    amount = @amount, 
+                    placementDate = @placementDate, 
+                    dueDate = @dueDate, 
+                    observation = @observation 
+                WHERE id = @id
+            ELSE
+                INSERT INTO AvailableFunds (id, location, classification, instrument, amount, placementDate, dueDate, observation) 
+                VALUES (@id, @location, @classification, @instrument, @amount, @placementDate, @dueDate, @observation)
+        `);
+        res.json({ success: true });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.delete('/api/availables/:id', async (req, res) => {
+    try {
+        const pool = await getDbPool();
+        await pool.request()
+            .input('id', sql.VarChar(50), req.params.id)
+            .query('DELETE FROM AvailableFunds WHERE id = @id');
         res.json({ success: true });
     } catch (err) {
         res.status(500).json({ error: err.message });
