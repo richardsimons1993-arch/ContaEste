@@ -350,14 +350,14 @@ main {
 /* Tarjetas de Resumen del Dashboard */
 .stats-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-    gap: 1.5rem;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 1rem;
     margin-bottom: 2.5rem;
 }
 
 .stat-card {
     background-color: var(--card-bg);
-    padding: 1.75rem;
+    padding: 1.25rem;
     border-radius: var(--radius);
     border: 1px solid var(--border-color);
     box-shadow: var(--shadow);
@@ -651,6 +651,16 @@ textarea:focus {
     color: var(--danger-color);
 }
 
+.tag.pending {
+    background-color: rgba(245, 158, 11, 0.1);
+    color: #f59e0b; /* Amber */
+}
+
+.tag.danger {
+    background-color: rgba(220, 38, 38, 0.1);
+    color: #dc2626; /* Darker Red */
+}
+
 /* Status Badges para Proyectos */
 .status-badge {
     padding: 6px 12px;
@@ -706,9 +716,14 @@ textarea:focus {
 }
 
 .status-Ejecución {
-    background: linear-gradient(135deg, #fff7ed 0%, #ffedd5 100%);
-    color: #9a3412;
-    border: 1px solid #fdba74;
+    background: #e0f2f1;
+    color: #00695c;
+}
+
+.status-Finalizado {
+    background: #f5f5f5;
+    color: #616161;
+    border: 1px solid #e0e0e0;
 }
 
 /* Rediseño Horizontal de Evolución */
@@ -1108,6 +1123,72 @@ body:not(.login-pending) .login-overlay {
 .activity-details {
     font-size: 0.9rem;
     color: var(--text-main);
+}
+
+
+/* ==========================================================================
+   Modales y Overlays
+   ========================================================================== */
+
+.modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(4px);
+    display: none; /* Controlado por JS (flex) */
+    justify-content: center;
+    align-items: center;
+    z-index: 2000;
+    padding: 1.5rem;
+    animation: fadeIn 0.2s ease;
+}
+
+.modal-card {
+    background-color: var(--card-bg);
+    width: 100%;
+    max-width: 550px;
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-lg);
+    border: 1px solid var(--border-color);
+    display: flex;
+    flex-direction: column;
+    max-height: 90vh;
+    animation: modalScale 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes modalScale {
+    from { transform: scale(0.9); opacity: 0; }
+    to { transform: scale(1); opacity: 1; }
+}
+
+.modal-header {
+    padding: 1.25rem 1.5rem;
+    border-bottom: 1px solid var(--border-color);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.modal-header h3 {
+    margin: 0;
+    font-size: 1.25rem;
+    color: var(--primary-color);
+}
+
+.modal-body {
+    padding: 1.5rem;
+    overflow-y: auto;
+}
+
+.modal-footer {
+    padding: 1.25rem 1.5rem;
+    border-top: 1px solid var(--border-color);
+    display: flex;
+    justify-content: flex-end;
+    gap: 1rem;
 }
 
 /* ==========================================================================

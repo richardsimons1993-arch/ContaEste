@@ -7,8 +7,8 @@ const config = {
 async function verifyDb() {
     try {
         let pool = await sql.connect(config);
-        const result = await pool.request().query('SELECT TOP 10 * FROM Transactions ORDER BY date DESC');
-        console.log('Last 10 transactions:');
+        const result = await pool.request().query("SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_TYPE = 'BASE TABLE'");
+        console.log('Tables in database:');
         console.table(result.recordset);
         await pool.close();
     } catch (err) {

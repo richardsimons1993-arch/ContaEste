@@ -172,6 +172,92 @@ app.post('/api/transactions', async (req, res) => {
     }
 });
 
+// --- ENDPOINTS PARA PROJECTS ---
+app.get('/api/projects', (req, res) => getApi(req, res, 'Projects'));
+app.delete('/api/projects/:id', (req, res) => deleteApi(req, res, 'Projects'));
+
+// --- ENDPOINTS PARA INVENTORY (INVENTARIO) ---
+app.get('/api/inventory', (req, res) => getApi(req, res, 'Inventory'));
+app.delete('/api/inventory/:id', (req, res) => deleteApi(req, res, 'Inventory'));
+app.post('/api/inventory', async (req, res) => {
+    try {
+        const i = req.body;
+        const pool = await getDbPool();
+        const check = await pool.request().input('id', sql.VarChar(50), i.id).query('SELECT id FROM Inventory WHERE id = @id');
+
+        if (check.recordset.length > 0) {
+            await pool.request()
+                .input('id', sql.VarChar(50), i.id)
+                .input('product', sql.VarChar(255), i.product)
+                .input('quantity', sql.Decimal(18, 2), i.quantity)
+                .input('unitPrice', sql.Decimal(18, 2), i.unitPrice)
+                .input('location', sql.VarChar(100), i.location)
+                .query(`UPDATE Inventory SET product=@product, quantity=@quantity, unitPrice=@unitPrice, location=@location WHERE id=@id`);
+        } else {
+            await pool.request()
+                .input('id', sql.VarChar(50), i.id)
+                .input('product', sql.VarChar(255), i.product)
+                .input('quantity', sql.Decimal(18, 2), i.quantity)
+                .input('unitPrice', sql.Decimal(18, 2), i.unitPrice)
+                .input('location', sql.VarChar(100), i.location)
+                .query(`INSERT INTO Inventory (id, product, quantity, unitPrice, location) VALUES (@id, @product, @quantity, @unitPrice, @location)`);
+        }
+        res.json(i);
+    } catch (err) {
+        console.error('Error in POST /api/inventory:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// --- ENDPOINTS PARA UBICACIONES (Globales) ---
+app.get('/api/app-locations', (req, res) => getApi(req, res, 'AppLocations'));
+app.delete('/api/app-locations/:id', (req, res) => deleteApi(req, res, 'AppLocations'));
+app.post('/api/app-locations', async (req, res) => {
+    try {
+        const l = req.body;
+        const pool = await getDbPool();
+        const check = await pool.request().input('id', sql.VarChar(50), l.id).query('SELECT id FROM AppLocations WHERE id = @id');
+        if (check.recordset.length > 0) {
+            await pool.request()
+                .input('id', sql.VarChar(50), l.id)
+                .input('name', sql.VarChar(255), l.name)
+                .query(`UPDATE AppLocations SET name=@name WHERE id=@id`);
+        } else {
+            await pool.request()
+                .input('id', sql.VarChar(50), l.id)
+                .input('name', sql.VarChar(255), l.name)
+                .query(`INSERT INTO AppLocations (id, name) VALUES (@id, @name)`);
+        }
+        res.json(l);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// --- ENDPOINTS PARA INVENTORY HISTORY ---
+app.get('/api/inventory/history', (req, res) => getApi(req, res, 'InventoryHistory ORDER BY timestamp DESC'));
+app.post('/api/inventory/history', async (req, res) => {
+    try {
+        const h = req.body;
+        const pool = await getDbPool();
+        await pool.request()
+            .input('id', sql.VarChar(50), h.id || Date.now().toString())
+            .input('productId', sql.VarChar(50), h.productId)
+            .input('productName', sql.VarChar(255), h.productName)
+            .input('type', sql.VarChar(50), h.type)
+            .input('origin', sql.VarChar(255), h.origin || null)
+            .input('destination', sql.VarChar(255), h.destination || null)
+            .input('quantityChange', sql.Decimal(18, 2), h.quantityChange || 0)
+            .input('userId', sql.VarChar(50), h.userId || null)
+            .input('userName', sql.VarChar(100), h.userName || null)
+            .query(`INSERT INTO InventoryHistory (id, productId, productName, type, origin, destination, quantityChange, userId, userName) 
+                    VALUES (@id, @productId, @productName, @type, @origin, @destination, @quantityChange, @userId, @userName)`);
+        res.json({ success: true });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 // --- ENDPOINTS PARA CONCEPTS ---
 app.get('/api/concepts', (req, res) => getApi(req, res, 'Concepts'));
 app.delete('/api/concepts/:id', (req, res) => deleteApi(req, res, 'Concepts'));
@@ -412,7 +498,8 @@ app.post('/api/debtors', async (req, res) => {
                 .input('dueDate', sql.Date, dueDate)
                 .input('description', sql.VarChar(sql.MAX), d.description || '')
                 .input('status', sql.VarChar(50), d.status || 'pending')
-                .query(`UPDATE Debtors SET debtor=@debtor, amount=@amount, dueDate=@dueDate, description=@description, status=@status WHERE id=@id`);
+                .input('clientId', sql.VarChar(50), d.clientId || null)
+                .query(`UPDATE Debtors SET debtor=@debtor, amount=@amount, dueDate=@dueDate, description=@description, status=@status, clientId=@clientId WHERE id=@id`);
         } else {
             await pool.request()
                 .input('id', sql.VarChar(50), d.id)
@@ -421,7 +508,8 @@ app.post('/api/debtors', async (req, res) => {
                 .input('dueDate', sql.Date, dueDate)
                 .input('description', sql.VarChar(sql.MAX), d.description || '')
                 .input('status', sql.VarChar(50), d.status || 'pending')
-                .query(`INSERT INTO Debtors (id, debtor, amount, dueDate, description, status) VALUES (@id, @debtor, @amount, @dueDate, @description, @status)`);
+                .input('clientId', sql.VarChar(50), d.clientId || null)
+                .query(`INSERT INTO Debtors (id, debtor, amount, dueDate, description, status, clientId) VALUES (@id, @debtor, @amount, @dueDate, @description, @status, @clientId)`);
         }
         res.json(d);
     } catch (err) {
@@ -443,7 +531,7 @@ app.post('/api/debtors/:id/pay', async (req, res) => {
             // 1. Obtener la deuda específica
             const debtorRes = await transaction.request()
                 .input('id', sql.VarChar, debtorId)
-                .query(`SELECT debtor, amount, description FROM Debtors WHERE id = @id`);
+                .query(`SELECT debtor, amount, description, clientId FROM Debtors WHERE id = @id`);
 
             if (debtorRes.recordset.length === 0) {
                 await transaction.rollback();
@@ -451,24 +539,7 @@ app.post('/api/debtors/:id/pay', async (req, res) => {
             }
 
             const debtor = debtorRes.recordset[0];
-
-            // 1b. Intentar obtener clientId desde ContractHistory
-            const chRes = await transaction.request()
-                .input('debtorId', sql.VarChar, debtorId)
-                .query(`SELECT clientId FROM ContractHistory WHERE debtorId = @debtorId`);
-
-            let clientIdToUse = null;
-            if (chRes.recordset.length > 0 && chRes.recordset[0].clientId) {
-                clientIdToUse = chRes.recordset[0].clientId;
-            } else {
-                // Si no fue autogenerado por contrato, intentamos buscar por nombre exacto
-                const clRes = await transaction.request()
-                    .input('name', sql.VarChar, debtor.debtor)
-                    .query(`SELECT id FROM Clients WHERE name = @name`);
-                if (clRes.recordset.length > 0) {
-                    clientIdToUse = clRes.recordset[0].id;
-                }
-            }
+            const clientIdToUse = debtor.clientId; // Siempre van a ser clientes registrados según clarif. usuario
 
             // 2. Crear movimiento en Transactions
             const moveId = 'T' + Date.now().toString() + Math.floor(Math.random() * 1000);

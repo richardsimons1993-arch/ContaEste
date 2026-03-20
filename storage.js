@@ -248,6 +248,20 @@ const Storage = {
         return this.getProjects();
     },
 
+    getInventory() {
+        return syncRequest('GET', '/inventory') || [];
+    },
+
+    saveInventory(item) {
+        syncRequest('POST', '/inventory', item);
+        return this.getInventory();
+    },
+
+    deleteInventory(id) {
+        syncRequest('DELETE', `/inventory/${id}`);
+        return this.getInventory();
+    },
+
     getProjectHistory(id) {
         return syncRequest('GET', `/projects/${id}/history`) || [];
     },
@@ -296,10 +310,21 @@ const Storage = {
         getProjects: () => asyncRequest('GET', '/projects'),
         saveProject: (p) => asyncRequest('POST', '/projects', p),
         deleteProject: (id) => asyncRequest('DELETE', `/projects/${id}`),
-        getProjectHistory: (id) => asyncRequest('GET', `/projects/${id}/history`),
+        getProjectHistory: (id) => asyncRequest('GET', `/projects/${id}/history`), // Bitácora de proyectos
         addProjectHistory: (id, h) => asyncRequest('POST', `/projects/${id}/history`, h),
         deleteProjectHistory: (id) => asyncRequest('DELETE', `/projects/history/${id}`),
         updateProjectHistory: (id, data) => asyncRequest('PUT', `/projects/history/${id}`, data),
+
+        getInventory: () => asyncRequest('GET', '/inventory'),
+        saveInventory: (i) => asyncRequest('POST', '/inventory', i),
+        deleteInventory: (id) => asyncRequest('DELETE', `/inventory/${id}`),
+
+        // --- Endpoints de Ubicaciones ---
+        getAppLocations: () => asyncRequest('GET', '/app-locations'),
+        saveAppLocation: (l) => asyncRequest('POST', '/app-locations', l),
+        deleteAppLocation: (id) => asyncRequest('DELETE', `/app-locations/${id}`),
+        getInventoryHistory: () => asyncRequest('GET', '/inventory/history'),
+        saveInventoryHistory: (h) => asyncRequest('POST', '/inventory/history', h),
 
         getConcepts: () => asyncRequest('GET', '/concepts'),
         getClients: () => asyncRequest('GET', '/clients'),

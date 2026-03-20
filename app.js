@@ -15,7 +15,9 @@ const rawState = {
     lastDeleted: null,
     projects: [],
     invoicedContractsCurrent: [],
-    availables: []
+    availables: [],
+    inventory: [],
+    locations: []
 };
 
 // --- Store Reactivo ---
@@ -38,6 +40,8 @@ const Store = new Proxy(rawState, {
             'users': () => UI.renderUsers(),
             'projects': () => UI.renderProjects(),
             'availables': () => UI.renderAvailables(),
+            'inventory': () => UI.renderInventory(),
+            'locations': () => UI.renderLocations(),
             'currentView': (val) => UI.switchView(val)
         };
 
@@ -162,6 +166,8 @@ const UI = {
             this.populateProjectClientSelect();
             this.renderProjects();
             this.renderAvailables();
+            this.renderInventory();
+            this.renderLocations();
 
             // Establecer fecha por defecto a hoy (Hacerlo ANTES de Flatpickr)
             const dateInput = document.getElementById('date');
@@ -181,6 +187,7 @@ const UI = {
                 this.applyPrivileges();
                 this.switchView(state.currentView);
             }
+            console.log("✅ UI.init() completado con éxito");
         } catch (error) {
             console.error("Error en UI.init: " + error.message);
         }
@@ -256,7 +263,9 @@ const UI = {
                 window.StorageAPI.async.getSuppliers(),
                 window.StorageAPI.async.getProjects(),
                 window.StorageAPI.async.getUsers(),
-                window.StorageAPI.async.getAvailables()
+                window.StorageAPI.async.getAvailables(),
+                window.StorageAPI.async.getInventory(),
+                window.StorageAPI.async.getAppLocations()
             ]);
 
             // Verificar si alguna falló y reportar
@@ -300,7 +309,29 @@ const UI = {
             assign('projects', getData(10));
             assign('users', getData(11));
             assign('availables', (getData(12)).map(a => ({ ...a, placementDate: cleanDate(a.placementDate), dueDate: cleanDate(a.dueDate) })));
+            assign('inventory', getData(13));
+            assign('locations', getData(14));
 
+            // Actualización dinámica de permisos sin re-logueo
+            try {
+                if (state.currentUser && state.users) {
+                    const updatedUser = state.users.find(u => u.id === state.currentUser.id);
+                    if (updatedUser) {
+                        const newModules = typeof updatedUser.modules === 'string' ? JSON.parse(updatedUser.modules) : updatedUser.modules;
+                        if (JSON.stringify(newModules) !== JSON.stringify(state.currentUser.modules)) {
+                            console.log("Detectado cambio en permisos, actualizando módulos...");
+                            state.currentUser = { ...state.currentUser, modules: newModules };
+                            // Persistir en localStorage
+                            const savedSession = JSON.parse(localStorage.getItem('contabilidad_session') || '{}');
+                            savedSession.modules = newModules;
+                            localStorage.setItem('contabilidad_session', JSON.stringify(savedSession));
+                            this.applyModuleAccess();
+                        }
+                    }
+                }
+            } catch (e) {
+                console.error("Error al actualizar permisos dinámicos:", e);
+            }
             
             console.log('✅ Sincronización completada');
             try {
@@ -454,22 +485,10 @@ const UI = {
             UI.switchView('alerts');
         });
 
-        // --- NEW PROJECT DATE MODAL LISTENER ---
+        // --- PROJECT DATE MODAL LISTENER ---
         const btnSaveProjectDate = document.getElementById('btn-save-project-date');
         if (btnSaveProjectDate) {
-            btnSaveProjectDate.addEventListener('click', () => {
-                const id = document.getElementById('date-modal-project-id').value;
-                const status = document.getElementById('date-modal-new-status').value;
-                const date = document.getElementById('date-modal-value').value;
-                const note = document.getElementById('date-modal-note').value;
-
-                if (!date && status === 'Ejecución') {
-                    this.showToast('La fecha es obligatoria para este estado', 'error');
-                    return;
-                }
-
-                this.updateProjectStatus(id, status, date, note);
-            });
+            btnSaveProjectDate.addEventListener('click', () => this.handleProjectDateUpdate());
         }
 
         const alertTabBtns = document.querySelectorAll('.alert-tab-btn');
@@ -485,9 +504,10 @@ const UI = {
                 document.getElementById(targetTab).style.display = 'block';
                 e.target.classList.add('active');
                 e.target.style.fontWeight = 'bold';
-                e.target.style.borderBottom = '2px solid var(--primary-color)';
+                btn.style.borderBottom = '2px solid var(--primary-color)';
             });
         });
+
 
         // Exportar Deudas
         const btnExportDebtExcel = document.getElementById('btn-export-debts-excel');
@@ -632,6 +652,49 @@ const UI = {
         if (cancelAvailableEditBtn) {
             cancelAvailableEditBtn.addEventListener('click', () => this.resetAvailableForm());
         }
+
+        // --- INVENTARIO ---
+        const inventoryForm = document.getElementById('inventory-form');
+        if (inventoryForm) inventoryForm.addEventListener('submit', (e) => this.handleInventorySubmit(e));
+
+        const btnAddMaterial = document.getElementById('btn-add-material');
+        if (btnAddMaterial) btnAddMaterial.addEventListener('click', () => this.handleAddMaterial());
+
+        const inventorySearch = document.getElementById('inventory-search');
+        if (inventorySearch) inventorySearch.addEventListener('input', () => this.renderInventory());
+
+        const btnExportInvExcel = document.getElementById('btn-export-inventory-excel');
+        if (btnExportInvExcel) btnExportInvExcel.addEventListener('click', () => this.exportInventoryToExcel());
+
+        const btnExportInvPdf = document.getElementById('btn-export-inventory-pdf');
+        if (btnExportInvPdf) btnExportInvPdf.addEventListener('click', () => this.exportInventoryToPDF());
+
+        // Nuevos eventos
+        const btnGlobalLocations = document.getElementById('btn-global-locations');
+        if (btnGlobalLocations) btnGlobalLocations.addEventListener('click', () => this.openLocationManager());
+
+        const addLocationForm = document.getElementById('add-location-form');
+        if (addLocationForm) addLocationForm.addEventListener('submit', (e) => this.handleLocationSubmit(e));
+
+        const inventoryTabs = document.querySelectorAll('.inventory-tab-btn');
+        inventoryTabs.forEach(btn => {
+            btn.addEventListener('click', () => {
+                inventoryTabs.forEach(b => {
+                    b.classList.remove('active');
+                    b.style.fontWeight = 'normal';
+                    b.style.borderBottom = 'none';
+                });
+                btn.classList.add('active');
+                btn.style.fontWeight = 'bold';
+                btn.style.borderBottom = '2px solid var(--primary-color)';
+
+                const tabId = btn.getAttribute('data-tab');
+                document.querySelectorAll('.inventory-tab-content').forEach(c => c.style.display = 'none');
+                document.getElementById(tabId).style.display = 'block';
+
+                if (tabId === 'inventory-history-tab') this.renderInventoryHistory();
+            });
+        });
 
 
         // --- FORMATEO DE MONTOS EN TIEMPO REAL ---
@@ -987,10 +1050,13 @@ const UI = {
 
     // --- MODALES ---
     openModal(id) {
+        console.log(`Abriendo modal: ${id}`);
         const modal = document.getElementById(id);
         if (modal) {
             modal.style.display = 'flex';
             document.body.style.overflow = 'hidden';
+        } else {
+            console.error(`Modal no encontrado: ${id}`);
         }
     },
 
@@ -1032,6 +1098,7 @@ const UI = {
             'available-funds': 'finanzas',
             'projects': 'ventas',
             'contracts': 'ventas',
+            'inventory': 'inventario',
             'activity': 'finanzas',
             'users': 'usuarios'
         };
@@ -1172,6 +1239,12 @@ const UI = {
         state.availables.forEach(a => {
             totalAvailableFunds += parseFloat(a.amount || 0);
         });
+        
+        // Activo Circulante (Total Inventario)
+        let totalInventoryValue = 0;
+        state.inventory.forEach(i => {
+            totalInventoryValue += (parseFloat(i.quantity) || 0) * (parseFloat(i.unitPrice) || 0);
+        });
 
         const totalBalance = totalIncome - totalExpense + totalAvailableFunds;
 
@@ -1187,6 +1260,10 @@ const UI = {
         // Actualizar Activo Disponible en el Dashboard (si el elemento existe)
         const elAvailable = document.getElementById('dashboard-available-funds');
         if (elAvailable) elAvailable.textContent = formatCurrency(totalAvailableFunds);
+
+        // Actualizar Activo Circulante
+        const elInventory = document.getElementById('dashboard-inventory-value');
+        if (elInventory) elInventory.textContent = formatCurrency(totalInventoryValue);
 
 
         // Actualizar Año en la UI
@@ -1623,8 +1700,8 @@ const UI = {
         state.clients.forEach(c => {
             const tr = document.createElement('tr');
             tr.innerHTML = `
-                <td>${c.nombreFantasia || '---'}</td>
                 <td>${c.razonSocial || '---'}</td>
+                <td>${c.nombreFantasia || '---'}</td>
                 <td>${c.rut || '---'}</td>
                 <td>${c.encargado || '---'}</td>
                 <td>${c.telefono || '---'}</td>
@@ -2105,9 +2182,13 @@ const UI = {
         const formData = new FormData(e.target);
         const id = formData.get('id');
 
+        const clientId = formData.get('titular');
+        const client = state.clients.find(c => c.id === clientId);
+
         const debtor = {
             id: id || Date.now().toString(),
-            titular: formData.get('titular'),
+            titular: client ? (client.nombreFantasia || client.razonSocial || client.name) : 'Desconocido',
+            clientId: clientId,
             amount: parseAmount(formData.get('amount')),
             date: formData.get('date'),
             description: formData.get('description')
@@ -2129,7 +2210,7 @@ const UI = {
         const debtor = state.debtors.find(d => d.id === id);
         if (!debtor) return;
 
-        this.populateDebtorClientSelect(debtor.titular);
+        this.populateDebtorClientSelect(debtor.clientId);
 
         const form = document.getElementById('add-debtor-form');
         document.getElementById('debtor-id').value = debtor.id;
@@ -2162,18 +2243,18 @@ const UI = {
         this.populateDebtorClientSelect();
     },
 
-    populateDebtorClientSelect(selectedName) {
+    populateDebtorClientSelect(selectedId) { // Changed parameter name to selectedId
         const sel = document.getElementById('debtor-client-select');
         if (!sel) return;
         sel.innerHTML = '<option value="">Seleccionar Cliente</option>';
         state.clients.forEach(c => {
             const fantasyName = this.getClientName(c.id);
             const opt = document.createElement('option');
-            opt.value = fantasyName;
+            opt.value = c.id; // Changed to c.id
             opt.textContent = fantasyName;
             
-            // Si el nombre seleccionado coincide con cualquiera de los nombres del cliente, marcar como seleccionado
-            if (selectedName && (selectedName === fantasyName || selectedName === c.razonSocial || selectedName === c.name)) {
+            // Changed selection logic
+            if (c.id === selectedId) {
                 opt.selected = true;
             }
             
@@ -2215,10 +2296,11 @@ const UI = {
                 }
 
                 const newTx = {
-                    id: Date.now().toString(),
+                    id: 'T' + Date.now().toString(),
                     type: 'income',
                     amount: debtor.amount,
-                    conceptId: 'cobro-deudor', // Concepto harcodeado o buscar uno similar
+                    conceptId: '1', // Concepto fijo "Ventas" (ID 1)
+                    clientId: debtor.clientId,
                     date: new Date().toISOString().split('T')[0],
                     observation: `Cobro a deudor: ${displayName}`
                 };
@@ -3542,7 +3624,12 @@ const UI = {
         const searchText = document.getElementById('project-search')?.value.toLowerCase() || '';
 
         let filtered = state.projects || [];
-        if (statusFilter !== 'all') {
+        
+        // Por defecto, ocultar los finalizados del pipeline principal, 
+        // a menos que se filtre específicamente por ellos.
+        if (statusFilter === 'all') {
+            filtered = filtered.filter(p => p.status !== 'Finalizado');
+        } else {
             filtered = filtered.filter(p => p.status === statusFilter);
         }
         if (searchText) {
@@ -3579,7 +3666,7 @@ const UI = {
                             </button>
                         </div>
                     </div>
-                    <div class="evolution-date">${formatDate(h.changeDate)}</div>
+                    <div class="evolution-date" style="cursor:pointer;" onclick="UI.openProjectDateModal('${h.id}', '${p.id}', '${h.changeDate}', '${h.newStatus}')">${formatDate(h.changeDate)}</div>
                     <div class="evolution-note">${h.note || 'Sin observaciones'}</div>
                 </div>
             `).join('');
@@ -3597,6 +3684,9 @@ const UI = {
                     </div>
                 </td>
                 <td class="actions">
+                    <button class="btn-icon text-success" title="Cerrar Proyecto (Listo)" onclick="UI.closeProject('${p.id}')">
+                         <i class="fa-solid fa-check-circle"></i>
+                    </button>
                     <button class="btn-icon text-primary" title="Actualizar Proyecto (Nueva Fase)" onclick="UI.editProject('${p.id}', true)">
                          <i class="fa-solid fa-arrows-rotate"></i>
                     </button>
@@ -3646,9 +3736,12 @@ const UI = {
                 const oldProject = isNew ? null : state.projects.find(proj => proj.id === project.id);
                 const statusChanged = isNew || (oldProject && oldProject.status !== project.status);
 
+                const isPhaseUpdate = document.getElementById('is-phase-update').value === 'true';
+                const shouldAddHistory = statusChanged || isPhaseUpdate;
+
                 await window.StorageAPI.async.saveProject(project);
 
-                if (statusChanged) {
+                if (shouldAddHistory) {
                     await window.StorageAPI.async.addProjectHistory(project.id, {
                         previousStatus: oldProject ? oldProject.status : null,
                         newStatus: project.status,
@@ -3755,6 +3848,115 @@ const UI = {
 
     },
 
+    async closeProject(id) {
+        if (!confirm('¿Estás seguro de que quieres cerrar este proyecto? Pasará al historial.')) return;
+
+        const p = state.projects.find(proj => proj.id === id);
+        if (!p) return;
+
+        try {
+            const project = { ...p, status: 'Finalizado' };
+            await window.StorageAPI.async.saveProject(project);
+            await window.StorageAPI.async.addProjectHistory(id, {
+                previousStatus: p.status,
+                newStatus: 'Finalizado',
+                note: 'Proyecto Cerrado / Finalizado'
+            });
+
+            state.projects = state.projects.map(proj => proj.id === id ? project : proj);
+            this.showToast('Proyecto cerrado y movido al historial', 'success');
+            this.renderProjects();
+            if (document.getElementById('projects-history-card').style.display === 'block') {
+                this.renderProjectHistory();
+            }
+        } catch (error) {
+            console.error("Error al cerrar proyecto:", error);
+            this.showToast('Error al cerrar proyecto', 'error');
+        }
+    },
+
+    toggleProjectHistoryView() {
+        const card = document.getElementById('projects-history-card');
+        if (card.style.display === 'none') {
+            card.style.display = 'block';
+            this.renderProjectHistory();
+            window.scrollTo({ top: card.offsetTop - 100, behavior: 'smooth' });
+        } else {
+            card.style.display = 'none';
+        }
+    },
+
+    renderProjectHistory() {
+        const tbody = document.getElementById('projects-history-list-body');
+        if (!tbody) return;
+        tbody.innerHTML = '';
+
+        const finished = (state.projects || []).filter(p => p.status === 'Finalizado');
+        finished.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+
+        if (finished.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="3" class="text-center text-muted">No hay proyectos finalizados aún.</td></tr>';
+            return;
+        }
+
+        finished.forEach(p => {
+            const tr = document.createElement('tr');
+            const clientName = this.getClientName(p.clientId);
+            const history = window.StorageAPI.getProjectHistory(p.id) || [];
+            
+            // Mostrar solo el último hito o un resumen
+            const lastHistory = history[0];
+            const evolutionHtml = lastHistory ? `
+                <div class="history-evolution-card" style="margin: 0;">
+                    <span class="status-badge status-Finalizado" style="padding: 2px 8px; font-size: 0.75rem;">Finalizado</span>
+                    <div class="evolution-date">${formatDate(lastHistory.changeDate)}</div>
+                    <div class="evolution-note">${lastHistory.note || 'Finalizado'}</div>
+                </div>
+            ` : '<span class="text-muted small">Sin historial</span>';
+
+            tr.innerHTML = `
+                <td style="font-weight: 500;">
+                    ${p.projectName || 'Sin nombre'}
+                    <div style="font-size: 0.8rem; color: var(--text-muted); font-weight: 400; margin-top: 2px;">${clientName}</div>
+                </td>
+                <td>${evolutionHtml}</td>
+                <td class="actions">
+                    <button class="btn-icon text-primary" title="Ver Detalle / Historial Completo" onclick="UI.showProjectHistory('${p.id}')">
+                         <i class="fa-solid fa-eye"></i>
+                    </button>
+                    <button class="btn-icon text-warning" title="Re-abrir Proyecto" onclick="UI.reopenProject('${p.id}')">
+                         <i class="fa-solid fa-undo"></i>
+                    </button>
+                </td>
+            `;
+            tbody.appendChild(tr);
+        });
+    },
+
+    async reopenProject(id) {
+        if (!confirm('¿Deseas re-abrir este proyecto? Volverá al pipeline principal.')) return;
+        
+        try {
+            const p = state.projects.find(proj => proj.id === id);
+            if (!p) return;
+
+            const project = { ...p, status: 'Ejecución' }; // Re-abrir en fase Ejecución por defecto
+            await window.StorageAPI.async.saveProject(project);
+            await window.StorageAPI.async.addProjectHistory(id, {
+                previousStatus: 'Finalizado',
+                newStatus: 'Ejecución',
+                note: 'Proyecto re-abierto para ajustes adicionales.'
+            });
+
+            state.projects = state.projects.map(proj => proj.id === id ? project : proj);
+            this.showToast('Proyecto re-abierto', 'info');
+            this.renderProjects();
+            this.renderProjectHistory();
+        } catch (error) {
+            this.showToast('Error al re-abrir proyecto', 'error');
+        }
+    },
+
     async editProjectHistory(historyId, projectId, e) {
         if (e) e.stopPropagation();
         const history = await window.StorageAPI.async.getProjectHistory(projectId);
@@ -3806,6 +4008,7 @@ const UI = {
             <option value="Aprobado">Aprobado</option>
             <option value="Materiales">Materiales</option>
             <option value="Ejecución">Ejecución</option>
+            <option value="Finalizado">Finalizado</option>
         `;
         statusSelect.value = p.status;
 
@@ -3816,12 +4019,13 @@ const UI = {
         form.elements['observations'].value = p.observations || '';
 
         if (quickUpdate) {
-            document.getElementById('project-form-title').textContent = 'Actualización de Estado';
+            document.getElementById('is-phase-update').value = 'true';
+            document.getElementById('project-form-title').textContent = 'Actualización de Estado / Nueva Fase';
             document.querySelector('#add-project-form button[type="submit"]').textContent = 'Confirmar Actualización';
-            // Scroll to form and focus on status
             window.scrollTo({ top: 0, behavior: 'smooth' });
             setTimeout(() => statusSelect.focus(), 500);
         } else {
+            document.getElementById('is-phase-update').value = 'false';
             document.getElementById('project-form-title').textContent = 'Editar Proyecto';
             document.querySelector('#add-project-form button[type="submit"]').textContent = 'Guardar Cambios';
             window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -3859,6 +4063,7 @@ const UI = {
             document.getElementById('project-id').value = '';
             document.getElementById('project-name').value = '';
             document.getElementById('project-history-id').value = '';
+            document.getElementById('is-phase-update').value = 'false';
             document.getElementById('project-form-title').textContent = 'Nueva Solicitud / Proyecto';
             document.querySelector('#add-project-form button[type="submit"]').textContent = 'Guardar Proyecto';
 
@@ -3920,6 +4125,12 @@ const UI = {
                         }
                     }
                     return flatpickr.parseDate(datestr, format) || flatpickr.parseDate(datestr, 'd-m-Y');
+                },
+                onReady: function(selectedDates, dateStr, instance) {
+                    // Asegurar que si hay modal overlay, el calendario esté por encima
+                    if (instance.calendarContainer) {
+                        instance.calendarContainer.style.zIndex = "9999";
+                    }
                 }
             });
 
@@ -3956,6 +4167,130 @@ const UI = {
             }
         } else {
             console.warn("Flatpickr no está cargado.");
+        }
+    },
+
+    // --- GESTIÓN DE UBICACIONES ---
+
+    renderLocations() {
+        const tbody = document.getElementById('locations-list-body');
+        if (!tbody) return;
+        tbody.innerHTML = '';
+
+        state.locations.forEach(l => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td>${l.name}</td>
+                <td class="actions">
+                    <button class="btn-icon" title="Editar" onclick="UI.editLocation('${l.id}')">
+                        <i class="fa-solid fa-pen"></i>
+                    </button>
+                    <button class="btn-icon text-danger" title="Eliminar" onclick="UI.deleteLocation('${l.id}')">
+                        <i class="fa-solid fa-trash"></i>
+                    </button>
+                </td>
+            `;
+            tbody.appendChild(tr);
+        });
+
+        this.updateLocationSelects();
+    },
+
+    updateLocationSelects() {
+        const selects = [
+            document.getElementById('inventory-location-select'),
+            document.getElementById('available-location-select')
+        ];
+
+        selects.forEach(sel => {
+            if (!sel) return;
+            const currentVal = sel.value;
+            sel.innerHTML = '<option value="">Seleccionar Ubicación</option>';
+            state.locations.forEach(l => {
+                const opt = document.createElement('option');
+                opt.value = l.name; // Usamos el nombre como valor para compatibilidad
+                opt.textContent = l.name;
+                sel.appendChild(opt);
+            });
+            if (currentVal) sel.value = currentVal;
+        });
+    },
+
+    openLocationManager() {
+        this.resetLocationForm();
+        this.renderLocations();
+        this.openModal('locations-modal');
+    },
+
+    resetLocationForm() {
+        const form = document.getElementById('add-location-form');
+        if (form) {
+            form.reset();
+            document.getElementById('edit-location-id').value = '';
+            const btn = document.getElementById('btn-save-location');
+            if (btn) btn.innerHTML = '<i class="fa-solid fa-plus"></i>';
+        }
+    },
+
+    async handleLocationSubmit(e) {
+        e.preventDefault();
+        const form = e.target;
+        const formData = new FormData(form);
+        const id = formData.get('id');
+        const name = formData.get('name');
+
+        const location = {
+            id: id || 'L' + Date.now().toString(),
+            name: name
+        };
+
+        this.showLoading(form);
+        try {
+            await window.StorageAPI.async.saveAppLocation(location);
+            // Actualización reactiva inmediata
+            if (id) {
+                state.locations = state.locations.map(l => l.id === id ? location : l);
+            } else {
+                state.locations = [...state.locations, location];
+            }
+            
+            this.showToast(id ? 'Ubicación actualizada' : 'Ubicación creada', 'success');
+            this.resetLocationForm();
+            
+            // Sincronización en segundo plano (opcional pero bueno para consistencia)
+            await this.loadData();
+            // renderLocations se llama automáticamente por el Proxy del Store al cambiar state.locations
+        } catch (err) {
+            console.error(err);
+            this.showToast('Error al guardar ubicación: ' + err.message, 'error');
+        } finally {
+            this.hideLoading(form);
+        }
+    },
+
+    editLocation(id) {
+        const loc = state.locations.find(l => l.id === id);
+        if (!loc) return;
+
+        document.getElementById('edit-location-id').value = loc.id;
+        document.getElementById('location-name').value = loc.name;
+        const btn = document.getElementById('btn-save-location');
+        if (btn) btn.innerHTML = '<i class="fa-solid fa-check"></i>';
+        document.getElementById('location-name').focus();
+    },
+
+    async deleteLocation(id) {
+        if (!confirm('¿Está seguro de eliminar esta ubicación?')) return;
+        try {
+            await window.StorageAPI.async.deleteAppLocation(id);
+            this.showToast('Ubicación eliminada', 'success');
+            // Actualización reactiva inmediata
+            state.locations = state.locations.filter(l => l.id !== id);
+            
+            // Sincronización en segundo plano
+            await this.loadData();
+        } catch (err) {
+            this.showToast('Error al eliminar: ' + err.message, 'error');
         }
     },
 
@@ -4148,6 +4483,302 @@ const UI = {
         
         this.updateAvailableFields();
         window.scrollTo({ top: 0, behavior: 'smooth' });
+    },
+
+    // --- MÓDULO INVENTARIO ---
+
+    renderInventory() {
+        const tbody = document.getElementById('inventory-list-body');
+        if (!tbody) return;
+        tbody.innerHTML = '';
+
+        const searchText = document.getElementById('inventory-search')?.value.toLowerCase() || '';
+        let filtered = state.inventory || [];
+
+        if (searchText) {
+            filtered = filtered.filter(i => i.product.toLowerCase().includes(searchText));
+        }
+
+        let totalInventoryValue = 0;
+
+        filtered.forEach(i => {
+            const tr = document.createElement('tr');
+            const total = (i.quantity || 0) * (i.unitPrice || 0);
+            totalInventoryValue += total;
+
+            tr.innerHTML = `
+                <td>${i.product}</td>
+                <td>${i.quantity}</td>
+                <td>${formatCurrency(i.unitPrice)}</td>
+                <td>${i.location}</td>
+                <td style="font-weight: bold;">${formatCurrency(total)}</td>
+                <td class="actions">
+                    <button class="btn-icon" title="Editar" onclick="UI.editInventory('${i.id}')">
+                        <i class="fa-solid fa-pen-to-square"></i>
+                    </button>
+                    <button class="btn-icon text-danger" title="Eliminar" onclick="UI.deleteInventory('${i.id}')">
+                        <i class="fa-solid fa-trash-can"></i>
+                    </button>
+                </td>
+            `;
+            tbody.appendChild(tr);
+        });
+
+        const totalValueEl = document.getElementById('inventory-total-value');
+        if (totalValueEl) {
+            totalValueEl.textContent = formatCurrency(totalInventoryValue);
+        }
+        this.applyPrivileges();
+    },
+
+    async handleInventorySubmit(e) {
+        e.preventDefault();
+        const form = e.target;
+        const formData = new FormData(form);
+        const id = formData.get('id');
+        const isNew = !id;
+        const finalId = id || 'INV' + Date.now().toString();
+
+        const newItem = {
+            id: finalId,
+            product: formData.get('product'),
+            quantity: parseFloat(formData.get('quantity')) || 0,
+            unitPrice: parseAmount(formData.get('unitPrice')),
+            location: formData.get('location')
+        };
+
+        const oldItem = !isNew ? state.inventory.find(i => i.id === id) : null;
+
+        this.showLoading(form);
+        try {
+            await window.StorageAPI.async.saveInventory(newItem);
+            
+            // Lógica de Historial
+            if (isNew) {
+                await this.logMovement(newItem, 'Entrada', newItem.quantity, null, newItem.location);
+            } else if (oldItem) {
+                // Cambio de cantidad
+                if (oldItem.quantity !== newItem.quantity) {
+                    const diff = newItem.quantity - oldItem.quantity;
+                    const type = diff > 0 ? 'Entrada' : 'Salida';
+                    await this.logMovement(newItem, type, diff, oldItem.location, newItem.location);
+                }
+                // Traslado (si cambió ubicación pero no cantidad, o ambos)
+                if (oldItem.location !== newItem.location && oldItem.quantity === newItem.quantity) {
+                    await this.logMovement(newItem, 'Traslado', 0, oldItem.location, newItem.location);
+                }
+            }
+
+            this.showToast(isNew ? 'Material agregado' : 'Material actualizado', 'success');
+            this.closeModal('inventory-modal');
+            await this.loadData();
+            this.renderInventory();
+        } catch (err) {
+            console.error(err);
+            this.showToast('Error al guardar material: ' + err.message, 'error');
+        } finally {
+            this.hideLoading(form);
+        }
+    },
+
+    async deleteInventory(id) {
+        if (!confirm('¿Está seguro de eliminar este registro de inventario?')) return;
+        const item = state.inventory.find(i => i.id === id);
+        try {
+            if (item) {
+                await this.logMovement(item, 'Baja', -item.quantity, item.location, null);
+            }
+            await window.StorageAPI.async.deleteInventory(id);
+            this.showToast('Registro eliminado', 'success');
+            await this.loadData();
+            this.renderInventory();
+        } catch (err) {
+            this.showToast('Error al eliminar: ' + err.message, 'error');
+        }
+    },
+
+    editInventory(id) {
+        const item = state.inventory.find(i => i.id === id);
+        if (!item) return;
+
+        const form = document.getElementById('inventory-form');
+        form.elements['id'].value = item.id;
+        form.elements['product'].value = item.product;
+        form.elements['quantity'].value = item.quantity;
+        form.elements['unitPrice'].value = item.unitPrice.toLocaleString('es-CL');
+        form.elements['location'].value = item.location;
+
+        document.getElementById('inventory-modal-title').textContent = 'Editar Material';
+        this.openModal('inventory-modal');
+    },
+
+    resetInventoryForm() {
+        const form = document.getElementById('inventory-form');
+        if (form) {
+            form.reset();
+            const idEl = document.getElementById('inventory-id');
+            const titleEl = document.getElementById('inventory-modal-title');
+            if (idEl) idEl.value = '';
+            if (titleEl) titleEl.textContent = 'Agregar Material';
+        }
+    },
+
+    async logMovement(item, type, quantityChange, origin, destination) {
+        const historyEntry = {
+            id: 'H' + Date.now().toString() + Math.round(Math.random() * 1000),
+            productId: item.id,
+            productName: item.product,
+            type: type, // 'Entrada', 'Salida', 'Traslado', 'Baja'
+            origin: origin || '-',
+            destination: destination || '-',
+            quantityChange: quantityChange,
+            userId: state.currentUser?.id || 'sys',
+            userName: state.currentUser?.name || 'Sistema'
+        };
+        try {
+            await window.StorageAPI.async.saveInventoryHistory(historyEntry);
+        } catch (err) {
+            console.error("Error al registrar movimiento de inventario:", err);
+        }
+    },
+
+    async renderInventoryHistory() {
+        const tbody = document.getElementById('inventory-history-body');
+        if (!tbody) return;
+        tbody.innerHTML = '<tr><td colspan="6" style="text-align: center;">Cargando historial...</td></tr>';
+
+        try {
+            const history = await window.StorageAPI.async.getInventoryHistory();
+            tbody.innerHTML = '';
+            
+            if (!history || history.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="6" style="text-align: center;">No hay movimientos registrados en el historial de inventario.</td></tr>';
+                return;
+            }
+
+            // Ordenar por fecha descendente (más reciente arriba)
+            const sortedByDate = [...history].sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+
+            sortedByDate.forEach(h => {
+                const tr = document.createElement('tr');
+                const dateStr = h.timestamp ? formatDate(h.timestamp) : 'Sin fecha';
+                const colorClass = h.quantityChange > 0 ? 'text-success' : (h.quantityChange < 0 ? 'text-danger' : '');
+                const prefix = h.quantityChange > 0 ? '+' : '';
+
+                tr.innerHTML = `
+                    <td>${dateStr}</td>
+                    <td style="font-weight: 500;">${h.productName || 'Producto desconocido'}</td>
+                    <td><span class="status-badge status-${h.type.toLowerCase().replace(/\s+/g, '-')}">${h.type}</span></td>
+                    <td style="font-size: 0.85rem;">${h.origin} ➔ ${h.destination}</td>
+                    <td style="font-weight: bold;" class="${colorClass}">${prefix}${h.quantityChange}</td>
+                    <td>${h.userName || 'Sistema'}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+        } catch (err) {
+            console.error("Error al renderizar historial de inventario:", err);
+            tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: var(--danger-color);">Error al cargar historial: ' + err.message + '</td></tr>';
+        }
+    },
+
+    handleAddMaterial() {
+        try {
+            this.resetInventoryForm();
+            this.openModal('inventory-modal');
+        } catch (err) {
+            console.error("Error en handleAddMaterial:", err);
+        }
+    },
+
+    // --- EXPORTAR INVENTARIO ---
+
+    exportInventoryToExcel() {
+        if (!window.XLSX) return this.showToast('Librería Excel no disponible', 'error');
+        const inventory = state.inventory || [];
+        if (inventory.length === 0) return this.showToast('No hay materiales para exportar', 'warning');
+
+        const exportData = inventory.map(i => ({
+            Producto: i.product,
+            Cantidad: i.quantity,
+            'Precio Unitario CLP': i.unitPrice,
+            Ubicación: i.location,
+            'Total CLP': (i.quantity || 0) * (i.unitPrice || 0)
+        }));
+
+        const wb = XLSX.utils.book_new();
+        const ws = XLSX.utils.json_to_sheet(exportData);
+        
+        // Ajustar anchos de columna
+        ws['!cols'] = [{ wch: 30 }, { wch: 10 }, { wch: 15 }, { wch: 20 }, { wch: 15 }];
+
+        XLSX.utils.book_append_sheet(wb, ws, "Inventario");
+        XLSX.writeFile(wb, "Inventario_Materiales.xlsx");
+        this.showToast('Inventario exportado a Excel', 'success');
+    },
+
+    exportInventoryToPDF() {
+        if (!window.jspdf) return this.showToast('Librería PDF no disponible', 'error');
+        const inventory = state.inventory || [];
+        if (inventory.length === 0) return this.showToast('No hay materiales para exportar', 'warning');
+
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF();
+
+        doc.setFontSize(18);
+        doc.text("Inventario de Materiales", 14, 22);
+        doc.setFontSize(11);
+        doc.text(`Fecha de reporte: ${formatDate(new Date().toISOString())}`, 14, 30);
+
+        const tableBody = inventory.map(i => [
+            i.product,
+            i.quantity,
+            formatCurrency(i.unitPrice),
+            i.location,
+            formatCurrency((i.quantity || 0) * (i.unitPrice || 0))
+        ]);
+
+        doc.autoTable({
+            startY: 40,
+            head: [['Producto', 'Cant.', 'Precio Unit.', 'Ubicación', 'Total CLP']],
+            body: tableBody,
+            theme: 'striped',
+            headStyles: { fillColor: [0, 121, 107] }, // Shade of teal/primary
+        });
+
+        doc.save("Inventario_Materiales.pdf");
+        this.showToast('Inventario exportado a PDF', 'success');
+    },
+
+    openProjectDateModal(historyId, projectId, currentDate, status) {
+        document.getElementById('date-modal-project-id').value = projectId;
+        document.getElementById('date-modal-new-status').value = status;
+        document.getElementById('date-modal-value').value = currentDate ? currentDate.split('T')[0] : '';
+        this.openModal('project-date-modal');
+        this.initDatePickers(); // Asegurar Flatpickr
+    },
+
+    async handleProjectDateUpdate() {
+        const projectId = document.getElementById('date-modal-project-id').value;
+        const newDate = document.getElementById('date-modal-value').value;
+        const note = document.getElementById('date-modal-note').value;
+        const status = document.getElementById('date-modal-new-status').value;
+
+        if (!newDate) return this.showToast('La fecha es requerida', 'warning');
+
+        try {
+            await window.StorageAPI.async.addProjectHistory(projectId, {
+                newStatus: status,
+                changeDate: newDate,
+                note: note
+            });
+            this.showToast('Fecha de proyecto actualizada', 'success');
+            this.closeModal('project-date-modal');
+            await this.loadData();
+            this.renderProjects();
+        } catch (err) {
+            console.error(err);
+            this.showToast('Error al actualizar fecha: ' + err.message, 'error');
+        }
     }
 };
 
