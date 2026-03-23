@@ -17,7 +17,8 @@ const rawState = {
     invoicedContractsCurrent: [],
     availables: [],
     inventory: [],
-    locations: []
+    locations: [],
+    selectedYear: new Date().getFullYear()
 };
 
 // --- Store Reactivo ---
@@ -42,7 +43,8 @@ const Store = new Proxy(rawState, {
             'availables': () => UI.renderAvailables(),
             'inventory': () => UI.renderInventory(),
             'locations': () => UI.renderLocations(),
-            'currentView': (val) => UI.switchView(val)
+            'currentView': (val) => UI.switchView(val),
+            'selectedYear': () => UI.renderDashboard()
         };
 
         if (renderMap[property]) {
@@ -182,6 +184,8 @@ const UI = {
             this.initDatePickers(); // Inicializar Flatpickr después de poner el valor
             this.checkPendingContracts(); // Verificar contratos pendientes
 
+            this.populateYearSelector(); // Poblar selector de años
+            
             // Si hay sesión, cargar la UI normal
             if (state.currentUser) {
                 this.applyPrivileges();
@@ -601,6 +605,14 @@ const UI = {
         const themeBtn = document.getElementById('theme-toggle');
         if (themeBtn) {
             themeBtn.addEventListener('click', () => this.toggleTheme());
+        }
+
+        // --- SELECTOR DE AÑO (BALANCE) ---
+        const yearSelector = document.getElementById('year-selector');
+        if (yearSelector) {
+            yearSelector.addEventListener('change', (e) => {
+                state.selectedYear = parseInt(e.target.value);
+            });
         }
 
         // --- GESTIÓN DE USUARIOS ---
@@ -1212,16 +1224,13 @@ const UI = {
         const transactions = state.transactions;
         let income = 0;
         let expense = 0;
-        const now = new Date();
-        const currentMonth = now.getMonth();
-        const currentYear = now.getFullYear();
+        const selectedYear = parseInt(state.selectedYear);
 
         transactions.forEach(t => {
-            // Asegurar que solo tomamos la parte de fecha antes de añadir T00:00:00
             const cleanDate = t.date.split('T')[0];
             const tDate = new Date(cleanDate + 'T00:00:00');
 
-            if (tDate.getMonth() === currentMonth && tDate.getFullYear() === currentYear) {
+            if (tDate.getFullYear() === selectedYear) {
                 if (t.type === 'income') income += parseFloat(t.amount);
                 if (t.type === 'expense') expense += parseFloat(t.amount);
             }
@@ -1265,11 +1274,6 @@ const UI = {
         const elInventory = document.getElementById('dashboard-inventory-value');
         if (elInventory) elInventory.textContent = formatCurrency(totalInventoryValue);
 
-
-        // Actualizar Año en la UI
-        const yearEl = document.getElementById('current-year');
-        if (yearEl) yearEl.textContent = currentYear;
-
         // --- Tabla Resumen Anual ---
         const monthNames = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
 
@@ -1281,17 +1285,17 @@ const UI = {
         transactions.forEach(t => {
             const cleanDate = t.date.split('T')[0];
             const tDate = new Date(cleanDate + 'T00:00:00');
-            if (tDate.getFullYear() < currentYear) {
+            if (tDate.getFullYear() < selectedYear) {
                 if (t.type === 'income') accumulatedBalance += parseFloat(t.amount);
                 if (t.type === 'expense') accumulatedBalance -= parseFloat(t.amount);
             }
         });
 
-        // Agregar datos del año actual
+        // Agregar datos del año seleccionado
         transactions.forEach(t => {
             const cleanDate = t.date.split('T')[0];
             const tDate = new Date(cleanDate + 'T00:00:00');
-            if (tDate.getFullYear() === currentYear) {
+            if (tDate.getFullYear() === selectedYear) {
                 const m = tDate.getMonth(); // 0-11
                 if (t.type === 'income') yearData[m].income += parseFloat(t.amount);
                 if (t.type === 'expense') yearData[m].expense += parseFloat(t.amount);
@@ -1588,6 +1592,24 @@ const UI = {
         document.querySelectorAll('.dropdown-menu').forEach(menu => {
             menu.addEventListener('click', (e) => e.stopPropagation());
         });
+    },
+
+    populateYearSelector() {
+        const yearSelector = document.getElementById('year-selector');
+        if (!yearSelector) return;
+
+        const currentYear = new Date().getFullYear();
+        const startYear = 2024;
+        const endYear = 2035; // Permitir hasta 2035 como solicitado ("superiores al 2026")
+
+        yearSelector.innerHTML = '';
+        for (let y = startYear; y <= endYear; y++) {
+            const option = document.createElement('option');
+            option.value = y;
+            option.textContent = y;
+            if (y === state.selectedYear) option.selected = true;
+            yearSelector.appendChild(option);
+        }
     },
 
     renderCustomDropdownOptions(type, data, displayField) {
@@ -4178,9 +4200,12 @@ const UI = {
         tbody.innerHTML = '';
 
         state.locations.forEach(l => {
+            console.log(`Rendering location: ${l.name}, type: ${l.type}`);
             const tr = document.createElement('tr');
+            const typeLabel = l.type === 'finance' ? 'Disponible' : 'Inventario';
             tr.innerHTML = `
                 <td>${l.name}</td>
+                <td><span class="badge ${l.type === 'finance' ? 'badge-info' : 'badge-secondary'}">${typeLabel}</span></td>
                 <td class="actions">
                     <button class="btn-icon" title="Editar" onclick="UI.editLocation('${l.id}')">
                         <i class="fa-solid fa-pen"></i>
@@ -4197,23 +4222,32 @@ const UI = {
     },
 
     updateLocationSelects() {
-        const selects = [
-            document.getElementById('inventory-location-select'),
-            document.getElementById('available-location-select')
-        ];
+        const inventorySelect = document.getElementById('inventory-location-select');
+        const availableSelect = document.getElementById('available-location-select');
 
-        selects.forEach(sel => {
-            if (!sel) return;
-            const currentVal = sel.value;
-            sel.innerHTML = '<option value="">Seleccionar Ubicación</option>';
-            state.locations.forEach(l => {
+        if (inventorySelect) {
+            const currentVal = inventorySelect.value;
+            inventorySelect.innerHTML = '<option value="">Seleccionar Ubicación</option>';
+            state.locations.filter(l => l.type !== 'finance').forEach(l => {
                 const opt = document.createElement('option');
-                opt.value = l.name; // Usamos el nombre como valor para compatibilidad
+                opt.value = l.name;
                 opt.textContent = l.name;
-                sel.appendChild(opt);
+                inventorySelect.appendChild(opt);
             });
-            if (currentVal) sel.value = currentVal;
-        });
+            if (currentVal) inventorySelect.value = currentVal;
+        }
+
+        if (availableSelect) {
+            const currentVal = availableSelect.value;
+            availableSelect.innerHTML = '<option value="">Seleccionar Ubicación</option>';
+            state.locations.filter(l => l.type === 'finance').forEach(l => {
+                const opt = document.createElement('option');
+                opt.value = l.name;
+                opt.textContent = l.name;
+                availableSelect.appendChild(opt);
+            });
+            if (currentVal) availableSelect.value = currentVal;
+        }
     },
 
     openLocationManager() {
@@ -4238,11 +4272,15 @@ const UI = {
         const formData = new FormData(form);
         const id = formData.get('id');
         const name = formData.get('name');
+        const type = formData.get('type');
 
         const location = {
             id: id || 'L' + Date.now().toString(),
-            name: name
+            name: name,
+            type: type
         };
+        console.log('DEBUG: Location object being sent:', JSON.stringify(location));
+        console.log('Location object to be saved:', location);
 
         this.showLoading(form);
         try {
@@ -4274,8 +4312,11 @@ const UI = {
 
         document.getElementById('edit-location-id').value = loc.id;
         document.getElementById('location-name').value = loc.name;
+        if (document.getElementById('location-type')) {
+            document.getElementById('location-type').value = loc.type || 'inventory';
+        }
         const btn = document.getElementById('btn-save-location');
-        if (btn) btn.innerHTML = '<i class="fa-solid fa-check"></i>';
+        if (btn) btn.innerHTML = '<i class="fa-solid fa-check"></i> Actualizar';
         document.getElementById('location-name').focus();
     },
 

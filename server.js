@@ -215,18 +215,27 @@ app.delete('/api/app-locations/:id', (req, res) => deleteApi(req, res, 'AppLocat
 app.post('/api/app-locations', async (req, res) => {
     try {
         const l = req.body;
+        console.log('--- [API] POST /api/app-locations RECEIVED DATA: ---');
+        console.log(JSON.stringify(l, null, 2));
+        
         const pool = await getDbPool();
         const check = await pool.request().input('id', sql.VarChar(50), l.id).query('SELECT id FROM AppLocations WHERE id = @id');
+        
+        const typeToSave = l.type || 'inventory';
+        console.log(`--- [API] Saving location ${l.name} with type: ${typeToSave}`);
+
         if (check.recordset.length > 0) {
             await pool.request()
                 .input('id', sql.VarChar(50), l.id)
                 .input('name', sql.VarChar(255), l.name)
-                .query(`UPDATE AppLocations SET name=@name WHERE id=@id`);
+                .input('type', sql.VarChar(50), typeToSave)
+                .query(`UPDATE AppLocations SET name=@name, type=@type WHERE id=@id`);
         } else {
             await pool.request()
                 .input('id', sql.VarChar(50), l.id)
                 .input('name', sql.VarChar(255), l.name)
-                .query(`INSERT INTO AppLocations (id, name) VALUES (@id, @name)`);
+                .input('type', sql.VarChar(50), typeToSave)
+                .query(`INSERT INTO AppLocations (id, name, type) VALUES (@id, @name, @type)`);
         }
         res.json(l);
     } catch (err) {

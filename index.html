@@ -188,11 +188,11 @@
                         <p class="amount" id="total-balance">$0.00</p>
                     </div>
                     <div class="stat-card income">
-                        <h3>Ingresos del Mes</h3>
+                        <h3>Ingresos del Año</h3>
                         <p class="amount" id="month-income">$0.00</p>
                     </div>
                     <div class="stat-card expense">
-                        <h3>Gastos del Mes</h3>
+                        <h3>Gastos del Año</h3>
                         <p class="amount" id="month-expense">$0.00</p>
                     </div>
                     <div class="stat-card">
@@ -209,7 +209,7 @@
                 <div class="card mt-4">
                     <div
                         style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem; margin-bottom: 1rem;">
-                        <h3 style="margin: 0;">Resumen Anual (<span id="current-year"></span>)</h3>
+                        <h3 style="margin: 0;">Resumen Anual (<select id="year-selector" class="form-control" style="width: auto; display: inline-block; padding: 2px 8px; height: auto; font-size: inherit; font-weight: inherit; border: 1px solid var(--border-color); border-radius: 4px; background: var(--bg-card); color: var(--text-color);"></select>)</h3>
                         <div class="actions" style="display: flex; gap: 0.5rem;">
                             <button class="btn-sm btn-outline-success" id="btn-export-balance-excel"
                                 title="Exportar Excel">
@@ -1398,14 +1398,24 @@
             <div class="modal-body">
                 <form id="add-location-form" style="margin-bottom: 2rem;">
                     <input type="hidden" id="edit-location-id" name="id">
-                    <div class="form-group">
-                        <label>Nombre de la Ubicación</label>
-                        <div class="input-with-icon" style="display: flex; gap: 0.5rem;">
+                    <div class="grid-2">
+                        <div class="form-group">
+                            <label>Nombre de la Ubicación</label>
                             <input type="text" id="location-name" name="name" required 
-                                placeholder="Ej: Bodega Central, Oficina, Obra X..." style="flex: 1;">
-                            <button type="submit" class="btn-primary" id="btn-save-location">
-                                <i class="fa-solid fa-plus"></i></button>
+                                placeholder="Ej: Bodega Central, Oficina, Banco...">
                         </div>
+                        <div class="form-group">
+                            <label>Tipo / Categoría</label>
+                            <select id="location-type" name="type" required>
+                                <option value="inventory">Inventario (Insumos/Equipos)</option>
+                                <option value="finance">Disponible (Bancos/Caja)</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-actions mt-2">
+                        <button type="submit" class="btn-primary" id="btn-save-location" style="width: 100%;">
+                            <i class="fa-solid fa-save"></i> Guardar Ubicación
+                        </button>
                     </div>
                 </form>
 
@@ -1414,6 +1424,7 @@
                         <thead>
                             <tr>
                                 <th>Nombre de Ubicación</th>
+                                <th>Tipo</th>
                                 <th style="width: 80px;">Acciones</th>
                             </tr>
                         </thead>
