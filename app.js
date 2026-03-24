@@ -1255,14 +1255,17 @@ const UI = {
             totalInventoryValue += (parseFloat(i.quantity) || 0) * (parseFloat(i.unitPrice) || 0);
         });
 
-        const totalBalance = totalIncome - totalExpense + totalAvailableFunds;
-
+        // Deuda Total (Sumatoria del apartado de deudas)
+        let totalDebts = 0;
+        state.debts.forEach(d => {
+            totalDebts += parseFloat(d.amount || 0);
+        });
 
         const elBalance = document.getElementById('total-balance');
         const elIncome = document.getElementById('month-income');
         const elExpense = document.getElementById('month-expense');
 
-        if (elBalance) elBalance.textContent = formatCurrency(totalBalance);
+        if (elBalance) elBalance.textContent = formatCurrency(totalDebts);
         if (elIncome) elIncome.textContent = formatCurrency(income);
         if (elExpense) elExpense.textContent = formatCurrency(expense);
 
