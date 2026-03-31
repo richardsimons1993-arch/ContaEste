@@ -1068,7 +1068,8 @@ app.post('/api/projects', async (req, res) => {
                 .input('observations', sql.VarChar(sql.MAX), p.observations || '')
                 .input('visitDate', sql.Date, p.visitDate || null)
                 .input('executionDate', sql.Date, p.executionDate || null)
-                .query(`UPDATE Projects SET projectName=@projectName, clientId=@clientId, status=@status, observations=@observations, visitDate=@visitDate, executionDate=@executionDate WHERE id=@id`);
+                .input('estimatedAmount', sql.Decimal(18, 2), p.estimatedAmount || null)
+                .query(`UPDATE Projects SET projectName=@projectName, clientId=@clientId, status=@status, observations=@observations, visitDate=@visitDate, executionDate=@executionDate, estimatedAmount=@estimatedAmount WHERE id=@id`);
         } else {
             await pool.request()
                 .input('id', sql.VarChar(50), p.id)
@@ -1078,7 +1079,8 @@ app.post('/api/projects', async (req, res) => {
                 .input('observations', sql.VarChar(sql.MAX), p.observations || '')
                 .input('visitDate', sql.Date, p.visitDate || null)
                 .input('executionDate', sql.Date, p.executionDate || null)
-                .query(`INSERT INTO Projects (id, projectName, clientId, status, observations, visitDate, executionDate) VALUES (@id, @projectName, @clientId, @status, @observations, @visitDate, @executionDate)`);
+                .input('estimatedAmount', sql.Decimal(18, 2), p.estimatedAmount || null)
+                .query(`INSERT INTO Projects (id, projectName, clientId, status, observations, visitDate, executionDate, estimatedAmount) VALUES (@id, @projectName, @clientId, @status, @observations, @visitDate, @executionDate, @estimatedAmount)`);
         }
         res.json(p);
     } catch (err) {

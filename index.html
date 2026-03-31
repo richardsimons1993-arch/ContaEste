@@ -200,8 +200,32 @@
                         <p class="amount" id="dashboard-available-funds">$0.00</p>
                     </div>
                     <div class="stat-card inventory">
-                        <h3>Activo Circulante</h3>
+                        <h3>Inventario</h3>
                         <p class="amount" id="dashboard-inventory-value">$0.00</p>
+                    </div>
+                    <div class="stat-card">
+                        <h3>Deudores (Por Cobrar)</h3>
+                        <p class="amount" id="dashboard-total-debtors">$0.00</p>
+                    </div>
+                    <div class="stat-card total-circulating">
+                        <h3>Activo Circulante Total</h3>
+                        <p class="amount" id="dashboard-total-circulating">$0.00</p>
+                    </div>
+                </div>
+
+                <!-- Gráficos del Dashboard -->
+                <div class="grid-2 mt-4">
+                    <div class="card" style="display: flex; flex-direction: column; align-items: center;">
+                        <h3 style="align-self: flex-start;">Composición del Activo Circulante</h3>
+                        <div style="width: 100%; max-width: 350px;">
+                            <canvas id="circulating-chart"></canvas>
+                        </div>
+                    </div>
+                    <div class="card" style="display: flex; flex-direction: column; align-items: center;">
+                        <h3 style="align-self: flex-start;">Ingresos y Gastos por Mes</h3>
+                        <div style="width: 100%; min-height: 250px;">
+                            <canvas id="income-chart"></canvas>
+                        </div>
                     </div>
                 </div>
 
@@ -883,6 +907,10 @@
                                 <label for="project-visit-date">Fecha Actualización</label>
                                 <input type="date" id="project-visit-date" name="visitDate" required>
                             </div>
+                            <div class="form-group">
+                                <label for="project-estimated-amount">Monto Estimado Facturación (CLP)</label>
+                                <input type="text" id="project-estimated-amount" name="estimatedAmount" class="amount-input" placeholder="Ej: 500000">
+                            </div>
                         </div>
                         <div class="form-group">
                             <label for="project-observations">Observaciones (Técnicas / Materiales)</label>
@@ -924,6 +952,7 @@
                                 <tr>
                                     <th>Proyecto</th>
                                     <th>Fase / Evolución</th>
+                                    <th>Monto Estimado</th>
                                     <th>Acciones</th>
                                 </tr>
                             </thead>
@@ -1388,6 +1417,53 @@
         </div>
     </div>
 
+    <!-- Modal para Cerrar Proyecto -->
+    <div id="close-project-modal" class="modal-overlay" style="display: none;">
+        <div class="modal-card" style="max-width: 400px;">
+            <div class="modal-header">
+                <h3>Cerrar Proyecto y Registrar Deuda</h3>
+                <button class="btn-icon" onclick="UI.closeModal('close-project-modal')">&times;</button>
+            </div>
+            <form onsubmit="UI.confirmCloseProject(event)">
+                <div class="modal-body" style="padding: 1.5rem;">
+                    <input type="hidden" id="close-project-id" name="id">
+                    <div class="form-group">
+                        <label>Monto Facturado (CLP)</label>
+                        <input type="text" id="close-project-amount" class="amount-input" required placeholder="Ej: 150000">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn-text" onclick="UI.closeModal('close-project-modal')">Cancelar</button>
+                    <button type="submit" class="btn-primary">Confirmar Cierre</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal para Editar Monto Estimado -->
+    <div id="edit-estimated-amount-modal" class="modal-overlay" style="display: none;">
+        <div class="modal-card" style="max-width: 400px;">
+            <div class="modal-header">
+                <h3>Editar Monto Estimado</h3>
+                <button class="btn-icon" onclick="UI.closeModal('edit-estimated-amount-modal')">&times;</button>
+            </div>
+            <form onsubmit="UI.confirmEditEstimatedAmount(event)">
+                <div class="modal-body" style="padding: 1.5rem;">
+                    <input type="hidden" id="edit-estimated-project-id" name="id">
+                    <p id="edit-estimated-project-name" style="margin-bottom: 1rem; font-weight: bold;"></p>
+                    <div class="form-group">
+                        <label>Monto Estimado (CLP)</label>
+                        <input type="text" id="edit-estimated-amount-input" class="amount-input" required placeholder="Ej: 500000">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn-text" onclick="UI.closeModal('edit-estimated-amount-modal')">Cancelar</button>
+                    <button type="submit" class="btn-primary">Guardar Cambios</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <!-- Modal de Gestión de Ubicaciones -->
     <div id="locations-modal" class="modal-overlay" style="display: none;">
         <div class="modal-card">
@@ -1444,8 +1520,9 @@
     <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
     <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/es.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/plugins/monthSelect/index.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="storage.js"></script>
-    <script src="app.js?v=9"></script>
+    <script src="app.js?v=10"></script>
 </body>
 
 </html>

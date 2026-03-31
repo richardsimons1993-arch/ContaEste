@@ -76,6 +76,13 @@ const DEFAULT_USERS = [
     { id: '3', username: 'lector', password: 'lector123', role: ROLES.VIEWER, name: 'Invitado', modules: ['finanzas'] }
 ];
 
+// Ayudante para Fecha Local (Evita desfase de zona horaria)
+const getLocalISODate = () => {
+    const d = new Date();
+    d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+    return d.toISOString().split('T')[0];
+};
+
 // Ayudante de Formateo de Moneda
 const formatCurrency = (amount) => {
     return new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP' }).format(amount);
@@ -155,6 +162,7 @@ const UI = {
             this.checkSession(); // Verificar si ya hay una sesión
             this.initTheme(); // Inicializar tema (claro/oscuro)
             this.setupEventListeners();
+            this.setupSpanishValidation();
             this.renderConcepts();
             this.renderClients();
             this.setupCustomDropdowns(); // Inicializar oyentes para menús desplegables
@@ -177,7 +185,7 @@ const UI = {
                 if (dateInput.type === 'date') {
                     dateInput.valueAsDate = new Date();
                 } else {
-                    dateInput.value = new Date().toISOString().split('T')[0];
+                    dateInput.value = getLocalISODate();
                 }
             }
 
@@ -195,6 +203,26 @@ const UI = {
         } catch (error) {
             console.error("Error en UI.init: " + error.message);
         }
+    },
+
+    setupSpanishValidation() {
+        const elements = document.querySelectorAll('input[required], select[required], textarea[required]');
+        elements.forEach(el => {
+            if (!el.hasAttribute('oninvalid')) {
+                el.addEventListener('invalid', function(e) {
+                    if (this.value.trim() === '') {
+                        this.setCustomValidity('Por favor, complete este campo.');
+                    } else if (this.type === 'email' && this.validity.typeMismatch) {
+                        this.setCustomValidity('Por favor, introduzca una dirección de correo válida.');
+                    } else {
+                        this.setCustomValidity('Valor inválido.');
+                    }
+                });
+                el.addEventListener('input', function(e) {
+                    this.setCustomValidity('');
+                });
+            }
+        });
     },
 
     // --- Helpers de Carga (Spinners) ---
@@ -1249,7 +1277,7 @@ const UI = {
             totalAvailableFunds += parseFloat(a.amount || 0);
         });
         
-        // Activo Circulante (Total Inventario)
+        // Inventario (Total Inventario)
         let totalInventoryValue = 0;
         state.inventory.forEach(i => {
             totalInventoryValue += (parseFloat(i.quantity) || 0) * (parseFloat(i.unitPrice) || 0);
@@ -1259,6 +1287,12 @@ const UI = {
         let totalDebts = 0;
         state.debts.forEach(d => {
             totalDebts += parseFloat(d.amount || 0);
+        });
+
+        // Total Deudores (Cuentas por Cobrar)
+        let totalDebtors = 0;
+        state.debtors.forEach(d => {
+            totalDebtors += parseFloat(d.amount || 0);
         });
 
         const elBalance = document.getElementById('total-balance');
@@ -1273,9 +1307,66 @@ const UI = {
         const elAvailable = document.getElementById('dashboard-available-funds');
         if (elAvailable) elAvailable.textContent = formatCurrency(totalAvailableFunds);
 
-        // Actualizar Activo Circulante
+        // Actualizar Inventario
         const elInventory = document.getElementById('dashboard-inventory-value');
         if (elInventory) elInventory.textContent = formatCurrency(totalInventoryValue);
+
+        // Actualizar Total Deudores
+        const elDebtors = document.getElementById('dashboard-total-debtors');
+        if (elDebtors) elDebtors.textContent = formatCurrency(totalDebtors);
+
+        // Actualizar Activo Circulante Total (Disponible + Deudores + Inventario)
+        const totalCirculating = totalAvailableFunds + totalDebtors + totalInventoryValue;
+        const elCirculating = document.getElementById('dashboard-total-circulating');
+        if (elCirculating) elCirculating.textContent = formatCurrency(totalCirculating);
+
+        // --- Gráfico de Torta: Composición del Activo Circulante ---
+        if (window.circulatingChart) {
+            window.circulatingChart.destroy();
+        }
+
+        const ctx = document.getElementById('circulating-chart');
+        if (ctx && window.Chart) {
+            window.circulatingChart = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['Activo Disponible', 'Inventario', 'Deudores (Por Cobrar)'],
+                    datasets: [{
+                        data: [totalAvailableFunds, totalInventoryValue, totalDebtors],
+                        backgroundColor: [
+                            'rgba(46, 204, 113, 0.8)', // Verde (Disponible)
+                            'rgba(52, 152, 219, 0.8)', // Azul (Inventario)
+                            'rgba(241, 196, 15, 0.8)'  // Amarillo (Deudores)
+                        ],
+                        borderColor: [
+                            'rgba(46, 204, 113, 1)',
+                            'rgba(52, 152, 219, 1)',
+                            'rgba(241, 196, 15, 1)'
+                        ],
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { position: 'bottom' },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    let label = context.label || '';
+                                    if (label) label += ': ';
+                                    if (context.parsed !== null) {
+                                        label += new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP' }).format(context.parsed);
+                                    }
+                                    return label;
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
 
         // --- Tabla Resumen Anual ---
         const monthNames = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
@@ -1345,6 +1436,68 @@ const UI = {
                         <td style="font-weight:bold; color: var(--primary-color)">${formatCurrency(accumulatedBalance)}</td>
                     </tr>
                 `;
+            }
+
+            // --- Gráfico de Barras: Ingresos y Gastos por Mes ---
+            if (window.incomeChart) {
+                window.incomeChart.destroy();
+            }
+
+            const ctxIncome = document.getElementById('income-chart');
+            if (ctxIncome && window.Chart) {
+                window.incomeChart = new Chart(ctxIncome, {
+                    type: 'bar',
+                    data: {
+                        labels: monthNames,
+                        datasets: [
+                            {
+                                label: 'Ingresos',
+                                data: yearData.map(d => d.income),
+                                backgroundColor: 'rgba(46, 204, 113, 0.7)',
+                                borderColor: 'rgba(46, 204, 113, 1)',
+                                borderWidth: 1,
+                                borderRadius: 4
+                            },
+                            {
+                                label: 'Gastos',
+                                data: yearData.map(d => d.expense),
+                                backgroundColor: 'rgba(231, 76, 60, 0.7)',
+                                borderColor: 'rgba(231, 76, 60, 1)',
+                                borderWidth: 1,
+                                borderRadius: 4
+                            }
+                        ]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: { display: true, position: 'bottom' },
+                            tooltip: {
+                                callbacks: {
+                                    label: function(context) {
+                                        let label = context.dataset.label || '';
+                                        if (label) label += ': ';
+                                        if (context.parsed.y !== null) {
+                                            label += new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP' }).format(context.parsed.y);
+                                        }
+                                        return label;
+                                    }
+                                }
+                            }
+                        },
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                ticks: {
+                                    callback: function(value) {
+                                        return new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', maximumSignificantDigits: 3 }).format(value);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                });
             }
         }
     },
@@ -1986,7 +2139,7 @@ const UI = {
                     amount: debt.amount,
                     conceptId: debt.conceptId,
                     supplierId: debt.supplierId, // Incluir proveedor para que renderTransactionsList lo muestre
-                    date: new Date().toISOString().split('T')[0],
+                    date: getLocalISODate(),
                     observation: `Pago deuda: ${debt.description || ''}`
                 };
                 state.transactions = [newTx, ...state.transactions];
@@ -2326,7 +2479,7 @@ const UI = {
                     amount: debtor.amount,
                     conceptId: '1', // Concepto fijo "Ventas" (ID 1)
                     clientId: debtor.clientId,
-                    date: new Date().toISOString().split('T')[0],
+                    date: getLocalISODate(),
                     observation: `Cobro a deudor: ${displayName}`
                 };
                 state.transactions = [newTx, ...state.transactions];
@@ -2524,7 +2677,7 @@ const UI = {
             // Volver a poner la fecha de hoy
             const dateInput = document.getElementById('date');
             if (dateInput) {
-                const today = new Date().toISOString().split('T')[0];
+                const today = getLocalISODate();
                 if (dateInput._flatpickr) {
                     dateInput._flatpickr.setDate(today);
                 } else {
@@ -2941,7 +3094,7 @@ const UI = {
         doc.setFontSize(18);
         doc.text("Reporte de Movimientos", 14, 22);
         doc.setFontSize(11);
-        doc.text(`Fecha de emisión: ${formatDate(new Date().toISOString())}`, 14, 30);
+        doc.text(`Fecha de emisión: ${formatDate(new Date())}`, 14, 30);
 
         // Datos para tabla
         const tableBody = dataToExport.map(t => {
@@ -3077,7 +3230,7 @@ const UI = {
         doc.setFontSize(18);
         doc.text(`Balance Anual - ${currentYear}`, 14, 22);
         doc.setFontSize(11);
-        doc.text(`Fecha de emisión: ${formatDate(new Date().toISOString())}`, 14, 30);
+        doc.text(`Fecha de emisión: ${formatDate(new Date())}`, 14, 30);
 
         doc.autoTable({
             startY: 40,
@@ -3708,6 +3861,14 @@ const UI = {
                         ${historyHtml || '<span class="text-muted small">Sin historial</span>'}
                     </div>
                 </td>
+                <td style="font-weight: bold; color: var(--text-color);">
+                    <div style="display: flex; align-items: center; justify-content: space-between; gap: 0.5rem;">
+                        <span>${p.estimatedAmount ? formatCurrency(p.estimatedAmount) : '<span class="text-muted small">-</span>'}</span>
+                        <button class="btn-icon text-primary" style="font-size: 0.8rem; padding: 2px;" title="Editar Monto Estimado" onclick="UI.quickEditEstimatedAmount('${p.id}')">
+                            <i class="fa-solid fa-pen"></i>
+                        </button>
+                    </div>
+                </td>
                 <td class="actions">
                     <button class="btn-icon text-success" title="Cerrar Proyecto (Listo)" onclick="UI.closeProject('${p.id}')">
                          <i class="fa-solid fa-check-circle"></i>
@@ -3752,8 +3913,9 @@ const UI = {
                     clientId: formData.get('clientId'),
                     status: formData.get('status') || 'Evaluación',
                     observations: formData.get('observations'),
-                    visitDate: formData.get('visitDate') || new Date().toISOString().split('T')[0],
+                    visitDate: formData.get('visitDate') || getLocalISODate(),
                     executionDate: id ? (state.projects.find(p => p.id === id)?.executionDate) : null,
+                    estimatedAmount: formData.get('estimatedAmount') ? parseFloat(formData.get('estimatedAmount').replace(/\./g, '').replace(/,/g, '.')) : null,
                     createdAt: id ? (state.projects.find(p => p.id === id)?.createdAt) : new Date().toISOString()
                 };
 
@@ -3873,30 +4035,71 @@ const UI = {
 
     },
 
-    async closeProject(id) {
-        if (!confirm('¿Estás seguro de que quieres cerrar este proyecto? Pasará al historial.')) return;
-
+    closeProject(id) {
         const p = state.projects.find(proj => proj.id === id);
         if (!p) return;
 
+        document.getElementById('close-project-id').value = id;
+        document.getElementById('close-project-amount').value = '';
+        this.openModal('close-project-modal');
+    },
+
+    async confirmCloseProject(e) {
+        e.preventDefault();
+        const form = e.target;
+        const id = document.getElementById('close-project-id').value;
+        const rawMonto = document.getElementById('close-project-amount').value || '0';
+        const monto = parseFloat(rawMonto.replace(/\./g, '').replace(/,/g, '.')) || 0;
+        
+        const p = state.projects.find(proj => proj.id === id);
+        if (!p) return;
+
+        const btn = form.querySelector('button[type="submit"]');
+        const originalText = btn.innerHTML;
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Procesando...';
+
         try {
+            // 1. Crear Deuda en Deudores
+            const debtor = {
+                id: 'D' + Date.now().toString() + Math.floor(Math.random() * 1000),
+                debtor: this.getClientName(p.clientId),
+                amount: monto,
+                dueDate: getLocalISODate(),
+                description: p.projectName || 'Proyecto Cerrado',
+                status: 'Pendiente',
+                clientId: p.clientId
+            };
+            await window.StorageAPI.async.saveDebtor(debtor);
+
+            // 2. Cerrar Proyecto
             const project = { ...p, status: 'Finalizado' };
             await window.StorageAPI.async.saveProject(project);
             await window.StorageAPI.async.addProjectHistory(id, {
                 previousStatus: p.status,
                 newStatus: 'Finalizado',
-                note: 'Proyecto Cerrado / Finalizado'
+                note: 'Proyecto Cerrado / Facturado'
             });
 
             state.projects = state.projects.map(proj => proj.id === id ? project : proj);
-            this.showToast('Proyecto cerrado y movido al historial', 'success');
+            
+            // 3. Atualizar UI
+            this.closeModal('close-project-modal');
+            this.showToast('Proyecto cerrado y deuda registrada', 'success');
+            
             this.renderProjects();
-            if (document.getElementById('projects-history-card').style.display === 'block') {
+            if (document.getElementById('projects-history-card') && document.getElementById('projects-history-card').style.display === 'block') {
                 this.renderProjectHistory();
             }
+            
+            // Refrescar datos en segundo plano para que la vista de deudores se actualice si se navega allá
+            this.loadData();
         } catch (error) {
-            console.error("Error al cerrar proyecto:", error);
+            console.error("Error al cerrar proyecto y registrar deuda:", error);
             this.showToast('Error al cerrar proyecto', 'error');
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = originalText;
         }
     },
 
@@ -4042,6 +4245,13 @@ const UI = {
         else visitEl.value = p.visitDate || '';
 
         form.elements['observations'].value = p.observations || '';
+        
+        const estAmountEl = form.elements['estimatedAmount'];
+        if (estAmountEl) {
+            estAmountEl.value = p.estimatedAmount || '';
+            // Disparar evento para formato
+            estAmountEl.dispatchEvent(new Event('input', { bubbles: true }));
+        }
 
         if (quickUpdate) {
             document.getElementById('is-phase-update').value = 'true';
@@ -4088,6 +4298,9 @@ const UI = {
             document.getElementById('project-id').value = '';
             document.getElementById('project-name').value = '';
             document.getElementById('project-history-id').value = '';
+            if (document.getElementById('project-estimated-amount')) {
+                document.getElementById('project-estimated-amount').value = '';
+            }
             document.getElementById('is-phase-update').value = 'false';
             document.getElementById('project-form-title').textContent = 'Nueva Solicitud / Proyecto';
             document.querySelector('#add-project-form button[type="submit"]').textContent = 'Guardar Proyecto';
@@ -4124,6 +4337,49 @@ const UI = {
             opt.textContent = this.getClientName(c.id);
             sel.appendChild(opt);
         });
+    },
+
+    quickEditEstimatedAmount(id) {
+        const p = state.projects.find(proj => proj.id === id);
+        if (!p) return;
+
+        document.getElementById('edit-estimated-project-id').value = id;
+        document.getElementById('edit-estimated-project-name').textContent = p.projectName || 'Sin nombre';
+        
+        const estAmountEl = document.getElementById('edit-estimated-amount-input');
+        estAmountEl.value = p.estimatedAmount || '';
+        if (typeof formatAmountInput === 'function') formatAmountInput(estAmountEl);
+
+        UI.openModal('edit-estimated-amount-modal');
+    },
+
+    async confirmEditEstimatedAmount(e) {
+        e.preventDefault();
+        const id = document.getElementById('edit-estimated-project-id').value;
+        const p = state.projects.find(proj => proj.id === id);
+        if (!p) return;
+
+        const input = document.getElementById('edit-estimated-amount-input').value;
+        const raw = input.replace(/\./g, '').replace(/,/g, '.');
+        const newAmount = raw ? parseFloat(raw) : null;
+        
+        p.estimatedAmount = newAmount;
+        
+        try {
+            await window.StorageAPI.async.saveProject(p);
+            this.recordActivity(
+                'Modificación',
+                'Proyecto',
+                `Monto estimado actualizado (${this.getClientName(p.clientId)})`,
+                { type: 'project', item: p }
+            );
+            this.showToast('Monto estimado actualizado', 'success');
+            UI.closeModal('edit-estimated-amount-modal');
+            this.renderProjects();
+        } catch (err) {
+            console.error("Error actualizando monto estimado:", err);
+            this.showToast('Error al actualizar monto', 'error');
+        }
     },
 
     initDatePickers() {
@@ -4360,7 +4616,7 @@ const UI = {
             
             let liquidityStatus = 'Inmediata';
             if (a.instrument === 'Depósito a Plazo') {
-                const today = new Date().toISOString().split('T')[0];
+                const today = getLocalISODate();
                 liquidityStatus = (a.dueDate && a.dueDate > today) ? `Vence: ${formatDate(a.dueDate)}` : 'Vencido / Disponible';
             } else if (a.instrument === 'Fondo Mutuo') {
                 liquidityStatus = '48 hrs';
@@ -4771,7 +5027,7 @@ const UI = {
         doc.setFontSize(18);
         doc.text("Inventario de Materiales", 14, 22);
         doc.setFontSize(11);
-        doc.text(`Fecha de reporte: ${formatDate(new Date().toISOString())}`, 14, 30);
+        doc.text(`Fecha de reporte: ${formatDate(new Date())}`, 14, 30);
 
         const tableBody = inventory.map(i => [
             i.product,
