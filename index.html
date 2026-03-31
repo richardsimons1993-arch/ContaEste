@@ -1594,6 +1594,31 @@
         </div>
     </div>
 
+    <!-- Modal de Confirmación de Pago/Cobro Genérico -->
+    <div id="pay-confirm-modal" class="modal-overlay" style="display: none;">
+        <div class="modal-card" style="max-width: 450px;">
+            <div class="modal-header">
+                <h3 id="pay-confirm-title">Confirmar Operación</h3>
+                <button class="btn-icon" onclick="UI.closeModal('pay-confirm-modal')">&times;</button>
+            </div>
+            <div class="modal-body" style="padding: 1.5rem;">
+                <p id="pay-confirm-message" style="margin-bottom: 1.5rem; line-height: 1.5;">¿Estás seguro de realizar esta operación?</p>
+                <div id="pay-confirm-details" style="padding: 1.25rem; background: var(--accent-glow); border-radius: var(--radius); border: 1px solid var(--border-color); margin-bottom: 0.5rem;">
+                    <p style="margin-bottom: 0.5rem;"><strong>Titular:</strong> <span id="pay-confirm-titular">-</span></p>
+                    <p style="margin-bottom: 0.5rem;"><strong>Monto:</strong> <span id="pay-confirm-amount" class="font-bold">-</span></p>
+                    <p style="margin-bottom: 0;"><strong>Concepto:</strong> <span id="pay-confirm-concept">-</span></p>
+                </div>
+                <p style="margin-top: 1rem; font-size: 0.85rem; color: var(--text-muted);">
+                    Esta acción registrará un movimiento automático en el historial y eliminará el registro pendiente.
+                </p>
+            </div>
+            <div class="modal-footer" style="display: flex; justify-content: flex-end; gap: 1rem;">
+                <button type="button" class="btn-text" onclick="UI.closeModal('pay-confirm-modal')">Cancelar</button>
+                <button type="button" class="btn-primary" id="btn-confirm-generic-pay">Confirmar y Registrar</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Modal para Confirmar Pago Gasto Operacional -->
     <div id="operational-pay-confirm-modal" class="modal-overlay" style="display: none;">
         <div class="modal-card" style="max-width: 400px;">

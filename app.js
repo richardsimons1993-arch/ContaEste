@@ -31,18 +31,18 @@ const Store = new Proxy(rawState, {
 
         // Mapeo de propiedades a funciones de renderizado
         const renderMap = {
-            'transactions': () => UI.renderTransactionsList(),
+            'transactions': () => { UI.renderTransactionsList(); UI.renderDashboard(); },
             'concepts': () => { UI.renderConcepts(); UI.renderTransactionFormOptions(); },
             'clients': () => { UI.renderClients(); UI.renderTransactionFormOptions(); },
-            'debts': () => UI.renderDebts(),
-            'debtors': () => UI.renderDebtors(),
+            'debts': () => { UI.renderDebts(); UI.renderDashboard(); },
+            'debtors': () => { UI.renderDebtors(); UI.renderDashboard(); },
             'suppliers': () => { UI.renderSuppliers(); UI.renderTransactionFormOptions(); UI.populateDebtSupplierSelect(); },
             'contracts': () => UI.renderContracts(),
             'pendingContracts': () => UI.checkPendingContracts(),
             'users': () => UI.renderUsers(),
             'projects': () => UI.renderProjects(),
-            'availables': () => UI.renderAvailables(),
-            'inventory': () => UI.renderInventory(),
+            'availables': () => { UI.renderAvailables(); UI.renderDashboard(); },
+            'inventory': () => { UI.renderInventory(); UI.renderDashboard(); },
             'locations': () => UI.renderLocations(),
             'operationalExpenses': () => { UI.renderOperationalExpenses(); UI.checkOperationalExpensesAlerts(); },
             'currentView': (val) => UI.switchView(val),
@@ -2167,7 +2167,26 @@ const UI = {
     },
 
     async payDebt(id) {
-        if (!confirm('¿Estás seguro de que quieres marcar esta deuda como pagada? Se eliminará de Deudas y se creará un egreso en Movimientos.')) return;
+        const debt = state.debts.find(d => d.id === id);
+        if (!debt) return;
+
+        const supplier = state.suppliers.find(s => s.id === debt.supplierId);
+        const concept = state.concepts.find(c => c.id === debt.conceptId);
+
+        document.getElementById('pay-confirm-title').textContent = 'Confirmar Pago de Deuda';
+        document.getElementById('pay-confirm-message').textContent = '¿Estás seguro de marcar esta deuda como pagada? Se registrará un egreso en Movimientos.';
+        document.getElementById('pay-confirm-titular').textContent = supplier ? supplier.name : (debt.titular || '-');
+        document.getElementById('pay-confirm-amount').textContent = formatCurrency(debt.amount);
+        document.getElementById('pay-confirm-concept').textContent = concept ? concept.name : 'Sin Concepto';
+
+        const confirmBtn = document.getElementById('btn-confirm-generic-pay');
+        confirmBtn.onclick = () => this.confirmPayDebtAction(id);
+
+        this.openModal('pay-confirm-modal');
+    },
+
+    async confirmPayDebtAction(id) {
+        this.closeModal('pay-confirm-modal');
 
         const originalDebts = [...state.debts];
         const originalTransactions = [...state.transactions];
@@ -2504,7 +2523,30 @@ const UI = {
     },
 
     async payDebtor(id) {
-        if (!confirm('¿Estás seguro de que quieres marcar esta deuda como pagada? Esto la eliminará de Deudores y creará un ingreso en Movimientos.')) return;
+        const debtor = state.debtors.find(d => d.id === id);
+        if (!debtor) return;
+
+        // Resolver nombre para mostrar
+        let displayName = debtor.titular;
+        const client = state.clients.find(c => c.name === debtor.titular || c.razonSocial === debtor.titular || c.nombreFantasia === debtor.titular);
+        if (client) {
+            displayName = this.getClientName(client.id);
+        }
+
+        document.getElementById('pay-confirm-title').textContent = 'Confirmar Cobro a Deudor';
+        document.getElementById('pay-confirm-message').textContent = '¿Estás seguro de marcar esta deuda como pagada? Esto registrará un ingreso en Movimientos.';
+        document.getElementById('pay-confirm-titular').textContent = displayName;
+        document.getElementById('pay-confirm-amount').textContent = formatCurrency(debtor.amount);
+        document.getElementById('pay-confirm-concept').textContent = 'Ventas (Cobro Deudor)';
+
+        const confirmBtn = document.getElementById('btn-confirm-generic-pay');
+        confirmBtn.onclick = () => this.confirmPayDebtorAction(id);
+
+        this.openModal('pay-confirm-modal');
+    },
+
+    async confirmPayDebtorAction(id) {
+        this.closeModal('pay-confirm-modal');
 
         const originalDebtors = [...state.debtors];
         const originalTransactions = [...state.transactions];
