@@ -18,6 +18,7 @@ const rawState = {
     availables: [],
     inventory: [],
     locations: [],
+    operationalExpenses: [],
     selectedYear: new Date().getFullYear()
 };
 
@@ -43,6 +44,7 @@ const Store = new Proxy(rawState, {
             'availables': () => UI.renderAvailables(),
             'inventory': () => UI.renderInventory(),
             'locations': () => UI.renderLocations(),
+            'operationalExpenses': () => { UI.renderOperationalExpenses(); UI.checkOperationalExpensesAlerts(); },
             'currentView': (val) => UI.switchView(val),
             'selectedYear': () => UI.renderDashboard()
         };
@@ -190,6 +192,7 @@ const UI = {
             }
 
             this.initDatePickers(); // Inicializar Flatpickr después de poner el valor
+            this.setupSpanishValidation(); // Asegurar mensajes de validación en español
             this.checkPendingContracts(); // Verificar contratos pendientes
 
             this.populateYearSelector(); // Poblar selector de años
@@ -206,23 +209,24 @@ const UI = {
     },
 
     setupSpanishValidation() {
-        const elements = document.querySelectorAll('input[required], select[required], textarea[required]');
-        elements.forEach(el => {
-            if (!el.hasAttribute('oninvalid')) {
-                el.addEventListener('invalid', function(e) {
-                    if (this.value.trim() === '') {
-                        this.setCustomValidity('Por favor, complete este campo.');
-                    } else if (this.type === 'email' && this.validity.typeMismatch) {
-                        this.setCustomValidity('Por favor, introduzca una dirección de correo válida.');
-                    } else {
-                        this.setCustomValidity('Valor inválido.');
-                    }
-                });
-                el.addEventListener('input', function(e) {
-                    this.setCustomValidity('');
-                });
+        // Usar delegación de eventos en fase de captura porque 'invalid' no burbujea
+        document.addEventListener('invalid', (e) => {
+            const el = e.target;
+            if (el.tagName === 'INPUT' || el.tagName === 'SELECT' || el.tagName === 'TEXTAREA') {
+                if (el.validity.valueMissing) {
+                    el.setCustomValidity('Por favor, complete este campo.');
+                } else if (el.type === 'email' && el.validity.typeMismatch) {
+                    el.setCustomValidity('Por favor, introduzca una dirección de correo válida.');
+                } else {
+                    el.setCustomValidity('');
+                }
             }
-        });
+        }, true);
+
+        // Limpiar el mensaje de error cuando el usuario empieza a escribir
+        document.addEventListener('input', (e) => {
+            e.target.setCustomValidity('');
+        }, true);
     },
 
     // --- Helpers de Carga (Spinners) ---
@@ -297,8 +301,36 @@ const UI = {
                 window.StorageAPI.async.getUsers(),
                 window.StorageAPI.async.getAvailables(),
                 window.StorageAPI.async.getInventory(),
-                window.StorageAPI.async.getAppLocations()
+                window.StorageAPI.async.getAppLocations(),
+                window.StorageAPI.async.getOperationalExpenses()
             ]);
+
+            // Mapear resultados al estado global (Proxy dispara renders automáticos)
+            // Solo actualizamos si la promesa fue exitosa
+            const setIfOk = (prop, resultIndex) => {
+                if (results[resultIndex].status === 'fulfilled') {
+                    state[prop] = results[resultIndex].value || [];
+                } else {
+                    console.error(`Error cargando ${prop}:`, results[resultIndex].reason);
+                }
+            };
+
+            setIfOk('transactions', 0);
+            setIfOk('concepts', 1);
+            setIfOk('clients', 2);
+            setIfOk('debts', 3);
+            setIfOk('debtors', 4);
+            setIfOk('contracts', 5);
+            setIfOk('pendingContracts', 6);
+            setIfOk('invoicedContractsCurrent', 7);
+            setIfOk('logs', 8);
+            setIfOk('suppliers', 9);
+            setIfOk('projects', 10);
+            setIfOk('users', 11);
+            setIfOk('availables', 12);
+            setIfOk('inventory', 13);
+            setIfOk('locations', 14);
+            setIfOk('operationalExpenses', 15);
 
             // Verificar si alguna falló y reportar
             let failedCount = 0;
@@ -498,13 +530,26 @@ const UI = {
                 }
             });
         }
+        
+        // --- GASTOS OPERACIONALES ---
+        const operationalForm = document.getElementById('add-operational-form');
+        if (operationalForm) {
+            operationalForm.addEventListener('submit', (e) => this.handleOperationalSubmit(e));
+        }
+
+        const cancelOpEditBtn = document.getElementById('cancel-operational-edit');
+        if (cancelOpEditBtn) {
+            cancelOpEditBtn.addEventListener('click', () => this.resetOperationalForm());
+        }
 
         // --- PROYECTOS ---
         const projectForm = document.getElementById('add-project-form');
         if (projectForm) projectForm.addEventListener('submit', (e) => this.handleProjectSubmit(e));
 
         const cancelProjectEditBtn = document.getElementById('cancel-project-edit');
-        if (cancelProjectEditBtn) cancelProjectEditBtn.addEventListener('click', () => this.resetProjectForm());
+        if (cancelProjectEditBtn) {
+            cancelProjectEditBtn.addEventListener('click', () => this.resetProjectForm());
+        }
 
         const projectFilterStatus = document.getElementById('project-filter-status');
         if (projectFilterStatus) projectFilterStatus.addEventListener('change', () => this.renderProjects());
@@ -1140,7 +1185,8 @@ const UI = {
             'contracts': 'ventas',
             'inventory': 'inventario',
             'activity': 'finanzas',
-            'users': 'usuarios'
+            'users': 'usuarios',
+            'operational-expenses': 'finanzas'
         };
 
         const requiredModule = viewModuleMap[currentView];
@@ -1184,7 +1230,11 @@ const UI = {
 
         // Actualizar Secciones
         document.querySelectorAll('.view-section').forEach(section => {
-            section.classList.toggle('active', section.id === viewName);
+            try {
+                section.classList.toggle('active', section.id === viewName);
+            } catch (err) {
+                console.error(`Error toggling section ${section.id}:`, err);
+            }
         });
 
         // Update Title
@@ -1201,7 +1251,9 @@ const UI = {
             'projects': 'Gestión de Proyectos',
             'activity': 'Actividad',
             'available-funds': 'Disponible',
-            'users': 'Usuarios'
+            'users': 'Usuarios',
+            'operational-expenses': 'Gastos Operacionales',
+            'alerts': 'Centro de Alertas'
         };
 
         const pageTitle = document.getElementById('page-title');
@@ -1231,6 +1283,7 @@ const UI = {
         if (viewName === 'activity') this.renderActivity();
         if (viewName === 'available-funds') this.renderAvailables();
         if (viewName === 'users') this.renderUsers();
+        if (viewName === 'operational-expenses') this.renderOperationalExpenses();
 
         // Resetear formularios si se sale de la sección
         if (viewName !== 'transaction-form') this.cancelTransactionEdit();
@@ -1241,6 +1294,7 @@ const UI = {
         if (viewName !== 'contracts') this.resetContractForm();
         if (viewName !== 'projects') this.resetProjectForm();
         if (viewName !== 'users') this.resetUserForm();
+        if (viewName !== 'operational-expenses') this.resetOperationalForm();
 
         // Re-aplicar privilegios (por si se renderizaron botones nuevos)
         this.applyPrivileges();
@@ -3580,27 +3634,14 @@ const UI = {
     },
 
     checkPendingContracts() {
-        const pendingBadge = document.getElementById('contracts-badge');
-        const reminderBtn = document.getElementById('contracts-reminder-btn');
         const pendingBody = document.getElementById('alerts-pending-body');
         const invoicedBody = document.getElementById('alerts-invoiced-body');
         const overdueBody = document.getElementById('alerts-overdue-body');
 
-        if (!pendingBadge || !reminderBtn) return;
+        // Centralizar actualización de campana
+        this.refreshAlertBadge();
 
-        // Los datos se asumen ya cargados en state.pendingContracts
-        // Si queremos forzar una actualización desde el servidor, se debe hacer antes de llamar a esta función
-        // (asignando a state.pendingContracts = window.StorageAPI.getPendingContracts())
         const contracts = state.pendingContracts;
-
-        if (contracts.length > 0) {
-            reminderBtn.style.display = 'inline-block';
-            pendingBadge.style.display = 'inline-block';
-            pendingBadge.textContent = contracts.length;
-        } else {
-            reminderBtn.style.display = 'inline-block';
-            pendingBadge.style.display = 'none';
-        }
 
         if (pendingBody) {
             pendingBody.innerHTML = '';
@@ -4652,6 +4693,227 @@ const UI = {
             `;
         }
         this.applyPrivileges();
+    },
+
+    renderOperationalExpenses() {
+        const tbody = document.getElementById('operational-list-body');
+        if (!tbody) return;
+        tbody.innerHTML = '';
+
+        state.operationalExpenses.forEach(e => {
+            const row = document.createElement('tr');
+            
+            const lastPayment = e.lastPaymentDate ? formatDate(e.lastPaymentDate) : 'Nunca';
+            const nextPayment = e.nextPaymentDate ? formatDate(e.nextPaymentDate) : 'No definida';
+            const frequencyMap = {
+                'monthly': 'Mensual',
+                'quarterly': 'Trimestral',
+                'semiannually': 'Semestral',
+                'yearly': 'Anual'
+            };
+
+            row.innerHTML = `
+                <td>${e.name}</td>
+                <td>${frequencyMap[e.frequency] || e.frequency}</td>
+                <td>${lastPayment}</td>
+                <td>${nextPayment}</td>
+                <td class="actions">
+                    <button class="btn-icon" title="Editar" onclick="UI.editOperationalExpense('${e.id}')">
+                        <i class="fa-solid fa-pen-to-square"></i>
+                    </button>
+                    <button class="btn-icon text-danger" title="Eliminar" onclick="UI.handleOperationalDelete('${e.id}')">
+                        <i class="fa-solid fa-trash-can"></i>
+                    </button>
+                </td>
+            `;
+            tbody.appendChild(row);
+        });
+        this.applyPrivileges();
+    },
+
+    checkOperationalExpensesAlerts() {
+        const alertsBody = document.getElementById('alerts-operational-body');
+        if (!alertsBody) return;
+        alertsBody.innerHTML = '';
+
+        // Centralizar actualización de campana
+        this.refreshAlertBadge();
+
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        
+        const warningLimit = new Date(today);
+        warningLimit.setDate(today.getDate() + 5);
+
+        const pendingExpenses = state.operationalExpenses.filter(e => {
+            if (!e.nextPaymentDate) return false;
+            const nextDate = new Date(e.nextPaymentDate);
+            return nextDate <= warningLimit;
+        });
+
+        pendingExpenses.forEach(e => {
+            const nextDate = new Date(e.nextPaymentDate);
+            const isOverdue = nextDate < today;
+            const tr = document.createElement('tr');
+            
+            tr.innerHTML = `
+                <td>${e.name}</td>
+                <td>
+                    <span style="color: ${isOverdue ? 'var(--danger-color)' : 'var(--warning-color)'}; font-weight: bold;">
+                        ${formatDate(e.nextPaymentDate)} ${isOverdue ? '(VENCIDO)' : ''}
+                    </span>
+                </td>
+                <td class="action-cell">
+                    <button class="btn-sm btn-outline-success" onclick="UI.handleOperationalPay('${e.id}')">
+                        <i class="fa-solid fa-check"></i> Registrar Pago
+                    </button>
+                </td>
+            `;
+            alertsBody.appendChild(tr);
+        });
+    },
+
+    refreshAlertBadge() {
+        const pendingBadge = document.getElementById('contracts-badge');
+        const reminderBtn = document.getElementById('contracts-reminder-btn');
+        if (!pendingBadge || !reminderBtn) return;
+
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        
+        const warningLimit = new Date(today);
+        warningLimit.setDate(today.getDate() + 5);
+
+        // 1. Contratos pendientes de facturar
+        const contractsCount = state.pendingContracts ? state.pendingContracts.length : 0;
+
+        // 2. Gastos operacionales próximos a vencer (vencidos o dentro de 5 días)
+        const expensesCount = state.operationalExpenses ? state.operationalExpenses.filter(e => {
+            if (!e.nextPaymentDate) return false;
+            const nextDate = new Date(e.nextPaymentDate);
+            return nextDate <= warningLimit;
+        }).length : 0;
+
+        // 3. Deudas pendientes (Removido del conteo por solicitud, pero mantiene la campana visible si existen)
+        const debtsCount = state.debts ? state.debts.length : 0;
+
+        const totalAlerts = contractsCount + expensesCount;
+        const hasAnyAlert = totalAlerts > 0 || debtsCount > 0;
+
+        if (hasAnyAlert) {
+            reminderBtn.style.display = 'inline-block';
+            if (totalAlerts > 0) {
+                pendingBadge.style.display = 'inline-block';
+                pendingBadge.textContent = totalAlerts;
+            } else {
+                pendingBadge.style.display = 'none';
+            }
+            // Actualizar tooltip para ser más descriptivo
+            reminderBtn.title = `${totalAlerts} alertas urgentes ${debtsCount > 0 ? `+ ${debtsCount} deudas` : ''}`;
+        }
+    },
+    async handleOperationalSubmit(e) {
+        e.preventDefault();
+        const form = e.target;
+        const formData = new FormData(form);
+        
+        const expenseData = {
+            id: formData.get('id') || 'OE' + Date.now().toString(),
+            name: formData.get('name'),
+            amount: 0, // Monto por defecto (ya no se usa fijo)
+            frequency: formData.get('frequency'),
+            nextPaymentDate: formData.get('nextPaymentDate'),
+            description: formData.get('description'),
+            status: 'active'
+        };
+
+        try {
+            await window.StorageAPI.async.saveOperationalExpense(expenseData);
+            this.showToast(formData.get('id') ? 'Gasto actualizado' : 'Gasto registrado', 'success');
+            form.reset();
+            this.resetOperationalForm();
+            await this.loadData();
+        } catch (error) {
+            console.error("Error al guardar gasto operacional:", error);
+            this.showToast('Error al guardar: ' + error.message, 'error');
+        }
+    },
+
+    handleOperationalPay(id) {
+        const expense = state.operationalExpenses.find(e => e.id === id);
+        if (!expense) return;
+
+        document.getElementById('op-pay-id').value = id;
+        document.getElementById('op-pay-name').textContent = expense.name;
+        document.getElementById('op-pay-amount-input').value = '';
+
+        this.openModal('operational-pay-confirm-modal');
+        // Enfocar el input de monto automáticamente
+        setTimeout(() => document.getElementById('op-pay-amount-input')?.focus(), 300);
+    },
+
+    async confirmOperationalPay() {
+        const id = document.getElementById('op-pay-id').value;
+        const amountStr = document.getElementById('op-pay-amount-input').value;
+        
+        if (!amountStr || amountStr.trim() === '') {
+            this.showToast('Por favor, ingrese el monto pagado', 'warning');
+            return;
+        }
+
+        const amount = parseFloat(amountStr.replace(/\./g, '').replace(',', '.'));
+        if (isNaN(amount) || amount <= 0) {
+            this.showToast('Por favor, ingrese un monto válido', 'warning');
+            return;
+        }
+
+        this.closeModal('operational-pay-confirm-modal');
+        
+        try {
+            await window.StorageAPI.async.payOperationalExpense(id, amount);
+            this.showToast('Pago registrado correctamente', 'success');
+            await this.loadData();
+        } catch (error) {
+            console.error("Error al pagar gasto operacional:", error);
+            this.showToast('Error al registrar el pago: ' + error.message, 'error');
+        }
+    },
+
+    editOperationalExpense(id) {
+        const expense = state.operationalExpenses.find(e => e.id === id);
+        if (!expense) return;
+
+        const form = document.getElementById('add-operational-form');
+        form.elements['id'].value = expense.id;
+        form.elements['name'].value = expense.name;
+        form.elements['frequency'].value = expense.frequency;
+        form.elements['nextPaymentDate'].value = expense.nextPaymentDate ? expense.nextPaymentDate.split('T')[0] : '';
+        form.elements['description'].value = expense.description || '';
+
+        document.getElementById('operational-form-title').textContent = 'Editar Gasto Recurrente';
+        document.getElementById('cancel-operational-edit').style.display = 'inline-block';
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    },
+
+    async handleOperationalDelete(id) {
+        if (!confirm('¿Está seguro de eliminar este gasto recurrente?')) return;
+        try {
+            await window.StorageAPI.async.deleteOperationalExpense(id);
+            this.showToast('Gasto eliminado', 'success');
+            await this.loadData();
+        } catch (error) {
+            this.showToast('Error al eliminar', 'error');
+        }
+    },
+
+    resetOperationalForm() {
+        const form = document.getElementById('add-operational-form');
+        if (form) {
+            form.reset();
+            form.elements['id'].value = '';
+            document.getElementById('operational-form-title').textContent = 'Registrar Gasto Operacional Recurrente';
+            document.getElementById('cancel-operational-edit').style.display = 'none';
+        }
     },
 
     updateAvailableFields() {

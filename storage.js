@@ -330,7 +330,13 @@ const Storage = {
         getClients: () => asyncRequest('GET', '/clients'),
         getSuppliers: () => asyncRequest('GET', '/suppliers'),
         getLogs: () => asyncRequest('GET', '/logs'),
-        getUsers: () => asyncRequest('GET', '/users')
+        getUsers: () => asyncRequest('GET', '/users'),
+
+        // --- Gastos Operacionales ---
+        getOperationalExpenses: () => asyncRequest('GET', '/operational-expenses'),
+        saveOperationalExpense: (e) => asyncRequest('POST', '/operational-expenses', e),
+        deleteOperationalExpense: (id) => asyncRequest('DELETE', `/operational-expenses/${id}`),
+        payOperationalExpense: (id, amount) => asyncRequest('POST', `/operational-expenses/${id}/pay`, { amount })
     }
 };
 

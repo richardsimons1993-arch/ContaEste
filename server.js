@@ -589,6 +589,118 @@ app.post('/api/debtors/:id/pay', async (req, res) => {
     }
 });
 
+// --- ENDPOINTS PARA GASTOS OPERACIONALES ---
+app.get('/api/operational-expenses', (req, res) => getApi(req, res, 'dbo.[OperationalExpenses]'));
+app.delete('/api/operational-expenses/:id', (req, res) => deleteApi(req, res, 'dbo.[OperationalExpenses]'));
+
+app.post('/api/operational-expenses', async (req, res) => {
+    console.log('--- [API] POST /api/operational-expenses RECEIVED ---');
+    try {
+        const e = req.body;
+        console.log('Body:', JSON.stringify(e, null, 2));
+        const pool = await getDbPool();
+        const check = await pool.request().input('id', sql.VarChar(50), e.id).query('SELECT id FROM dbo.[OperationalExpenses] WHERE id = @id');
+        
+        const lastPaymentDate = e.lastPaymentDate ? tryParseDate(e.lastPaymentDate) : null;
+        const nextPaymentDate = e.nextPaymentDate ? tryParseDate(e.nextPaymentDate) : null;
+
+        if (check.recordset.length > 0) {
+            await pool.request()
+                .input('id', sql.VarChar(50), e.id)
+                .input('name', sql.VarChar(255), e.name)
+                .input('amount', sql.Decimal(18, 2), e.amount)
+                .input('frequency', sql.VarChar(50), e.frequency)
+                .input('lastPaymentDate', sql.Date, lastPaymentDate)
+                .input('nextPaymentDate', sql.Date, nextPaymentDate)
+                .input('description', sql.VarChar(sql.MAX), e.description || '')
+                .input('status', sql.VarChar(50), e.status || 'active')
+                .query(`UPDATE dbo.[OperationalExpenses] SET name=@name, amount=@amount, frequency=@frequency, lastPaymentDate=@lastPaymentDate, nextPaymentDate=@nextPaymentDate, description=@description, status=@status WHERE id=@id`);
+        } else {
+            await pool.request()
+                .input('id', sql.VarChar(50), e.id)
+                .input('name', sql.VarChar(255), e.name)
+                .input('amount', sql.Decimal(18, 2), e.amount)
+                .input('frequency', sql.VarChar(50), e.frequency)
+                .input('lastPaymentDate', sql.Date, lastPaymentDate)
+                .input('nextPaymentDate', sql.Date, nextPaymentDate)
+                .input('description', sql.VarChar(sql.MAX), e.description || '')
+                .input('status', sql.VarChar(50), e.status || 'active')
+                .query(`INSERT INTO dbo.[OperationalExpenses] (id, name, amount, frequency, lastPaymentDate, nextPaymentDate, description, status) VALUES (@id, @name, @amount, @frequency, @lastPaymentDate, @nextPaymentDate, @description, @status)`);
+        }
+        res.json(e);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.post('/api/operational-expenses/:id/pay', async (req, res) => {
+    try {
+        const pool = await getDbPool();
+        const expenseId = req.params.id;
+
+        const expenseRes = await pool.request()
+            .input('id', sql.VarChar, expenseId)
+            .query(`SELECT * FROM dbo.[OperationalExpenses] WHERE id = @id`);
+
+        if (expenseRes.recordset.length === 0) {
+            return res.status(404).json({ error: 'Gasto no encontrado' });
+        }
+
+        const expense = expenseRes.recordset[0];
+        if (!expense.nextPaymentDate) {
+            return res.status(400).json({ error: 'El gasto no tiene una próxima fecha de pago definida' });
+        }
+        
+        // Calcular próxima fecha según frecuencia
+        const lastNextDate = new Date(expense.nextPaymentDate);
+        let newNextDate = new Date(lastNextDate);
+        
+        switch (expense.frequency) {
+            case 'monthly': newNextDate.setMonth(newNextDate.getMonth() + 1); break;
+            case 'quarterly': newNextDate.setMonth(newNextDate.getMonth() + 3); break;
+            case 'semiannually': newNextDate.setMonth(newNextDate.getMonth() + 6); break;
+            case 'yearly': newNextDate.setFullYear(newNextDate.getFullYear() + 1); break;
+            default: newNextDate.setMonth(newNextDate.getMonth() + 1);
+        }
+
+        const transaction = new sql.Transaction(pool);
+        await transaction.begin();
+
+        try {
+            // 1. Actualizar el gasto operacional
+            await transaction.request()
+                .input('id', sql.VarChar, expenseId)
+                .input('lastPaymentDate', sql.Date, new Date())
+                .input('nextPaymentDate', sql.Date, newNextDate)
+                .query(`UPDATE dbo.[OperationalExpenses] SET lastPaymentDate = @lastPaymentDate, nextPaymentDate = @nextPaymentDate WHERE id = @id`);
+
+            // 2. Crear movimiento en Transactions
+            const moveId = 'T' + Date.now().toString();
+            const obsText = expense.name; // El mismo nombre del gasto OP registrado
+            const paidAmount = req.body.amount; // MONTO RECIBIDO DESDE EL CLIENTE
+            
+            await transaction.request()
+                .input('id', sql.VarChar, moveId)
+                .input('date', sql.Date, new Date())
+                .input('type', sql.VarChar, 'expense')
+                .input('conceptId', sql.VarChar, '1774961310024') // Concepto 'Gasto Operacional'
+                .input('amount', sql.Decimal(18, 2), paidAmount)
+                .input('observation', sql.VarChar(sql.MAX), obsText)
+                .input('clientId', sql.VarChar, null)
+                .input('supplierId', sql.VarChar, null)
+                .query(`INSERT INTO Transactions (id, date, type, conceptId, amount, observation, clientId, supplierId) VALUES (@id, @date, @type, @conceptId, @amount, @observation, @clientId, @supplierId)`);
+
+            await transaction.commit();
+            res.json({ success: true, nextPaymentDate: newNextDate });
+        } catch (tErr) {
+            await transaction.rollback();
+            throw tErr;
+        }
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 // --- ENDPOINTS PARA AVAILABLES (DISPONIBLE) ---
 app.get('/api/availables', (req, res) => getApi(req, res, 'Availables'));
 app.delete('/api/availables/:id', (req, res) => deleteApi(req, res, 'Availables'));
