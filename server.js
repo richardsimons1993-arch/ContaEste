@@ -1057,30 +1057,28 @@ app.post('/api/contracts/:id/invoice', async (req, res) => {
     }
 });
 
-app.get('/api/contracts/invoiced-current', async (req, res) => {
+app.get('/api/contracts/invoiced-history', async (req, res) => {
     try {
         const pool = await getDbPool();
-        const now = new Date();
-        const currentYear = now.getFullYear();
-        const currentMonth = String(now.getMonth() + 1).padStart(2, '0');
-        const currentPeriod = `${currentYear}-${currentMonth}`;
-
         const query = `
             SELECT ch.*, cl.nombreFantasia as clientFantasyName, cl.name as clientName
             FROM ContractHistory ch
             LEFT JOIN Clients cl ON ch.clientId = cl.id
-            WHERE ch.periodName = @period
             ORDER BY ch.issueDate DESC
         `;
-        const result = await pool.request()
-            .input('period', sql.VarChar, currentPeriod)
-            .query(query);
-
+        const result = await pool.request().query(query);
         res.json(result.recordset);
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
 });
+
+// Mantener alias para compatibilidad mientras se migra el frontend
+app.get('/api/contracts/invoiced-current', (req, res) => {
+    // Redirigir a la nueva ruta que devuelve todo el historial
+    res.redirect('/api/contracts/invoiced-history');
+});
+
 
 app.post('/api/contracts/:id/undo', async (req, res) => {
     try {

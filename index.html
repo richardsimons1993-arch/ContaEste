@@ -1231,14 +1231,12 @@
                     <div class="tabs"
                         style="display: flex; gap: 1rem; border-bottom: 2px solid var(--border-color); margin-bottom: 1rem; padding-bottom: 0.5rem;">
                         <button class="btn-text alert-tab-btn active" data-tab="tab-pending-month"
-                            style="font-weight: bold; border-bottom: 2px solid var(--primary-color);">Pendientes de
-                            Facturar</button>
-                        <button class="btn-text alert-tab-btn" data-tab="tab-invoiced-month">Emitidas este Mes</button>
+                            style="font-weight: bold; border-bottom: 2px solid var(--primary-color);">Contratos y Facturación</button>
                         <button class="btn-text alert-tab-btn" data-tab="tab-operational-expenses">Gastos Operacionales</button>
                     </div>
 
                     <div id="tab-pending-month" class="alert-tab-content" style="display: block;">
-                        <h3>Contratos Pendientes de Facturar este Mes</h3>
+                        <h3>Contratos Pendientes de Facturar</h3>
                         <div class="table-responsive">
                             <table class="data-table">
                                 <thead>
@@ -1253,10 +1251,16 @@
                                 </tbody>
                             </table>
                         </div>
-                    </div>
 
-                    <div id="tab-invoiced-month" class="alert-tab-content" style="display: none;">
-                        <h3>Facturas Emitidas este Mes</h3>
+                        <hr style="margin: 2rem 0; border: none; border-top: 1px solid var(--border-color);">
+                        
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                            <h3 style="margin: 0;">Historial de Facturación</h3>
+                            <div style="display: flex; align-items: center; gap: 0.5rem;">
+                                <label for="filter-contracts-history-month" style="font-size: 0.85rem; color: var(--text-muted);">Filtrar por Mes:</label>
+                                <input type="month" id="filter-contracts-history-month" class="form-control" style="width: 160px; height: 32px; padding: 0 8px;">
+                            </div>
+                        </div>
                         <div class="table-responsive">
                             <table class="data-table">
                                 <thead>
@@ -1267,7 +1271,8 @@
                                         <th>Acciones</th>
                                     </tr>
                                 </thead>
-                        <tbody id="alerts-invoiced-body">
+                                <tbody id="alerts-invoiced-body">
+                                    <!-- Inyectado por JS -->
                                 </tbody>
                             </table>
                         </div>
@@ -1288,7 +1293,35 @@
                                 </tbody>
                             </table>
                         </div>
+
+                        <!-- NUEVO: Apartado de Historial de Pagos -->
+                        <div style="margin-top: 2rem; border-top: 1px solid var(--border-color); padding-top: 1.5rem;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                                <h3 style="margin: 0;">Historial de Pagos Realizados</h3>
+                                <div style="display: flex; align-items: center; gap: 0.5rem;">
+                                    <label for="filter-op-history-month" style="font-size: 0.85rem; color: var(--text-muted);">Filtrar por Mes:</label>
+                                    <input type="month" id="filter-op-history-month" class="form-control" style="width: 160px; height: 32px; padding: 0 8px;">
+                                </div>
+                            </div>
+                            <div class="table-responsive">
+                                <table class="data-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Fecha de Pago</th>
+                                            <th>Gasto (Descripción)</th>
+                                            <th>Monto Pagado</th>
+                                            <th>Concepto</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="alerts-operational-history-body">
+                                        <!-- Inyectado por JS -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
                     </div>
+
+
                 </div>
             </section>
 

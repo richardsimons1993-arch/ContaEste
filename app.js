@@ -31,8 +31,9 @@ const Store = new Proxy(rawState, {
 
         // Mapeo de propiedades a funciones de renderizado
         const renderMap = {
-            'transactions': () => { UI.renderTransactionsList(); UI.renderDashboard(); },
+            'transactions': () => { UI.renderTransactionsList(); UI.renderDashboard(); UI.checkOperationalExpensesAlerts(); },
             'concepts': () => { UI.renderConcepts(); UI.renderTransactionFormOptions(); },
+
             'clients': () => { UI.renderClients(); UI.renderTransactionFormOptions(); },
             'debts': () => { UI.renderDebts(); UI.renderDashboard(); },
             'debtors': () => { UI.renderDebtors(); UI.renderDashboard(); },
@@ -3726,32 +3727,44 @@ const UI = {
 
         if (invoicedBody) {
             invoicedBody.innerHTML = '';
-            const now = new Date();
-            const currentPeriod = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
             
-            // Usar datos del historial si están disponibles, si no fallback al estado local (menos preciso)
-            const invoicedData = state.invoicedContractsCurrent || [];
+            const filterEl = document.getElementById('filter-contracts-history-month');
+            const targetMonth = filterEl ? filterEl.value : ''; // "YYYY-MM"
+
+            let invoicedData = state.invoicedContractsCurrent || [];
             
-            invoicedData.forEach(c => {
-                const clientName = c.clientFantasyName || c.clientName || this.getClientName(c.clientId);
-                const tr = document.createElement('tr');
-                
-                // El monto en la historia ya es el CLP neto. Agregamos el IVA.
-                const amountWithIva = Math.round(c.amountCLP * 1.19);
-                
-                tr.innerHTML = `
-                    <td>${clientName}</td>
-                    <td style="font-weight:bold; color: var(--secondary-color);">${formatCurrency(amountWithIva)}</td>
-                    <td>${c.periodName}</td>
-                    <td class="action-cell">
-                        <button class="btn-sm btn-outline-danger" title="Revertir Emisión" onclick="UI.undoContractInvoice('${c.contractId}')">
-                            <i class="fa-solid fa-clock-rotate-left"></i> Revertir
-                        </button>
-                    </td>
-                `;
-                invoicedBody.appendChild(tr);
-            });
+            // Aplicar Filtro de Mes
+            if (targetMonth) {
+                invoicedData = invoicedData.filter(c => {
+                    // periodName suele ser "YYYY-MM"
+                    return c.periodName === targetMonth;
+                });
+            }
+            
+            if (invoicedData.length === 0) {
+                invoicedBody.innerHTML = `<tr><td colspan="4" style="text-align: center; color: var(--text-muted); padding: 1.5rem;">No hay registros para ${targetMonth || 'este mes'}.</td></tr>`;
+            } else {
+                invoicedData.forEach(c => {
+                    const clientName = c.clientFantasyName || c.clientName || this.getClientName(c.clientId);
+                    const tr = document.createElement('tr');
+                    
+                    const amountWithIva = Math.round(c.amountCLP * 1.19);
+                    
+                    tr.innerHTML = `
+                        <td>${clientName}</td>
+                        <td style="font-weight:bold; color: var(--secondary-color);">${formatCurrency(amountWithIva)}</td>
+                        <td>${c.periodName}</td>
+                        <td class="action-cell">
+                            <button class="btn-sm btn-outline-danger" title="Revertir Emisión" onclick="UI.undoContractInvoice('${c.contractId}')">
+                                <i class="fa-solid fa-clock-rotate-left"></i> Revertir
+                            </button>
+                        </td>
+                    `;
+                    invoicedBody.appendChild(tr);
+                });
+            }
         }
+
     },
 
     async markContractInvoiced(id, clpAmount = null) {
@@ -4498,7 +4511,7 @@ const UI = {
                 }
             });
 
-            // Month picker para filtros
+            // Month picker para filtros (Principal)
             const filterMonthEl = document.getElementById('filter-month');
             if (filterMonthEl) {
                 flatpickr(filterMonthEl, {
@@ -4529,6 +4542,36 @@ const UI = {
                     }
                 });
             }
+
+            // Month pickers para Historiales en Alertas
+            const contractHistMonth = document.getElementById('filter-contracts-history-month');
+            if (contractHistMonth) {
+                flatpickr(contractHistMonth, {
+                    locale: 'es',
+                    altInput: true,
+                    altInputClass: "form-control",
+                    defaultDate: new Date(),
+                    plugins: [
+                        new monthSelectPlugin({ shorthand: true, dateFormat: "Y-m", altFormat: "F Y" })
+                    ],
+                    onChange: () => this.checkPendingContracts()
+                });
+            }
+
+            const opHistMonth = document.getElementById('filter-op-history-month');
+            if (opHistMonth) {
+                flatpickr(opHistMonth, {
+                    locale: 'es',
+                    altInput: true,
+                    altInputClass: "form-control",
+                    defaultDate: new Date(),
+                    plugins: [
+                        new monthSelectPlugin({ shorthand: true, dateFormat: "Y-m", altFormat: "F Y" })
+                    ],
+                    onChange: () => this.checkOperationalExpensesAlerts()
+                });
+            }
+
         } else {
             console.warn("Flatpickr no está cargado.");
         }
@@ -4775,8 +4818,12 @@ const UI = {
 
     checkOperationalExpensesAlerts() {
         const alertsBody = document.getElementById('alerts-operational-body');
+        const historyBody = document.getElementById('alerts-operational-history-body');
         if (!alertsBody) return;
+        
+        // 1. Limpiar contenedores
         alertsBody.innerHTML = '';
+        if (historyBody) historyBody.innerHTML = '';
 
         // Centralizar actualización de campana
         this.refreshAlertBadge();
@@ -4787,11 +4834,16 @@ const UI = {
         const warningLimit = new Date(today);
         warningLimit.setDate(today.getDate() + 5);
 
+        // --- RENDERIZAR PRÓXIMOS VENCIMIENTOS ---
         const pendingExpenses = state.operationalExpenses.filter(e => {
             if (!e.nextPaymentDate) return false;
             const nextDate = new Date(e.nextPaymentDate);
             return nextDate <= warningLimit;
         });
+
+        if (pendingExpenses.length === 0) {
+            alertsBody.innerHTML = '<tr><td colspan="3" style="text-align: center; color: var(--text-muted); padding: 1.5rem;">No hay vencimientos próximos</td></tr>';
+        }
 
         pendingExpenses.forEach(e => {
             const nextDate = new Date(e.nextPaymentDate);
@@ -4813,7 +4865,45 @@ const UI = {
             `;
             alertsBody.appendChild(tr);
         });
+
+        // --- RENDERIZAR HISTORIAL DE PAGOS ---
+        if (historyBody) {
+            const opConceptId = '1774961310024'; // ID fijo para 'Gasto Operacional'
+            const filterEl = document.getElementById('filter-op-history-month');
+            const targetMonth = filterEl ? filterEl.value : ''; // Formato "YYYY-MM"
+
+            let opTransactions = state.transactions.filter(t => t.conceptId === opConceptId);
+            
+            // Aplicar Filtro de Mes si existe
+            if (targetMonth) {
+                opTransactions = opTransactions.filter(t => {
+                    const tDate = String(t.date); // "YYYY-MM-DD"
+                    return tDate.startsWith(targetMonth);
+                });
+            }
+
+            opTransactions.sort((a, b) => new Date(b.date) - new Date(a.date));
+
+            if (opTransactions.length === 0) {
+                historyBody.innerHTML = `<tr><td colspan="4" style="text-align: center; color: var(--text-muted); padding: 2rem;">No se encontraron pagos para ${targetMonth || 'este criterio'}.</td></tr>`;
+            } else {
+                opTransactions.forEach(t => {
+                    const tr = document.createElement('tr');
+                    const conceptName = state.concepts.find(c => c.id === t.conceptId)?.name || 'Gasto Operacional';
+                    
+                    tr.innerHTML = `
+                        <td>${formatDate(t.date)}</td>
+                        <td>${t.observation || '-'}</td>
+                        <td style="font-weight: bold; color: var(--danger-color)">- ${formatCurrency(t.amount)}</td>
+                        <td>${conceptName}</td>
+                    `;
+                    historyBody.appendChild(tr);
+                });
+            }
+        }
     },
+
+
 
     refreshAlertBadge() {
         const pendingBadge = document.getElementById('contracts-badge');

@@ -296,7 +296,8 @@ const Storage = {
 
         getContracts: () => asyncRequest('GET', '/contracts'),
         getPendingContracts: () => asyncRequest('GET', '/contracts/pending'),
-        getInvoicedContractsCurrent: () => asyncRequest('GET', '/contracts/invoiced-current'),
+        getInvoicedContractsCurrent: () => asyncRequest('GET', '/contracts/invoiced-history'),
+
         saveContract: (c) => asyncRequest('POST', '/contracts', c),
         deleteContract: (id) => asyncRequest('DELETE', `/contracts/${id}`),
         invoiceContract: (id) => asyncRequest('POST', `/contracts/${id}/invoice`),
