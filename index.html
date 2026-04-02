@@ -40,14 +40,18 @@
                     <label for="username">Usuario</label>
                     <div class="input-with-icon">
                         <i class="fa-solid fa-user"></i>
-                        <input type="text" id="username" name="username" required placeholder="Nombre de usuario">
+                        <input type="text" id="username" name="username" required placeholder="Nombre de usuario"
+                            oninvalid="this.setCustomValidity('Por favor, ingrese su usuario')"
+                            oninput="this.setCustomValidity('')">
                     </div>
                 </div>
                 <div class="form-group">
                     <label for="password">Contraseña</label>
                     <div class="input-with-icon">
                         <i class="fa-solid fa-lock"></i>
-                        <input type="password" id="password" name="password" required placeholder="••••••••">
+                        <input type="password" id="password" name="password" required placeholder="••••••••"
+                            oninvalid="this.setCustomValidity('Por favor, ingrese su contraseña')"
+                            oninput="this.setCustomValidity('')">
                     </div>
                 </div>
                 <button type="submit" class="btn-primary btn-block">

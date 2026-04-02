@@ -1380,12 +1380,16 @@ const UI = {
             window.circulatingChart.destroy();
         }
 
+        const pAvailable = totalCirculating > 0 ? ((totalAvailableFunds / totalCirculating) * 100).toFixed(1) : 0;
+        const pInventory = totalCirculating > 0 ? ((totalInventoryValue / totalCirculating) * 100).toFixed(1) : 0;
+        const pDebtors = totalCirculating > 0 ? ((totalDebtors / totalCirculating) * 100).toFixed(1) : 0;
+
         const ctx = document.getElementById('circulating-chart');
         if (ctx && window.Chart) {
             window.circulatingChart = new Chart(ctx, {
                 type: 'doughnut',
                 data: {
-                    labels: ['Activo Disponible', 'Inventario', 'Deudores (Por Cobrar)'],
+                    labels: [`Activo Disponible (${pAvailable}%)`, `Inventario (${pInventory}%)`, `Deudores (${pDebtors}%)`],
                     datasets: [{
                         data: [totalAvailableFunds, totalInventoryValue, totalDebtors],
                         backgroundColor: [
@@ -1412,7 +1416,12 @@ const UI = {
                                     let label = context.label || '';
                                     if (label) label += ': ';
                                     if (context.parsed !== null) {
-                                        label += new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP' }).format(context.parsed);
+                                        const value = context.parsed;
+                                        const dataset = context.dataset.data;
+                                        const total = dataset.reduce((a, b) => a + b, 0);
+                                        const percentage = total > 0 ? ((value / total) * 100).toFixed(1) : 0;
+                                        label += new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP' }).format(value);
+                                        label += ` (${percentage}%)`;
                                     }
                                     return label;
                                 }
@@ -2140,6 +2149,7 @@ const UI = {
         }
 
         this.loadData();
+        this.resetDebtForm();
         this.switchView('debts');
     },
 
@@ -2455,6 +2465,7 @@ const UI = {
         }
 
         this.loadData();
+        this.resetDebtorForm();
         this.switchView('debtors');
     },
 
@@ -3608,6 +3619,7 @@ const UI = {
         }
 
         await this.loadData();
+        this.resetContractForm();
         this.switchView('contracts');
     },
 
@@ -5264,6 +5276,7 @@ const UI = {
             }
 
             this.showToast(isNew ? 'Material agregado' : 'Material actualizado', 'success');
+            this.resetInventoryForm();
             this.closeModal('inventory-modal');
             await this.loadData();
             this.renderInventory();
