@@ -11,6 +11,11 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <!-- Fuentes de Google -->
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        .view-section { display: none; }
+        .view-section.active { display: block !important; }
+        .view-section.scrollable { overflow-y: auto; max-height: calc(100vh - 100px); }
+    </style>
     <!-- Flatpickr (Calendario) -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/plugins/monthSelect/style.css">
@@ -19,6 +24,31 @@
     <!-- jsPDF & AutoTable (PDF) -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.1/jspdf.plugin.autotable.min.js"></script>
+    
+    <!-- React & ReactDOM (UMD) -->
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <!-- Tailwind CSS (Play CDN) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+          prefix: 'tw-', // Prefix to avoid conflicts with existing CSS
+          important: '#notas-root', // Scope Tailwind to our root
+          theme: {
+            extend: {
+              colors: {
+                googleBlue: '#1a73e8',
+                googleGray: '#f1f3f4',
+              }
+            }
+          }
+        }
+    </script>
+    <!-- Babel for JSX -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script type="text/babel" src="notas.js"></script>
+
     <script>
         window.onerror = function (msg, url, line, col, error) {
             console.error("Error: " + msg + "\nEn: " + url + ":" + line);
@@ -76,7 +106,16 @@
                 </a>
             </div>
             <nav class="nav-menu">
+                <!-- Módulo Notas -->
+                <div class="nav-section" data-module="notas">
+                    <div class="nav-section-header">NOTAS</div>
+                    <button class="nav-btn" data-target="notas">
+                        <i class="fa-solid fa-clipboard-list"></i> Notas
+                    </button>
+                </div>
+
                 <!-- Módulo Finanzas -->
+
                 <div class="nav-section" data-module="finanzas">
                     <div class="nav-section-header">FINANZAS</div>
                     <button class="nav-btn active" data-target="transaction-form">
@@ -187,7 +226,14 @@
 
             <!-- Vistas (Secciones SPA) -->
 
+            <!-- VISTA NOTAS (React Container) -->
+            <section id="notas" class="view-section scrollable">
+                <!-- El root de React se inyectará aquí -->
+                <div id="notas-root"></div>
+            </section>
+
             <!-- VISTA DASHBOARD -->
+
             <section id="dashboard" class="view-section">
                 <div class="stats-grid">
                     <div class="stat-card balance">

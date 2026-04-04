@@ -74,9 +74,9 @@ const ROLES = {
 };
 
 const DEFAULT_USERS = [
-    { id: '1', username: 'administrador', password: 'S0p0rt3!!2025', role: ROLES.ADMIN, name: 'Admin Simons', modules: ['finanzas', 'usuarios'] },
-    { id: '2', username: 'operador', password: 'operador123', role: ROLES.OPERATOR, name: 'Operador Ventas', modules: ['finanzas'] },
-    { id: '3', username: 'lector', password: 'lector123', role: ROLES.VIEWER, name: 'Invitado', modules: ['finanzas'] }
+    { id: '1', username: 'administrador', password: 'S0p0rt3!!2025', role: ROLES.ADMIN, name: 'Admin Simons', modules: ['finanzas', 'usuarios', 'notas'] },
+    { id: '2', username: 'operador', password: 'operador123', role: ROLES.OPERATOR, name: 'Operador Ventas', modules: ['finanzas', 'notas'] },
+    { id: '3', username: 'lector', password: 'lector123', role: ROLES.VIEWER, name: 'Invitado', modules: ['finanzas', 'notas'] }
 ];
 
 // Ayudante para Fecha Local (Evita desfase de zona horaria)
@@ -181,6 +181,7 @@ const UI = {
             this.renderAvailables();
             this.renderInventory();
             this.renderLocations();
+            this.initNotas();
 
             // Establecer fecha por defecto a hoy (Hacerlo ANTES de Flatpickr)
             const dateInput = document.getElementById('date');
@@ -201,6 +202,14 @@ const UI = {
             // Si hay sesión, cargar la UI normal
             if (state.currentUser) {
                 this.applyPrivileges();
+                
+                // MIGRACIÓN TEMPORAL: Asegurar módulo 'notas' para admin si falta
+                if (state.currentUser.role === ROLES.ADMIN && !state.currentUser.modules.includes('notas')) {
+                    console.log("Auto-habilitando módulo 'notas' para administrador...");
+                    state.currentUser.modules.push('notas');
+                    this.applyModuleAccess();
+                }
+
                 this.switchView(state.currentView);
             }
             console.log("✅ UI.init() completado con éxito");
@@ -1187,7 +1196,8 @@ const UI = {
             'inventory': 'inventario',
             'activity': 'finanzas',
             'users': 'usuarios',
-            'operational-expenses': 'finanzas'
+            'operational-expenses': 'finanzas',
+            'notas': 'notas'
         };
 
         const requiredModule = viewModuleMap[currentView];
@@ -1254,7 +1264,8 @@ const UI = {
             'available-funds': 'Disponible',
             'users': 'Usuarios',
             'operational-expenses': 'Gastos Operacionales',
-            'alerts': 'Centro de Alertas'
+            'alerts': 'Centro de Alertas',
+            'notas': 'Notas'
         };
 
         const pageTitle = document.getElementById('page-title');
@@ -1285,6 +1296,7 @@ const UI = {
         if (viewName === 'available-funds') this.renderAvailables();
         if (viewName === 'users') this.renderUsers();
         if (viewName === 'operational-expenses') this.renderOperationalExpenses();
+        if (viewName === 'notas' && !this.notasInitialized) this.initNotas();
 
         // Resetear formularios si se sale de la sección
         if (viewName !== 'transaction-form') this.cancelTransactionEdit();
@@ -5485,6 +5497,30 @@ const UI = {
         } catch (err) {
             console.error(err);
             this.showToast('Error al actualizar fecha: ' + err.message, 'error');
+        }
+    },
+
+    initNotas() {
+        console.log("Intentando inicializar Módulo de Notas...");
+        if (typeof KeepModule !== 'undefined' && KeepModule.render) {
+            try {
+                KeepModule.render('notas-root');
+                this.notasInitialized = true;
+                console.log("✅ Módulo de Notas renderizado con éxito");
+            } catch (err) {
+                console.error("Error al renderizar Módulo de Notas:", err);
+            }
+        } else {
+            console.warn("KeepModule no detectado todavía. Reintentando en 1500ms...");
+            setTimeout(() => {
+                if (typeof KeepModule !== 'undefined' && KeepModule.render) {
+                    console.log("KeepModule detectado tras espera.");
+                    KeepModule.render('notas-root');
+                    this.notasInitialized = true;
+                } else {
+                    console.error("❌ Error Fatal: KeepModule no se cargó tras el reintento.");
+                }
+            }, 1500);
         }
     }
 };
