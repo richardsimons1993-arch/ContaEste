@@ -1,6 +1,6 @@
 // Estado del Sistema
 const rawState = {
-    currentView: 'transaction-form',
+    currentView: 'notas',
     transactions: [],
     concepts: [],
     clients: [],
@@ -202,15 +202,17 @@ const UI = {
             // Si hay sesión, cargar la UI normal
             if (state.currentUser) {
                 this.applyPrivileges();
+                this.applyModuleAccess();
                 
-                // MIGRACIÓN TEMPORAL: Asegurar módulo 'notas' para admin si falta
-                if (state.currentUser.role === ROLES.ADMIN && !state.currentUser.modules.includes('notas')) {
-                    console.log("Auto-habilitando módulo 'notas' para administrador...");
-                    state.currentUser.modules.push('notas');
-                    this.applyModuleAccess();
+                // Determinar vista inicial (Mobile-First Dashboard vs Notas Desktop)
+                const isMobile = window.innerWidth <= 768;
+                if (isMobile) {
+                    console.log("Modo Móvil Detectado: Cambiando a Dashboard de Inicio...");
+                    this.switchView('mobile-dashboard');
+                } else {
+                    console.log("Modo Desktop Detectado: Cambiando a Notas...");
+                    this.switchView('notas');
                 }
-
-                this.switchView(state.currentView);
             }
             console.log("✅ UI.init() completado con éxito");
         } catch (error) {
@@ -911,8 +913,16 @@ const UI = {
             this.applyPrivileges();
             this.applyModuleAccess();
             this.startInactivityTimer();
-            const firstView = this.getFirstAvailableView(state.currentUser.modules);
-            this.switchView(firstView);
+
+            // Determinar vista inicial tras login (Dashboard en móvil, primera disponible en PC)
+            const isMobile = window.innerWidth <= 768;
+            if (isMobile) {
+                this.switchView('mobile-dashboard');
+            } else {
+                const firstView = this.getFirstAvailableView(state.currentUser.modules);
+                this.switchView(firstView);
+            }
+
             this.recordActivity('Login', 'Sistema', `Usuario ${username} inició sesión`);
         } catch (err) {
             errorEl.textContent = 'Error de conexión con el servidor. Verifique que el servidor esté activo.';
@@ -1164,17 +1174,27 @@ const UI = {
     },
 
     applyModuleAccess() {
+        if (!state.currentUser) return;
+
+        // ASEGURAR MÓDULO NOTAS PARA ADMINISTRADORES
+        // Si el usuario es administrador, garantizamos que tenga el módulo 'notas' disponible
+        if (state.currentUser.role === ROLES.ADMIN && !state.currentUser.modules.includes('notas')) {
+            console.log("Garantizando acceso al módulo 'notas' por rol administrativo...");
+            state.currentUser.modules.push('notas');
+        }
+
         const userModules = state.currentUser?.modules || [];
         console.log("Aplicando acceso a módulos:", userModules);
 
         // Ocultar/mostrar secciones de navegación según módulos
-        document.querySelectorAll('.nav-section').forEach(section => {
-            const module = section.dataset.module;
+        document.querySelectorAll('.nav-section, .bottom-nav .nav-btn').forEach(el => {
+            const module = el.dataset.module;
             if (module) {
                 if (userModules.includes(module)) {
-                    section.style.display = 'block';
+                    // Si es un botón de la barra inferior, usar flex para que el texto e icono se alineen bien
+                    el.style.display = (el.classList.contains('nav-btn') && el.parentElement.classList.contains('bottom-nav')) ? 'flex' : 'block';
                 } else {
-                    section.style.display = 'none';
+                    el.style.display = 'none';
                 }
             }
         });
@@ -1209,9 +1229,10 @@ const UI = {
     },
 
     getFirstAvailableView(modules) {
+        if (modules.includes('notas')) return 'notas';
         if (modules.includes('finanzas')) return 'transaction-form';
         if (modules.includes('usuarios')) return 'users';
-        return 'transaction-form'; // Fallback
+        return 'notas'; // Fallback a notas
     },
 
     switchView(viewName) {
@@ -1234,6 +1255,11 @@ const UI = {
             rawState.currentView = viewName;
         }
 
+        // --- GESTIÓN DE UI MÓVIL ---
+        // Ocultar barra de navegación si estamos en el inicio móvil, pero la cabecera queda siempre visible
+        const isMobileDashboard = viewName === 'mobile-dashboard';
+        document.body.classList.toggle('hide-mobile-nav', isMobileDashboard);
+
         // Actualizar Barra Lateral
         document.querySelectorAll('.nav-btn').forEach(btn => {
             btn.classList.toggle('active', btn.dataset.target === viewName);
@@ -1248,24 +1274,25 @@ const UI = {
             }
         });
 
-        // Update Title
+        // Update Title (Solo si no es móvil o si se desea mantener para SEO/Accesibilidad)
         const titles = {
+            'mobile-dashboard': 'Inicio',
+            'notas': 'Notas',
             'dashboard': 'Balance',
             'transaction-form': 'Registrar',
             'transactions': 'Movimientos',
             'concepts': 'Conceptos',
             'clients': 'Clientes',
-            'suppliers': 'Proveedores',
             'debts': 'Deudas',
             'debtors': 'Deudores',
+            'suppliers': 'Proveedores',
+            'inventory': 'Inventario',
+            'projects': 'Proyectos',
             'contracts': 'Contratos',
-            'projects': 'Gestión de Proyectos',
-            'activity': 'Actividad',
-            'available-funds': 'Disponible',
             'users': 'Usuarios',
-            'operational-expenses': 'Gastos Operacionales',
-            'alerts': 'Centro de Alertas',
-            'notas': 'Notas'
+            'alerts': 'Alertas',
+            'activity': 'Actividad',
+            'available-funds': 'Disponible'
         };
 
         const pageTitle = document.getElementById('page-title');
@@ -5502,26 +5529,45 @@ const UI = {
 
     initNotas() {
         console.log("Intentando inicializar Módulo de Notas...");
-        if (typeof KeepModule !== 'undefined' && KeepModule.render) {
-            try {
-                KeepModule.render('notas-root');
-                this.notasInitialized = true;
-                console.log("✅ Módulo de Notas renderizado con éxito");
-            } catch (err) {
-                console.error("Error al renderizar Módulo de Notas:", err);
-            }
-        } else {
-            console.warn("KeepModule no detectado todavía. Reintentando en 1500ms...");
-            setTimeout(() => {
-                if (typeof KeepModule !== 'undefined' && KeepModule.render) {
-                    console.log("KeepModule detectado tras espera.");
+        
+        // Si ya está inicializado, no hacer nada
+        if (this.notasInitialized) return;
+
+        let retries = 0;
+        const maxRetries = 20; // 20 * 500ms = 10 segundos max
+        const interval = 500;
+
+        const attemptRender = () => {
+            if (typeof KeepModule !== 'undefined' && KeepModule.render) {
+                try {
+                    console.log(`KeepModule detectado (intento ${retries + 1}). Renderizando...`);
                     KeepModule.render('notas-root');
                     this.notasInitialized = true;
-                } else {
-                    console.error("❌ Error Fatal: KeepModule no se cargó tras el reintento.");
+                    console.log("✅ Módulo de Notas renderizado con éxito");
+                    return true;
+                } catch (err) {
+                    console.error("Error al renderizar Módulo de Notas:", err);
+                    return false;
                 }
-            }, 1500);
-        }
+            }
+            return false;
+        };
+
+        // Intento inmediato
+        if (attemptRender()) return;
+
+        // Si no está listo, iniciar sondeo
+        console.warn("KeepModule no detectado todavía. Iniciando sondeo cada 500ms...");
+        const pollId = setInterval(() => {
+            retries++;
+            if (attemptRender()) {
+                clearInterval(pollId);
+            } else if (retries >= maxRetries) {
+                clearInterval(pollId);
+                console.error("❌ Error Fatal: KeepModule no se cargó tras 10 segundos.");
+                if (this.showToast) this.showToast("Error: El módulo de notas no se pudo cargar.", "error");
+            }
+        }, interval);
     }
 };
 

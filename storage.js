@@ -337,7 +337,13 @@ const Storage = {
         getOperationalExpenses: () => asyncRequest('GET', '/operational-expenses'),
         saveOperationalExpense: (e) => asyncRequest('POST', '/operational-expenses', e),
         deleteOperationalExpense: (id) => asyncRequest('DELETE', `/operational-expenses/${id}`),
-        payOperationalExpense: (id, amount) => asyncRequest('POST', `/operational-expenses/${id}/pay`, { amount })
+        payOperationalExpense: (id, amount) => asyncRequest('POST', `/operational-expenses/${id}/pay`, { amount }),
+
+        // --- Notas (Privadas y persistentes) ---
+        getNotes: (userId) => asyncRequest('GET', `/notes/${userId}`),
+        saveNote: (note) => asyncRequest('POST', '/notes', note),
+        deleteNote: (id) => asyncRequest('DELETE', `/notes/${id}`),
+        migrateNotes: (userId, notes) => asyncRequest('POST', `/notes/migrate/${userId}`, notes)
     }
 };
 

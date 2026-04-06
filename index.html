@@ -47,7 +47,7 @@
     </script>
     <!-- Babel for JSX -->
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-    <script type="text/babel" src="notas.js"></script>
+    <script type="text/babel" src="notas.js?v=12"></script>
 
     <script>
         window.onerror = function (msg, url, line, col, error) {
@@ -97,6 +97,7 @@
     <div class="app-container">
         <!-- Overlay para Sidebar Móvil -->
         <div id="sidebar-overlay" class="sidebar-overlay"></div>
+
 
         <!-- Barra Lateral -->
         <aside class="sidebar">
@@ -195,7 +196,11 @@
                     <button id="mobile-menu-btn" class="btn-icon mobile-only" title="Menú">
                         <i class="fa-solid fa-bars"></i>
                     </button>
-                    <h1 id="page-title">Registrar</h1>
+                    <!-- Logo como Botón de Inicio (Solo en Móvil) -->
+                    <div id="header-logo-container" class="mobile-only" onclick="Store.currentView = 'mobile-dashboard'" style="cursor: pointer; display: flex; align-items: center;">
+                        <img src="logo.png" alt="Simons Logo" class="header-logo">
+                    </div>
+                    <h1 id="page-title" class="desktop-only">Inicio</h1>
                 </div>
                 <div class="header-actions" style="display: flex; align-items: center; gap: 1rem;">
                     <button id="contracts-reminder-btn" class="btn-icon" title="Contratos Pendientes de Facturar"
@@ -225,6 +230,69 @@
             </header>
 
             <!-- Vistas (Secciones SPA) -->
+
+            <!-- VISTA INICIO MÓVIL (DASHBOARD) - POSICIÓN MAESTRA -->
+            <section id="mobile-dashboard" class="view-section">
+                <div class="tw-flex tw-flex-col tw-items-center tw-justify-start tw-min-h-screen tw-w-full tw-py-8 tw-px-6 tw-space-y-6">
+                    
+                    <!-- Botón Notas -->
+                    <button class="mobile-card-large" onclick="Store.currentView = 'notas'">
+                        <div class="tw-bg-[#1a73e8] tw-p-6 tw-rounded-[2rem] tw-shadow-lg">
+                            <i class="fa-solid fa-lightbulb tw-text-5xl tw-text-white"></i>
+                        </div>
+                        <span class="tw-text-2xl tw-font-bold tw-text-gray-900">NOTAS</span>
+                    </button>
+
+                    <!-- Botón Registrar -->
+                    <button class="mobile-card-large" onclick="Store.currentView = 'transaction-form'">
+                        <div class="tw-bg-[#10b981] tw-p-6 tw-rounded-[2rem] tw-shadow-lg">
+                            <i class="fa-solid fa-circle-plus tw-text-5xl tw-text-white"></i>
+                        </div>
+                        <span class="tw-text-2xl tw-font-bold tw-text-gray-900">REGISTRAR</span>
+                    </button>
+
+                    <!-- Botón Deudores -->
+                    <button class="mobile-card-large" onclick="Store.currentView = 'debtors'">
+                        <div class="tw-bg-blue-500 tw-p-6 tw-rounded-[2rem] tw-shadow-lg">
+                            <i class="fa-solid fa-user-tag tw-text-5xl tw-text-white"></i>
+                        </div>
+                        <span class="tw-text-2xl tw-font-bold tw-text-gray-900">DEUDORES</span>
+                    </button>
+
+                    <!-- Botón Deudas -->
+                    <button class="mobile-card-large" onclick="Store.currentView = 'debts'">
+                        <div class="tw-bg-red-500 tw-p-6 tw-rounded-[2rem] tw-shadow-lg">
+                            <i class="fa-solid fa-hand-holding-dollar tw-text-5xl tw-text-white"></i>
+                        </div>
+                        <span class="tw-text-2xl tw-font-bold tw-text-gray-900">DEUDAS</span>
+                    </button>
+
+                    <!-- Botón Inventario -->
+                    <button class="mobile-card-large" onclick="Store.currentView = 'inventory'">
+                        <div class="tw-bg-indigo-500 tw-p-6 tw-rounded-[2rem] tw-shadow-lg">
+                            <i class="fa-solid fa-boxes-stacked tw-text-5xl tw-text-white"></i>
+                        </div>
+                        <span class="tw-text-2xl tw-font-bold tw-text-gray-900">INVENTARIO</span>
+                    </button>
+
+                    <!-- Botón Movimientos -->
+                    <button class="mobile-card-large" onclick="Store.currentView = 'transactions'">
+                        <div class="tw-bg-slate-600 tw-p-6 tw-rounded-[2rem] tw-shadow-lg">
+                            <i class="fa-solid fa-list-ul tw-text-5xl tw-text-white"></i>
+                        </div>
+                        <span class="tw-text-2xl tw-font-bold tw-text-gray-900">MOVIMIENTOS</span>
+                    </button>
+
+                    <!-- Botón Actividad -->
+                    <button class="mobile-card-large" onclick="Store.currentView = 'activity'">
+                        <div class="tw-bg-amber-600 tw-p-6 tw-rounded-[2rem] tw-shadow-lg">
+                            <i class="fa-solid fa-clock-rotate-left tw-text-5xl tw-text-white"></i>
+                        </div>
+                        <span class="tw-text-2xl tw-font-bold tw-text-gray-900">ACTIVIDAD</span>
+                    </button>
+
+                </div>
+            </section>
 
             <!-- VISTA NOTAS (React Container) -->
             <section id="notas" class="view-section scrollable">
@@ -1374,6 +1442,7 @@
 
                 </div>
             </section>
+
 
             <!-- VISTA ACTIVIDAD -->
             <section id="activity" class="view-section">

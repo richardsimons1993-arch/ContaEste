@@ -757,6 +757,160 @@ app.get('/api/users', async (req, res) => {
         res.status(500).json({ error: err.message });
     }
 });
+
+// --- ENDPOINTS PARA NOTAS (PRIVADAS) ---
+
+app.get('/api/notes/:userId', async (req, res) => {
+    try {
+        const pool = await getDbPool();
+        const result = await pool.request()
+            .input('userId', sql.VarChar, req.params.userId)
+            .query('SELECT * FROM Notes WHERE userId = @userId ORDER BY pinned DESC, lastModified DESC');
+        
+        // Convertir BIT a Boolean para el frontend
+        const notes = result.recordset.map(n => ({
+            ...n,
+            pinned: n.pinned === true || n.pinned === 1,
+            archived: n.archived === true || n.archived === 1,
+            deleted: n.deleted === true || n.deleted === 1
+        }));
+        res.json(notes);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.post('/api/notes', async (req, res) => {
+    try {
+        const n = req.body;
+        const pool = await getDbPool();
+        
+        // El contenido puede ser JSON string (para listas) o texto plano
+        const content = typeof n.content === 'object' ? JSON.stringify(n.content) : n.content;
+        const lastModified = n.lastModified || new Date().toISOString();
+
+        console.log(`📝 Recibida nota ID: ${n.id} (Archivada: ${n.archived}, Eliminada: ${n.deleted})`);
+
+        const check = await pool.request()
+            .input('id', sql.VarChar(50), n.id)
+            .query('SELECT id FROM Notes WHERE id = @id');
+
+        if (check.recordset.length > 0) {
+            await pool.request()
+                .input('id', sql.VarChar(50), n.id)
+                .input('userId', sql.VarChar(50), n.userId)
+                .input('title', sql.VarChar(255), n.title || '')
+                .input('content', sql.VarChar(sql.MAX), content)
+                .input('type', sql.VarChar(50), n.type || 'text')
+                .input('pinned', sql.Bit, n.pinned ? 1 : 0)
+                .input('archived', sql.Bit, n.archived ? 1 : 0)
+                .input('deleted', sql.Bit, n.deleted ? 1 : 0)
+                .input('deletedAt', sql.DateTime, n.deletedAt ? new Date(n.deletedAt) : null)
+                .input('lastModified', sql.DateTime, new Date(lastModified))
+                .query(`UPDATE Notes SET userId=@userId, title=@title, content=@content, type=@type, pinned=@pinned, archived=@archived, deleted=@deleted, deletedAt=@deletedAt, lastModified=@lastModified WHERE id=@id`);
+            console.log(`✅ Nota ${n.id} actualizada.`);
+        } else {
+            await pool.request()
+                .input('id', sql.VarChar(50), n.id)
+                .input('userId', sql.VarChar(50), n.userId)
+                .input('title', sql.VarChar(255), n.title || '')
+                .input('content', sql.VarChar(sql.MAX), content)
+                .input('type', sql.VarChar(50), n.type || 'text')
+                .input('pinned', sql.Bit, n.pinned ? 1 : 0)
+                .input('archived', sql.Bit, n.archived ? 1 : 0)
+                .input('deleted', sql.Bit, n.deleted ? 1 : 0)
+                .input('deletedAt', sql.DateTime, n.deletedAt ? new Date(n.deletedAt) : null)
+                .input('lastModified', sql.DateTime, new Date(lastModified))
+                .query(`INSERT INTO Notes (id, userId, title, content, type, pinned, archived, deleted, deletedAt, lastModified) VALUES (@id, @userId, @title, @content, @type, @pinned, @archived, @deleted, @deletedAt, @lastModified)`);
+            console.log(`✅ Nota ${n.id} creada.`);
+        }
+        res.json({ success: true });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.post('/api/notes/migrate/:userId', async (req, res) => {
+    try {
+        const notes = req.body; // Array de notas
+        const userId = req.params.userId;
+        const pool = await getDbPool();
+        
+        console.log(`Migrando ${notes.length} notas para usuario ${userId}`);
+
+        for (const n of notes) {
+            const content = typeof n.content === 'object' ? JSON.stringify(n.content) : n.content;
+            const lastModified = n.lastModified || new Date().toISOString();
+            
+            // Asegurar que n.id es una cadena para SQL y manejar IDs numéricos de localStorage
+            const noteIdStr = String(n.id);
+            
+            const check = await pool.request().input('id', sql.VarChar(50), noteIdStr).query('SELECT id FROM Notes WHERE id = @id');
+            const finalId = check.recordset.length > 0 ? 'MIG-' + Date.now() + Math.random() : noteIdStr;
+
+            await pool.request()
+                .input('id', sql.VarChar(50), finalId)
+                .input('userId', sql.VarChar(50), userId)
+                .input('title', sql.VarChar(255), n.title || '')
+                .input('content', sql.VarChar(sql.MAX), content)
+                .input('type', sql.VarChar(50), n.type || 'text')
+                .input('pinned', sql.Bit, n.pinned ? 1 : 0)
+                .input('lastModified', sql.VarChar(100), lastModified)
+                .query(`INSERT INTO Notes (id, userId, title, content, type, pinned, lastModified) VALUES (@id, @userId, @title, @content, @type, @pinned, @lastModified)`);
+        }
+        res.json({ success: true, count: notes.length });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.delete('/api/notes/:id', async (req, res) => {
+    try {
+        const pool = await getDbPool();
+        const noteId = req.params.id;
+
+        // Verificar si ya está marcada como eliminada
+        const check = await pool.request()
+            .input('id', sql.VarChar(50), noteId)
+            .query('SELECT deleted FROM Notes WHERE id = @id');
+
+        if (check.recordset.length > 0 && check.recordset[0].deleted) {
+            // Si ya está en la papelera, eliminar para siempre
+            await pool.request()
+                .input('id', sql.VarChar(50), noteId)
+                .query('DELETE FROM Notes WHERE id = @id');
+            res.json({ success: true, permanent: true });
+        } else {
+            // Si no está eliminada, mover a la papelera
+            await pool.request()
+                .input('id', sql.VarChar(50), noteId)
+                .input('deletedAt', sql.DateTime, new Date())
+                .query('UPDATE Notes SET deleted = 1, pinned = 0, deletedAt = @deletedAt WHERE id = @id');
+            res.json({ success: true, permanent: false });
+        }
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Función para eliminar notas de la papelera con más de 30 días
+async function deleteExpiredNotes() {
+    try {
+        const pool = await getDbPool();
+        const thirtyDaysAgo = new Date();
+        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+        const result = await pool.request()
+            .input('thirtyDaysAgo', sql.DateTime, thirtyDaysAgo)
+            .query('DELETE FROM Notes WHERE deleted = 1 AND deletedAt < @thirtyDaysAgo');
+        
+        if (result.rowsAffected[0] > 0) {
+            console.log(`🧹 Limpieza: ${result.rowsAffected[0]} notas antiguas eliminadas permanentemente.`);
+        }
+    } catch (err) {
+        console.error('⚠️ Error en limpieza de notas:', err.message);
+    }
+}
 app.delete('/api/users/:id', (req, res) => deleteApi(req, res, 'Users'));
 
 // Guardar/actualizar un único usuario (con hash de contraseña)
@@ -1358,6 +1512,9 @@ app.listen(PORT, '0.0.0.0', () => {
     console.log(`🚀 Servidor iniciado y accesible en red local`);
     console.log(`🏠 Local: http://localhost:${PORT}`);
     console.log(`🌐 Red:  http://192.168.130.129:${PORT}`);
-    // Migrar contraseñas automáticamente al arrancar
-    setTimeout(() => migratePasswords(), 2000);
+    // Tareas de mantenimiento
+    setTimeout(() => {
+        migratePasswords();
+        deleteExpiredNotes();
+    }, 2000);
 });
