@@ -3,12 +3,14 @@ const cors = require('cors');
 const sql = require('mssql/msnodesqlv8');
 const bcrypt = require('bcrypt');
 const axios = require('axios');
+const fs = require('fs');
+const path = require('path');
 
 const BCRYPT_ROUNDS = 10;
 
 const app = express();
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '50mb' })); // Aumentado para soportar base64 grandes (PDF)
 app.use(express.static(__dirname)); // Sirve HTML, JS y CSS automáticamente
 
 // Configuración de Conexión a SQL Server usando driver nativo (para evitar problemas de TCP/IP)
@@ -1468,6 +1470,133 @@ app.delete('/api/availables/:id', async (req, res) => {
             .query('DELETE FROM AvailableFunds WHERE id = @id');
         res.json({ success: true });
     } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// --- ENDPOINTS PARA COTIZACIONES ---
+
+// Limpiar cotizaciones antiguas (> 90 días)
+async function cleanOldQuotations() {
+    try {
+        const pool = await getDbPool();
+        const result = await pool.request().query('DELETE FROM Quotations WHERE createdAt < DATEADD(day, -90, GETDATE())');
+        if (result.rowsAffected[0] > 0) {
+            console.log(`🧹 Limpieza: Se eliminaron ${result.rowsAffected[0]} cotizaciones antiguas de la BD.`);
+        }
+    } catch (err) {
+        console.error('Error en limpieza de cotizaciones:', err);
+    }
+}
+
+app.get('/api/quotations', async (req, res) => {
+    try {
+        await cleanOldQuotations();
+        const pool = await getDbPool();
+        const result = await pool.request().query('SELECT * FROM Quotations ORDER BY createdAt DESC');
+        console.log(`📦 Historial: Sirviendo ${result.recordset.length} cotizaciones.`);
+        res.json(result.recordset);
+    } catch (err) {
+        console.error('Error al obtener cotizaciones:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.get('/api/quotations/next-id/:clientId/:year', async (req, res) => {
+    try {
+        const year = parseInt(req.params.year);
+        const clientId = req.params.clientId;
+        const pool = await getDbPool();
+        const result = await pool.request()
+            .input('year', sql.Int, year)
+            .input('clientId', sql.VarChar(50), clientId)
+            .query('SELECT ISNULL(MAX(correlative), 0) + 1 AS nextId FROM Quotations WHERE year = @year AND clientId = @clientId');
+        res.json({ nextId: result.recordset[0].nextId });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.get('/api/quotations/next-version/:id', async (req, res) => {
+    try {
+        const pool = await getDbPool();
+        const result = await pool.request()
+            .input('id', sql.VarChar(50), req.params.id)
+            .query('SELECT ISNULL(MAX(version), 0) + 1 AS nextVersion FROM Quotations WHERE id = @id');
+        res.json({ nextVersion: result.recordset[0].nextVersion });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.post('/api/quotations', async (req, res) => {
+    try {
+        const q = req.body;
+        const pool = await getDbPool();
+        await pool.request()
+            .input('id', sql.VarChar(50), q.id)
+            .input('correlative', sql.Int, q.correlative)
+            .input('year', sql.Int, q.year)
+            .input('version', sql.Int, q.version || 1)
+            .input('clientId', sql.VarChar(50), q.clientId)
+            .input('clientName', sql.VarChar(255), q.clientName)
+            .input('projectName', sql.VarChar(255), q.projectName || '')
+            .input('requirements', sql.VarChar(sql.MAX), q.requirements || '')
+            .input('technicalConditions', sql.VarChar(sql.MAX), q.technicalConditions || '')
+            .input('commercialConditions', sql.VarChar(sql.MAX), q.commercialConditions || '')
+            .input('items1', sql.VarChar(sql.MAX), JSON.stringify(q.items1 || []))
+            .input('itemsOptional', sql.VarChar(sql.MAX), JSON.stringify(q.itemsOptional || []))
+            .input('subtotal', sql.Decimal(18,2), q.subtotal)
+            .input('iva', sql.Decimal(18,2), q.iva)
+            .input('total', sql.Decimal(18,2), q.total)
+            .query(`INSERT INTO Quotations (id, correlative, year, version, clientId, clientName, projectName, requirements, technicalConditions, commercialConditions, items1, itemsOptional, subtotal, iva, total, createdAt) 
+                    VALUES (@id, @correlative, @year, @version, @clientId, @clientName, @projectName, @requirements, @technicalConditions, @commercialConditions, @items1, @itemsOptional, @subtotal, @iva, @total, GETDATE())`);
+        res.json({ success: true });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.delete('/api/quotations/:id/:version', async (req, res) => {
+    try {
+        const pool = await getDbPool();
+        await pool.request()
+            .input('id', sql.VarChar(50), req.params.id)
+            .input('version', sql.Int, req.params.version)
+            .query('DELETE FROM Quotations WHERE id = @id AND version = @version');
+        res.json({ success: true });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.post('/api/quotations/save-pdf', async (req, res) => {
+    try {
+        const { clientName, year, quotationId, pdfBase64 } = req.body;
+        
+        // Ruta Base en OneDrive
+        const baseDriveDir = path.join('C:', 'Users', 'Richard', 'OneDrive - SIMONS SPA', 'Simons SPA', 'Clientes', 'Cotizaciones APP');
+        const yearDir = path.join(baseDriveDir, year.toString());
+        const clientDir = path.join(yearDir, clientName);
+        
+        // Crear directorios si no existen
+        if (!fs.existsSync(baseDriveDir)) fs.mkdirSync(baseDriveDir, { recursive: true });
+        if (!fs.existsSync(yearDir)) fs.mkdirSync(yearDir, { recursive: true });
+        if (!fs.existsSync(clientDir)) fs.mkdirSync(clientDir, { recursive: true });
+
+        // Limpiar base64 header si existe de manera robusta
+        const base64Data = pdfBase64.includes('base64,') ? pdfBase64.split('base64,')[1] : pdfBase64;
+        
+        const fileName = `Cotizacion_${quotationId}_${clientName.replace(/[^a-zA-Z0-9 -]/g, '')}.pdf`;
+        const filePath = path.join(clientDir, fileName);
+
+        fs.writeFileSync(filePath, base64Data, 'base64');
+        
+        console.log(`✅ PDF cotización guardado: ${filePath}`);
+        res.json({ success: true, filePath });
+    } catch (err) {
+        console.error('Error al guardar PDF:', err);
         res.status(500).json({ error: err.message });
     }
 });

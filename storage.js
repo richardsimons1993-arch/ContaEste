@@ -343,7 +343,15 @@ const Storage = {
         getNotes: (userId) => asyncRequest('GET', `/notes/${userId}`),
         saveNote: (note) => asyncRequest('POST', '/notes', note),
         deleteNote: (id) => asyncRequest('DELETE', `/notes/${id}`),
-        migrateNotes: (userId, notes) => asyncRequest('POST', `/notes/migrate/${userId}`, notes)
+        migrateNotes: (userId, notes) => asyncRequest('POST', `/notes/migrate/${userId}`, notes),
+
+        // --- Cotizaciones ---
+        getNextQuotationId: (clientId, year) => asyncRequest('GET', `/quotations/next-id/${clientId}/${year}`),
+        getQuotations: () => asyncRequest('GET', '/quotations'),
+        getQuotationNextVersion: (id) => asyncRequest('GET', `/quotations/next-version/${id}`),
+        saveQuotation: (q) => asyncRequest('POST', '/quotations', q),
+        deleteQuotation: (id, version) => asyncRequest('DELETE', `/quotations/${id}/${version}`),
+        saveQuotationPdf: (data) => asyncRequest('POST', '/quotations/save-pdf', data)
     }
 };
 

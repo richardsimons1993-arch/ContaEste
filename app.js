@@ -65,6 +65,7 @@ const Store = new Proxy(rawState, {
 
 // Alias para mantener compatibilidad con el código existente que usa 'state'
 const state = Store;
+window.state = Store;
 
 // Roles y Permisos
 const ROLES = {
@@ -182,6 +183,9 @@ const UI = {
             this.renderInventory();
             this.renderLocations();
             this.initNotas();
+            if(typeof window.initQuotations === 'function') {
+                window.initQuotations();
+            }
 
             // Establecer fecha por defecto a hoy (Hacerlo ANTES de Flatpickr)
             const dateInput = document.getElementById('date');
@@ -1237,6 +1241,14 @@ const UI = {
 
     switchView(viewName) {
         console.log(`Intentando cambiar vista a: ${viewName}`);
+        
+        // Reiniciar posición de scroll al cambiar de vista
+        window.scrollTo(0, 0);
+        const activeSection = document.getElementById(viewName);
+        if (activeSection) {
+            activeSection.scrollTop = 0;
+        }
+
         if (!state.currentUser) {
             console.warn("Bloqueado: Intento de navegación sin usuario activo.");
             return;
@@ -1292,7 +1304,8 @@ const UI = {
             'users': 'Usuarios',
             'alerts': 'Alertas',
             'activity': 'Actividad',
-            'available-funds': 'Disponible'
+            'available-funds': 'Disponible',
+            'quotations': 'Cotizaciones'
         };
 
         const pageTitle = document.getElementById('page-title');
@@ -1324,6 +1337,11 @@ const UI = {
         if (viewName === 'users') this.renderUsers();
         if (viewName === 'operational-expenses') this.renderOperationalExpenses();
         if (viewName === 'notas' && !this.notasInitialized) this.initNotas();
+        if (viewName === 'quotations') {
+            if(typeof window.initQuotations === 'function') {
+                window.initQuotations();
+            }
+        }
 
         // Resetear formularios si se sale de la sección
         if (viewName !== 'transaction-form') this.cancelTransactionEdit();

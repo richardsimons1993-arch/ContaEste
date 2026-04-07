@@ -10,7 +10,7 @@
     <!-- Font Awesome para Iconos -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <!-- Fuentes de Google -->
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Dancing+Script:wght@600&display=swap" rel="stylesheet">
     <style>
         .view-section { display: none; }
         .view-section.active { display: block !important; }
@@ -34,7 +34,7 @@
     <script>
         tailwind.config = {
           prefix: 'tw-', // Prefix to avoid conflicts with existing CSS
-          important: '#notas-root', // Scope Tailwind to our root
+          important: 'body', // Scope Tailwind to the whole body so it works on all React modules
           theme: {
             extend: {
               colors: {
@@ -45,9 +45,12 @@
           }
         }
     </script>
+    <!-- html2pdf for Cotizaciones -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
     <!-- Babel for JSX -->
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-    <script type="text/babel" src="notas.js?v=12"></script>
+    <script type="text/babel" src="notas.js?v=13"></script>
+    <script type="text/babel" src="cotizaciones.js?v=13"></script>
 
     <script>
         window.onerror = function (msg, url, line, col, error) {
@@ -160,6 +163,9 @@
                     <button class="nav-btn" data-target="projects">
                         <i class="fa-solid fa-diagram-project"></i> Proyectos
                     </button>
+                    <button class="nav-btn desktop-only" data-target="quotations">
+                        <i class="fa-solid fa-file-invoice"></i> Cotizaciones
+                    </button>
                     <button class="nav-btn" data-target="contracts">
                         <i class="fa-solid fa-file-contract"></i> Contratos
                     </button>
@@ -233,64 +239,57 @@
 
             <!-- VISTA INICIO MÓVIL (DASHBOARD) - POSICIÓN MAESTRA -->
             <section id="mobile-dashboard" class="view-section">
-                <div class="tw-flex tw-flex-col tw-items-center tw-justify-start tw-min-h-screen tw-w-full tw-py-8 tw-px-6 tw-space-y-6">
+                <div class="tw-grid tw-grid-cols-3 tw-gap-2 tw-p-4 tw-w-full">
                     
                     <!-- Botón Notas -->
                     <button class="mobile-card-large" onclick="Store.currentView = 'notas'">
-                        <div class="tw-bg-[#1a73e8] tw-p-6 tw-rounded-[2rem] tw-shadow-lg">
-                            <i class="fa-solid fa-lightbulb tw-text-5xl tw-text-white"></i>
+                        <div class="tw-bg-[#1a73e8] tw-p-3 tw-rounded-2xl tw-shadow-md">
+                            <i class="fa-solid fa-lightbulb tw-text-xl tw-text-white"></i>
                         </div>
-                        <span class="tw-text-2xl tw-font-bold tw-text-gray-900">NOTAS</span>
+                        <span class="tw-text-[10px] tw-font-bold tw-text-gray-900 tw-tracking-tighter tw-leading-tight">NOTAS</span>
                     </button>
-
                     <!-- Botón Registrar -->
                     <button class="mobile-card-large" onclick="Store.currentView = 'transaction-form'">
-                        <div class="tw-bg-[#10b981] tw-p-6 tw-rounded-[2rem] tw-shadow-lg">
-                            <i class="fa-solid fa-circle-plus tw-text-5xl tw-text-white"></i>
+                        <div class="tw-bg-[#10b981] tw-p-3 tw-rounded-2xl tw-shadow-md">
+                            <i class="fa-solid fa-circle-plus tw-text-xl tw-text-white"></i>
                         </div>
-                        <span class="tw-text-2xl tw-font-bold tw-text-gray-900">REGISTRAR</span>
+                        <span class="tw-text-[10px] tw-font-bold tw-text-gray-900 tw-tracking-tighter tw-leading-tight">REGISTRAR</span>
                     </button>
-
                     <!-- Botón Deudores -->
                     <button class="mobile-card-large" onclick="Store.currentView = 'debtors'">
-                        <div class="tw-bg-blue-500 tw-p-6 tw-rounded-[2rem] tw-shadow-lg">
-                            <i class="fa-solid fa-user-tag tw-text-5xl tw-text-white"></i>
+                        <div class="tw-bg-blue-500 tw-p-3 tw-rounded-2xl tw-shadow-md">
+                            <i class="fa-solid fa-user-tag tw-text-xl tw-text-white"></i>
                         </div>
-                        <span class="tw-text-2xl tw-font-bold tw-text-gray-900">DEUDORES</span>
+                        <span class="tw-text-[10px] tw-font-bold tw-text-gray-900 tw-tracking-tighter tw-leading-tight">DEUDORES</span>
                     </button>
-
                     <!-- Botón Deudas -->
                     <button class="mobile-card-large" onclick="Store.currentView = 'debts'">
-                        <div class="tw-bg-red-500 tw-p-6 tw-rounded-[2rem] tw-shadow-lg">
-                            <i class="fa-solid fa-hand-holding-dollar tw-text-5xl tw-text-white"></i>
+                        <div class="tw-bg-red-500 tw-p-3 tw-rounded-2xl tw-shadow-md">
+                            <i class="fa-solid fa-hand-holding-dollar tw-text-xl tw-text-white"></i>
                         </div>
-                        <span class="tw-text-2xl tw-font-bold tw-text-gray-900">DEUDAS</span>
+                        <span class="tw-text-[10px] tw-font-bold tw-text-gray-900 tw-tracking-tighter tw-leading-tight">DEUDAS</span>
                     </button>
-
                     <!-- Botón Inventario -->
                     <button class="mobile-card-large" onclick="Store.currentView = 'inventory'">
-                        <div class="tw-bg-indigo-500 tw-p-6 tw-rounded-[2rem] tw-shadow-lg">
-                            <i class="fa-solid fa-boxes-stacked tw-text-5xl tw-text-white"></i>
+                        <div class="tw-bg-indigo-500 tw-p-3 tw-rounded-2xl tw-shadow-md">
+                            <i class="fa-solid fa-boxes-stacked tw-text-xl tw-text-white"></i>
                         </div>
-                        <span class="tw-text-2xl tw-font-bold tw-text-gray-900">INVENTARIO</span>
+                        <span class="tw-text-[10px] tw-font-bold tw-text-gray-900 tw-tracking-tighter tw-leading-tight">INVENTARIO</span>
                     </button>
-
                     <!-- Botón Movimientos -->
                     <button class="mobile-card-large" onclick="Store.currentView = 'transactions'">
-                        <div class="tw-bg-slate-600 tw-p-6 tw-rounded-[2rem] tw-shadow-lg">
-                            <i class="fa-solid fa-list-ul tw-text-5xl tw-text-white"></i>
+                        <div class="tw-bg-slate-600 tw-p-3 tw-rounded-2xl tw-shadow-md">
+                            <i class="fa-solid fa-list-ul tw-text-xl tw-text-white"></i>
                         </div>
-                        <span class="tw-text-2xl tw-font-bold tw-text-gray-900">MOVIMIENTOS</span>
+                        <span class="tw-text-[10px] tw-font-bold tw-text-gray-900 tw-tracking-tighter tw-leading-tight">MOVIMIENTOS</span>
                     </button>
-
                     <!-- Botón Actividad -->
                     <button class="mobile-card-large" onclick="Store.currentView = 'activity'">
-                        <div class="tw-bg-amber-600 tw-p-6 tw-rounded-[2rem] tw-shadow-lg">
-                            <i class="fa-solid fa-clock-rotate-left tw-text-5xl tw-text-white"></i>
+                        <div class="tw-bg-amber-600 tw-p-3 tw-rounded-2xl tw-shadow-md">
+                            <i class="fa-solid fa-clock-rotate-left tw-text-xl tw-text-white"></i>
                         </div>
-                        <span class="tw-text-2xl tw-font-bold tw-text-gray-900">ACTIVIDAD</span>
+                        <span class="tw-text-[10px] tw-font-bold tw-text-gray-900 tw-tracking-tighter tw-leading-tight">ACTIVIDAD</span>
                     </button>
-
                 </div>
             </section>
 
@@ -298,6 +297,11 @@
             <section id="notas" class="view-section scrollable">
                 <!-- El root de React se inyectará aquí -->
                 <div id="notas-root"></div>
+            </section>
+
+            <!-- VISTA COTIZACIONES (React Container) -->
+            <section id="quotations" class="view-section scrollable">
+                <div id="quotations-root"></div>
             </section>
 
             <!-- VISTA DASHBOARD -->
@@ -1804,8 +1808,8 @@
     <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/es.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/plugins/monthSelect/index.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="storage.js"></script>
-    <script src="app.js?v=10"></script>
+    <script src="storage.js?v=2"></script>
+    <script src="app.js?v=25"></script>
 </body>
 
 </html>
