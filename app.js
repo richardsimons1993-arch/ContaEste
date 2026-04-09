@@ -2842,7 +2842,7 @@ const UI = {
         }
 
         // UI Feedback inmediato (sin esperas)
-        this.showToast('Procesando registro...', 'info');
+        this.showToast('Movimiento registrado', 'success');
         this.cancelTransactionEdit();
         UI.switchView('transactions');
 
@@ -2850,16 +2850,15 @@ const UI = {
         window.StorageAPI.async.saveTransaction(transaction)
             .then(savedTx => {
                 console.log('✅ Sincronización exitosa:', savedTx.id);
-                this.showToast('Movimiento sincronizado con éxito', 'success');
+                // El éxito ya se notificó optimísticamente
             })
             .catch(error => {
                 console.error("❌ ERROR CRÍTICO DE SINCRONIZACIÓN:", error);
                 // ROLLBACK: Revertir al estado anterior si falla el servidor
                 state.transactions = originalTransactions;
                 
-                // Alerta persistente para el usuario
-                alert('⚠️ ERROR AL GUARDAR: El movimiento no pudo ser registrado en el servidor. Por favor, revise su conexión e intente nuevamente. (Los datos se han revertido)');
-                this.showToast('Error de conexión: Datos revertidos', 'error');
+                // Solo advertencia en caso de fallo
+                this.showToast('⚠️ Advertencia: Registro fallido (' + error.message + ')', 'warning');
                 
                 // Si era una edición, podríamos querer recargar la vista de edición
                 if (id) this.editTransaction(id);
