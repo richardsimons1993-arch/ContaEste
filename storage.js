@@ -346,7 +346,7 @@ const Storage = {
         migrateNotes: (userId, notes) => asyncRequest('POST', `/notes/migrate/${userId}`, notes),
 
         // --- Cotizaciones ---
-        getNextQuotationId: (clientId, year) => asyncRequest('GET', `/quotations/next-id/${clientId}/${year}`),
+        getNextQuotationId: (prefix, year) => asyncRequest('GET', `/quotations/next-id/${prefix}/${year}`),
         getQuotations: () => asyncRequest('GET', '/quotations'),
         getQuotationNextVersion: (id) => asyncRequest('GET', `/quotations/next-version/${id}`),
         saveQuotation: (q) => asyncRequest('POST', '/quotations', q),

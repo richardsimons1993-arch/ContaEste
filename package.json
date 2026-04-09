@@ -25,5 +25,8 @@
     "express": "^5.2.1",
     "msnodesqlv8": "^5.1.5",
     "mssql": "^12.2.0"
+  },
+  "devDependencies": {
+    "node-windows": "^1.0.0-beta.8"
   }
 }

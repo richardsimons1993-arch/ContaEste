@@ -1,0 +1,2 @@
+2026-04-07 20:24:39 - Starting C:\Program Files\nodejs\node.exe  --harmony C:\Users\Richard\Desktop\Contabilidad\ContaEste\node_modules\node-windows\lib\wrapper.js --file C:\Users\Richard\Desktop\Contabilidad\ContaEste\server.js --scriptoptions= --log "ContaEsteService wrapper" --grow 0.25 --wait 1 --maxrestarts 3 --abortonerror n --stopparentfirst undefined
+2026-04-07 20:24:39 - Started 9532

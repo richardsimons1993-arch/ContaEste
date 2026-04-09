@@ -31,21 +31,43 @@ const Store = new Proxy(rawState, {
 
         // Mapeo de propiedades a funciones de renderizado
         const renderMap = {
-            'transactions': () => { UI.renderTransactionsList(); UI.renderDashboard(); UI.checkOperationalExpensesAlerts(); },
+            'transactions': () => { 
+                UI.renderTransactionsList(); 
+                // Deferir cálculos pesados para no bloquear el hilo principal tras un registro
+                setTimeout(() => {
+                    UI.renderDashboard(); 
+                    UI.checkOperationalExpensesAlerts(); 
+                }, 0);
+            },
             'concepts': () => { UI.renderConcepts(); UI.renderTransactionFormOptions(); },
 
             'clients': () => { UI.renderClients(); UI.renderTransactionFormOptions(); },
-            'debts': () => { UI.renderDebts(); UI.renderDashboard(); },
-            'debtors': () => { UI.renderDebtors(); UI.renderDashboard(); },
+            'debts': () => { 
+                UI.renderDebts(); 
+                setTimeout(() => UI.renderDashboard(), 0); 
+            },
+            'debtors': () => { 
+                UI.renderDebtors(); 
+                setTimeout(() => UI.renderDashboard(), 0); 
+            },
             'suppliers': () => { UI.renderSuppliers(); UI.renderTransactionFormOptions(); UI.populateDebtSupplierSelect(); },
             'contracts': () => UI.renderContracts(),
             'pendingContracts': () => UI.checkPendingContracts(),
             'users': () => UI.renderUsers(),
             'projects': () => UI.renderProjects(),
-            'availables': () => { UI.renderAvailables(); UI.renderDashboard(); },
-            'inventory': () => { UI.renderInventory(); UI.renderDashboard(); },
+            'availables': () => { 
+                UI.renderAvailables(); 
+                setTimeout(() => UI.renderDashboard(), 0); 
+            },
+            'inventory': () => { 
+                UI.renderInventory(); 
+                setTimeout(() => UI.renderDashboard(), 0); 
+            },
             'locations': () => UI.renderLocations(),
-            'operationalExpenses': () => { UI.renderOperationalExpenses(); UI.checkOperationalExpensesAlerts(); },
+            'operationalExpenses': () => { 
+                UI.renderOperationalExpenses(); 
+                UI.checkOperationalExpensesAlerts(); 
+            },
             'currentView': (val) => UI.switchView(val),
             'selectedYear': () => UI.renderDashboard()
         };
@@ -199,6 +221,7 @@ const UI = {
 
             this.initDatePickers(); // Inicializar Flatpickr después de poner el valor
             this.setupSpanishValidation(); // Asegurar mensajes de validación en español
+            this.setupSubmitProtection(); // Prevenir doble submit globalmente
             this.checkPendingContracts(); // Verificar contratos pendientes
 
             this.populateYearSelector(); // Poblar selector de años
@@ -243,6 +266,48 @@ const UI = {
         document.addEventListener('input', (e) => {
             e.target.setCustomValidity('');
         }, true);
+    },
+
+    setupSubmitProtection() {
+        document.addEventListener('submit', (e) => {
+            const form = e.target;
+            const submitBtn = form.querySelector('button[type="submit"]');
+            
+            if (submitBtn) {
+                if (form.dataset.isSubmitting === 'true') {
+                    // Si ya se está enviando, prevenimos y detenemos cualquier callback
+                    e.preventDefault();
+                    e.stopImmediatePropagation();
+                    return false;
+                }
+                
+                // Marcar el formulario como "procesando"
+                form.dataset.isSubmitting = 'true';
+                
+                // Guardar HTML original
+                if (!submitBtn.dataset.originalHtml) {
+                    submitBtn.dataset.originalHtml = submitBtn.innerHTML;
+                }
+                
+                // Usar microtask para no bloquear eventos sincrónicos del submit actual
+                setTimeout(() => {
+                    submitBtn.classList.add('btn-loading');
+                    submitBtn.disabled = true;
+                }, 0);
+
+                // Autoliberación después de 3 segundos como fallback de seguridad
+                setTimeout(() => {
+                    form.dataset.isSubmitting = 'false';
+                    if (submitBtn.classList.contains('btn-loading')) {
+                        submitBtn.classList.remove('btn-loading');
+                        submitBtn.disabled = false;
+                        if (submitBtn.dataset.originalHtml) {
+                            submitBtn.innerHTML = submitBtn.dataset.originalHtml;
+                        }
+                    }
+                }, 3000);
+            }
+        }, true); // Fase de captura (antes de otros listeners)
     },
 
     // --- Helpers de Carga (Spinners) ---
@@ -323,19 +388,23 @@ const UI = {
 
             // Mapear resultados al estado global (Proxy dispara renders automáticos)
             // Solo actualizamos si la promesa fue exitosa
-            const setIfOk = (prop, resultIndex) => {
+            const setIfOk = (prop, resultIndex, processFn = null) => {
                 if (results[resultIndex].status === 'fulfilled') {
-                    state[prop] = results[resultIndex].value || [];
+                    let val = results[resultIndex].value || [];
+                    if (processFn) val = val.map(processFn);
+                    state[prop] = val;
                 } else {
                     console.error(`Error cargando ${prop}:`, results[resultIndex].reason);
                 }
             };
 
-            setIfOk('transactions', 0);
+            const txProcess = (t) => ({ ...t, date: cleanDate(t.date) });
+
+            setIfOk('transactions', 0, txProcess);
             setIfOk('concepts', 1);
             setIfOk('clients', 2);
-            setIfOk('debts', 3);
-            setIfOk('debtors', 4);
+            setIfOk('debts', 3, (d) => ({ ...d, date: cleanDate(d.date), dueDate: cleanDate(d.dueDate) }));
+            setIfOk('debtors', 4, (d) => ({ ...d, date: cleanDate(d.date), dueDate: cleanDate(d.dueDate) }));
             setIfOk('contracts', 5);
             setIfOk('pendingContracts', 6);
             setIfOk('invoicedContractsCurrent', 7);
@@ -1362,50 +1431,40 @@ const UI = {
 
     renderDashboard() {
         const transactions = state.transactions;
-        let income = 0;
-        let expense = 0;
         const selectedYear = parseInt(state.selectedYear);
 
-        transactions.forEach(t => {
-            const cleanDate = t.date.split('T')[0];
-            const tDate = new Date(cleanDate + 'T00:00:00');
-
-            if (tDate.getFullYear() === selectedYear) {
-                if (t.type === 'income') income += parseFloat(t.amount);
-                if (t.type === 'expense') expense += parseFloat(t.amount);
-            }
-        });
-
+        // Optimización: Un solo bucle para TODAS las métricas de transacciones
+        let income = 0;
+        let expense = 0;
         let totalIncome = 0;
         let totalExpense = 0;
-        transactions.forEach(t => {
-            if (t.type === 'income') totalIncome += parseFloat(t.amount);
-            if (t.type === 'expense') totalExpense += parseFloat(t.amount);
-        });
 
-        // Activos Disponibles (Módulo Disponible)
+        for (let i = 0, len = transactions.length; i < len; i++) {
+            const t = transactions[i];
+            const amount = parseFloat(t.amount) || 0;
+            const isEntryToYear = t.date && t.date.startsWith(selectedYear.toString());
+
+            if (t.type === 'income') {
+                totalIncome += amount;
+                if (isEntryToYear) income += amount;
+            } else if (t.type === 'expense') {
+                totalExpense += amount;
+                if (isEntryToYear) expense += amount;
+            }
+        }
+
+        // Otros cálculos en bucle simple
         let totalAvailableFunds = 0;
-        state.availables.forEach(a => {
-            totalAvailableFunds += parseFloat(a.amount || 0);
-        });
+        for (let a of state.availables) totalAvailableFunds += parseFloat(a.amount || 0);
         
-        // Inventario (Total Inventario)
         let totalInventoryValue = 0;
-        state.inventory.forEach(i => {
-            totalInventoryValue += (parseFloat(i.quantity) || 0) * (parseFloat(i.unitPrice) || 0);
-        });
+        for (let i of state.inventory) totalInventoryValue += (parseFloat(i.quantity) || 0) * (parseFloat(i.unitPrice) || 0);
 
-        // Deuda Total (Sumatoria del apartado de deudas)
         let totalDebts = 0;
-        state.debts.forEach(d => {
-            totalDebts += parseFloat(d.amount || 0);
-        });
+        for (let d of state.debts) totalDebts += parseFloat(d.amount || 0);
 
-        // Total Deudores (Cuentas por Cobrar)
         let totalDebtors = 0;
-        state.debtors.forEach(d => {
-            totalDebtors += parseFloat(d.amount || 0);
-        });
+        for (let d of state.debtors) totalDebtors += parseFloat(d.amount || 0);
 
         const elBalance = document.getElementById('total-balance');
         const elIncome = document.getElementById('month-income');
@@ -2757,8 +2816,8 @@ const UI = {
             type: type,
             amount: parseAmount(formData.get('amount')),
             conceptId: conceptId,
-            clientId: !isSupplierConcept ? personId : null,
-            supplierId: isSupplierConcept ? personId : null,
+            clientId: (!isSupplierConcept && personId && personId.trim() !== '') ? personId : null,
+            supplierId: (isSupplierConcept && personId && personId.trim() !== '') ? personId : null,
             date: dateVal,
             observation: formData.get('observation')
         };
@@ -2770,35 +2829,41 @@ const UI = {
             return;
         }
 
-        UI.showLoading(form);
-
-        try {
-            // Guardado pesimista: Esperamos a que el backend confirme
-            console.log('Enviando a StorageAPI...');
-            const savedTx = await window.StorageAPI.async.saveTransaction(transaction);
-            console.log('Respuesta Servidor:', savedTx);
-
-            // Si llegamos aquí, se guardó correctamente en la DB
-            if (id) {
-                // Edición: Reemplazar en el estado local
-                state.transactions = state.transactions.map(t => t.id === id ? transaction : t);
-                this.recordActivity('Modificación', 'Movimiento', `Actualizado: ${concept?.name || 'Varios'} por ${formatCurrency(transaction.amount)}`);
-            } else {
-                // Alta: Prepend al estado local para que aparezca arriba
-                state.transactions = [transaction, ...state.transactions];
-                this.recordActivity('Alta', 'Movimiento', `Registrado: ${concept?.name || 'Varios'} por ${formatCurrency(transaction.amount)}`);
-            }
-
-            this.showToast('Movimiento guardado y validado en la base de datos', 'success');
-            this.cancelTransactionEdit();
-            UI.switchView('transactions');
-            this.renderDashboard(); // Asegurar balance o datos globales actualizados
-        } catch (error) {
-            console.error("Error al guardar transacción:", error);
-            this.showToast('Error: ' + (error.message || 'No se pudo registrar el movimiento'), 'error');
-        } finally {
-            UI.hideLoading(form);
+        // --- LÓGICA OPTIMISTA (Instantánea) ---
+        const originalTransactions = [...state.transactions];
+        
+        // Actualizar estado local inmediatamente
+        if (id) {
+            state.transactions = state.transactions.map(t => t.id === id ? transaction : t);
+            this.recordActivity('Modificación', 'Movimiento', `Actualizado: ${concept?.name || 'Varios'} por ${formatCurrency(transaction.amount)}`);
+        } else {
+            state.transactions = [transaction, ...state.transactions];
+            this.recordActivity('Alta', 'Movimiento', `Registrado: ${concept?.name || 'Varios'} por ${formatCurrency(transaction.amount)}`);
         }
+
+        // UI Feedback inmediato (sin esperas)
+        this.showToast('Procesando registro...', 'info');
+        this.cancelTransactionEdit();
+        UI.switchView('transactions');
+
+        // --- SINCRONIZACIÓN EN SEGUNDO PLANO (Garantía de guardado) ---
+        window.StorageAPI.async.saveTransaction(transaction)
+            .then(savedTx => {
+                console.log('✅ Sincronización exitosa:', savedTx.id);
+                this.showToast('Movimiento sincronizado con éxito', 'success');
+            })
+            .catch(error => {
+                console.error("❌ ERROR CRÍTICO DE SINCRONIZACIÓN:", error);
+                // ROLLBACK: Revertir al estado anterior si falla el servidor
+                state.transactions = originalTransactions;
+                
+                // Alerta persistente para el usuario
+                alert('⚠️ ERROR AL GUARDAR: El movimiento no pudo ser registrado en el servidor. Por favor, revise su conexión e intente nuevamente. (Los datos se han revertido)');
+                this.showToast('Error de conexión: Datos revertidos', 'error');
+                
+                // Si era una edición, podríamos querer recargar la vista de edición
+                if (id) this.editTransaction(id);
+            });
     },
 
     editTransaction(id) {
@@ -3991,7 +4056,7 @@ const UI = {
             tr.id = `project-row-${p.id}`;
             const clientName = this.getClientName(p.clientId);
 
-            const history = window.StorageAPI.getProjectHistory(p.id) || [];
+            const history = p.history || [];
             
             // Construir el contenedor horizontal de evolución
             const historyHtml = history.map(h => `
@@ -4238,7 +4303,7 @@ const UI = {
             await window.StorageAPI.async.saveDebtor(debtor);
 
             // 2. Cerrar Proyecto
-            const project = { ...p, status: 'Finalizado' };
+            const project = { ...p, status: 'Finalizado', finalAmount: monto };
             await window.StorageAPI.async.saveProject(project);
             await window.StorageAPI.async.addProjectHistory(id, {
                 previousStatus: p.status,
@@ -4288,7 +4353,7 @@ const UI = {
         finished.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
 
         if (finished.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="3" class="text-center text-muted">No hay proyectos finalizados aún.</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="4" class="text-center text-muted">No hay proyectos finalizados aún.</td></tr>';
             return;
         }
 
@@ -4313,6 +4378,9 @@ const UI = {
                     <div style="font-size: 0.8rem; color: var(--text-muted); font-weight: 400; margin-top: 2px;">${clientName}</div>
                 </td>
                 <td>${evolutionHtml}</td>
+                <td style="font-weight: bold; color: var(--text-color);">
+                    ${p.finalAmount ? formatCurrency(p.finalAmount) : '<span class="text-muted small">-</span>'}
+                </td>
                 <td class="actions">
                     <button class="btn-icon text-primary" title="Ver Detalle / Historial Completo" onclick="UI.showProjectHistory('${p.id}')">
                          <i class="fa-solid fa-eye"></i>
@@ -5312,37 +5380,53 @@ const UI = {
 
         const oldItem = !isNew ? state.inventory.find(i => i.id === id) : null;
 
-        this.showLoading(form);
-        try {
-            await window.StorageAPI.async.saveInventory(newItem);
-            
-            // Lógica de Historial
-            if (isNew) {
-                await this.logMovement(newItem, 'Entrada', newItem.quantity, null, newItem.location);
-            } else if (oldItem) {
-                // Cambio de cantidad
-                if (oldItem.quantity !== newItem.quantity) {
-                    const diff = newItem.quantity - oldItem.quantity;
-                    const type = diff > 0 ? 'Entrada' : 'Salida';
-                    await this.logMovement(newItem, type, diff, oldItem.location, newItem.location);
-                }
-                // Traslado (si cambió ubicación pero no cantidad, o ambos)
-                if (oldItem.location !== newItem.location && oldItem.quantity === newItem.quantity) {
-                    await this.logMovement(newItem, 'Traslado', 0, oldItem.location, newItem.location);
-                }
-            }
-
-            this.showToast(isNew ? 'Material agregado' : 'Material actualizado', 'success');
-            this.resetInventoryForm();
-            this.closeModal('inventory-modal');
-            await this.loadData();
-            this.renderInventory();
-        } catch (err) {
-            console.error(err);
-            this.showToast('Error al guardar material: ' + err.message, 'error');
-        } finally {
-            this.hideLoading(form);
+        // --- LÓGICA OPTIMISTA (Instantánea) ---
+        const originalInventory = [...state.inventory];
+        
+        // Actualizar estado local inmediatamente
+        if (isNew) {
+            state.inventory = [newItem, ...state.inventory];
+        } else {
+            state.inventory = state.inventory.map(i => i.id === id ? newItem : i);
         }
+
+        // Feedback visual inmediato
+        this.showToast(isNew ? 'Registrando material...' : 'Actualizando material...', 'info');
+        this.resetInventoryForm();
+        this.closeModal('inventory-modal');
+        // El proxy de 'state.inventory' disparará renderInventory() automáticamente
+
+        // --- SINCRONIZACIÓN EN SEGUNDO PLANO ---
+        const syncInventory = async () => {
+            try {
+                await window.StorageAPI.async.saveInventory(newItem);
+                
+                // Lógica de Historial (también en segundo plano)
+                if (isNew) {
+                    await this.logMovement(newItem, 'Entrada', newItem.quantity, null, newItem.location);
+                } else if (oldItem) {
+                    if (oldItem.quantity !== newItem.quantity) {
+                        const diff = newItem.quantity - oldItem.quantity;
+                        const type = diff > 0 ? 'Entrada' : 'Salida';
+                        await this.logMovement(newItem, type, diff, oldItem.location, newItem.location);
+                    }
+                    if (oldItem.location !== newItem.location && oldItem.quantity === newItem.quantity) {
+                        await this.logMovement(newItem, 'Traslado', 0, oldItem.location, newItem.location);
+                    }
+                }
+                
+                console.log('✅ Inventario sincronizado:', newItem.id);
+                this.showToast('Cambios en inventario guardados con éxito', 'success');
+            } catch (err) {
+                console.error("❌ ERROR DE SINCRONIZACIÓN EN INVENTARIO:", err);
+                // ROLLBACK
+                state.inventory = originalInventory;
+                alert('⚠️ ERROR AL GUARDAR INVENTARIO: No se pudo sincronizar con el servidor. Los datos se han revertido por seguridad.');
+                this.showToast('Error de conexión en Inventario', 'error');
+            }
+        };
+
+        syncInventory();
     },
 
     async deleteInventory(id) {

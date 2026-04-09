@@ -11,7 +11,7 @@ const KeepApp = () => {
   const [currentView, setCurrentView] = useState('notes'); // 'notes', 'archive', 'trash'
   const [isSidebarOpen, setIsSidebarOpen] = useState(window.innerWidth > 768);
 
-  // Intentar obtener el ID del usuario desde varias fuentes
+  // Helper para obtener el ID de usuario de diversas fuentes
   const getUserId = () => {
     if (window.Store?.currentUser?.id) return window.Store.currentUser.id;
     if (window.rawState?.currentUser?.id) return window.rawState.currentUser.id;
@@ -21,13 +21,30 @@ const KeepApp = () => {
     } catch(e) { return null; }
   };
 
-  const currentUserId = getUserId();
+  // Estado del usuario reactivo
+  const [currentUserId, setCurrentUserId] = useState(getUserId());
+
+  // Efecto para sincronizar el usuario si cambia globalmente (ej: tras login lento)
+  useEffect(() => {
+    // Si ya tenemos ID, no necesitamos vigilar tan seguido, pero igual chequeamos
+    const interval = setInterval(() => {
+        const id = getUserId();
+        if (id !== currentUserId) {
+            console.log("KeepApp: Detectado cambio de usuario ->", id);
+            setCurrentUserId(id);
+        }
+    }, 1500);
+    return () => clearInterval(interval);
+  }, [currentUserId]);
 
   // Cargar notas
   useEffect(() => {
-    if (!currentUserId) return;
+    if (!currentUserId) {
+        setIsLoading(false);
+        return;
+    }
 
-    const loadNotes = async () => {
+    const loadNotes = async (retries = 3) => {
       try {
         setIsLoading(true);
         const serverNotes = await StorageAPI.async.getNotes(currentUserId);
@@ -39,7 +56,10 @@ const KeepApp = () => {
 
         setNotes(processedNotes);
       } catch (err) {
-        console.error("Error cargando notas:", err);
+        console.error(`Error cargando notas (intentos restantes: ${retries}):`, err);
+        if (retries > 0) {
+            setTimeout(() => loadNotes(retries - 1), 2000);
+        }
       } finally {
         setIsLoading(false);
       }
@@ -239,12 +259,7 @@ const KeepApp = () => {
             {/* Note Grid */}
             <div className="tw-max-w-6xl tw-mx-auto tw-pb-24">
                 
-                {isLoading && (
-                    <div className="tw-flex tw-flex-col tw-items-center tw-justify-center tw-py-20">
-                        <i className="fa-solid fa-circle-notch fa-spin tw-text-4xl tw-text-googleBlue tw-mb-4"></i>
-                        <p className="tw-text-gray-500">Sincronizando notas...</p>
-                    </div>
-                )}
+                {/* El indicador de carga se elimina para mejorar la sensacin de tiempo real */}
 
                 {pinnedNotes.length > 0 && (
                   <div className="tw-mb-10">

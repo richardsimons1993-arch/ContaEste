@@ -21,18 +21,23 @@ const dbConfig = {
 // Helper para parsear fechas de forma robusta (DD-MM-YYYY o YYYY-MM-DD)
 function tryParseDate(dateStr) {
     if (!dateStr) return null;
-    if (dateStr instanceof Date) return dateStr;
+    if (dateStr instanceof Date) return isNaN(dateStr.getTime()) ? null : dateStr;
 
-    // Si ya viene como YYYY-MM-DD, intentar parsear directamente
-    if (/^\d{4}-\d{2}-\d{2}/.test(dateStr)) return new Date(dateStr);
-
-    // Si viene como DD-MM-YYYY
-    const parts = dateStr.split('-');
-    if (parts.length === 3 && parts[2].length === 4) {
-        return new Date(`${parts[2]}-${parts[1]}-${parts[0]}`);
+    let d;
+    // Si ya viene como YYYY-MM-DD
+    if (/^\d{4}-\d{2}-\d{2}/.test(dateStr)) {
+        d = new Date(dateStr);
+    } else {
+        // Intentar DD-MM-YYYY
+        const parts = dateStr.split('-');
+        if (parts.length === 3 && parts[2].length === 4) {
+            d = new Date(`${parts[2]}-${parts[1]}-${parts[0]}`);
+        } else {
+            d = new Date(dateStr);
+        }
     }
 
-    return new Date(dateStr); // Fallback
+    return (d && !isNaN(d.getTime())) ? d : null;
 }
 
 let poolPromise = null;
@@ -126,17 +131,26 @@ app.post('/api/transactions', async (req, res) => {
         const pool = await getDbPool();
 
         // Validar tipo según concepto (Seguridad extra)
-        const conceptCheck = await pool.request()
-            .input('cid', sql.VarChar, t.conceptId)
-            .query('SELECT type FROM Concepts WHERE id = @cid');
-
-        const finalType = conceptCheck.recordset.length > 0 ? conceptCheck.recordset[0].type : t.type;
+        let finalType = t.type;
+        if (t.conceptId) {
+            const conceptCheck = await pool.request()
+                .input('cid', sql.VarChar, t.conceptId)
+                .query('SELECT type FROM Concepts WHERE id = @cid');
+            if (conceptCheck.recordset.length > 0) {
+                finalType = conceptCheck.recordset[0].type;
+            }
+        }
+        
         const finalDate = tryParseDate(t.date);
 
         if (!finalDate) {
             console.error('Error: Fecha inválida recibida:', t.date);
             return res.status(400).json({ error: 'Fecha inválida. Use formato YYYY-MM-DD o DD-MM-YYYY.' });
         }
+
+        // Normalizar IDs vacíos a NULL para evitar errores de clave foránea o datos basura
+        const cleanClientId = (t.clientId && t.clientId.trim() !== '') ? t.clientId : null;
+        const cleanSupplierId = (t.supplierId && t.supplierId.trim() !== '') ? t.supplierId : null;
 
         const check = await pool.request().input('id', sql.VarChar(50), t.id).query('SELECT id FROM Transactions WHERE id = @id');
 
@@ -147,8 +161,8 @@ app.post('/api/transactions', async (req, res) => {
                 .input('date', sql.Date, finalDate)
                 .input('type', sql.VarChar(50), finalType)
                 .input('conceptId', sql.VarChar(50), t.conceptId)
-                .input('clientId', sql.VarChar(50), t.clientId || null)
-                .input('supplierId', sql.VarChar(50), t.supplierId || null)
+                .input('clientId', sql.VarChar(50), cleanClientId)
+                .input('supplierId', sql.VarChar(50), cleanSupplierId)
                 .input('amount', sql.Decimal(18, 2), t.amount)
                 .input('observation', sql.VarChar(sql.MAX), t.observation || '')
                 .query(`UPDATE Transactions SET date=@date, type=@type, conceptId=@conceptId, clientId=@clientId, supplierId=@supplierId, amount=@amount, observation=@observation WHERE id=@id`);
@@ -159,23 +173,49 @@ app.post('/api/transactions', async (req, res) => {
                 .input('date', sql.Date, finalDate)
                 .input('type', sql.VarChar(50), finalType)
                 .input('conceptId', sql.VarChar(50), t.conceptId)
-                .input('clientId', sql.VarChar(50), t.clientId || null)
-                .input('supplierId', sql.VarChar(50), t.supplierId || null)
+                .input('clientId', sql.VarChar(50), cleanClientId)
+                .input('supplierId', sql.VarChar(50), cleanSupplierId)
                 .input('amount', sql.Decimal(18, 2), t.amount)
                 .input('observation', sql.VarChar(sql.MAX), t.observation || '')
                 .query(`INSERT INTO Transactions (id, date, type, conceptId, clientId, supplierId, amount, observation) VALUES (@id, @date, @type, @conceptId, @clientId, @supplierId, @amount, @observation)`);
         }
         console.log('✅ Operación exitosa');
-        res.json({ ...t, type: finalType });
+        res.json({ ...t, type: finalType, clientId: cleanClientId, supplierId: cleanSupplierId });
     } catch (err) {
         console.error('❌ ERROR en POST /api/transactions:', err.message);
         if (err.number) console.error('SQL Error Number:', err.number);
-        res.status(500).json({ error: 'Error de base de datos: ' + err.message });
+        res.status(500).json({ error: 'Error de servidor/BD: ' + err.message });
     }
 });
 
 // --- ENDPOINTS PARA PROJECTS ---
-app.get('/api/projects', (req, res) => getApi(req, res, 'Projects'));
+app.get('/api/projects', async (req, res) => {
+    try {
+        const pool = await getDbPool();
+        const projectsRes = await pool.request().query('SELECT * FROM Projects');
+        const historyRes = await pool.request().query('SELECT * FROM ProjectHistory ORDER BY changeDate DESC');
+        
+        const projects = projectsRes.recordset;
+        const history = historyRes.recordset;
+
+        // Mapear historial por ID de proyecto
+        const historyMap = {};
+        history.forEach(h => {
+            if (!historyMap[h.projectId]) historyMap[h.projectId] = [];
+            historyMap[h.projectId].push(h);
+        });
+
+        // Combinar datos
+        const projectsWithHistory = projects.map(p => ({
+            ...p,
+            history: historyMap[p.id] || []
+        }));
+
+        res.json(projectsWithHistory);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
 app.delete('/api/projects/:id', (req, res) => deleteApi(req, res, 'Projects'));
 
 // --- ENDPOINTS PARA INVENTORY (INVENTARIO) ---
@@ -1293,15 +1333,6 @@ app.get('/api/contracts/history/:clientId', async (req, res) => {
 });
 
 // --- ENDPOINTS PARA PROJECTS ---
-app.get('/api/projects', async (req, res) => {
-    try {
-        const pool = await getDbPool();
-        const result = await pool.request().query('SELECT p.*, c.name as clientName, c.nombreFantasia as clientFantasyName FROM Projects p LEFT JOIN Clients c ON p.clientId = c.id');
-        res.json(result.recordset);
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
-});
 
 app.delete('/api/projects/:id', async (req, res) => {
     try {
@@ -1335,7 +1366,8 @@ app.post('/api/projects', async (req, res) => {
                 .input('visitDate', sql.Date, p.visitDate || null)
                 .input('executionDate', sql.Date, p.executionDate || null)
                 .input('estimatedAmount', sql.Decimal(18, 2), p.estimatedAmount || null)
-                .query(`UPDATE Projects SET projectName=@projectName, clientId=@clientId, status=@status, observations=@observations, visitDate=@visitDate, executionDate=@executionDate, estimatedAmount=@estimatedAmount WHERE id=@id`);
+                .input('finalAmount', sql.Decimal(18, 2), p.finalAmount || null)
+                .query(`UPDATE Projects SET projectName=@projectName, clientId=@clientId, status=@status, observations=@observations, visitDate=@visitDate, executionDate=@executionDate, estimatedAmount=@estimatedAmount, finalAmount=@finalAmount WHERE id=@id`);
         } else {
             await pool.request()
                 .input('id', sql.VarChar(50), p.id)
@@ -1346,7 +1378,8 @@ app.post('/api/projects', async (req, res) => {
                 .input('visitDate', sql.Date, p.visitDate || null)
                 .input('executionDate', sql.Date, p.executionDate || null)
                 .input('estimatedAmount', sql.Decimal(18, 2), p.estimatedAmount || null)
-                .query(`INSERT INTO Projects (id, projectName, clientId, status, observations, visitDate, executionDate, estimatedAmount) VALUES (@id, @projectName, @clientId, @status, @observations, @visitDate, @executionDate, @estimatedAmount)`);
+                .input('finalAmount', sql.Decimal(18, 2), p.finalAmount || null)
+                .query(`INSERT INTO Projects (id, projectName, clientId, status, observations, visitDate, executionDate, estimatedAmount, finalAmount) VALUES (@id, @projectName, @clientId, @status, @observations, @visitDate, @executionDate, @estimatedAmount, @finalAmount)`);
         }
         res.json(p);
     } catch (err) {
@@ -1502,15 +1535,35 @@ app.get('/api/quotations', async (req, res) => {
     }
 });
 
-app.get('/api/quotations/next-id/:clientId/:year', async (req, res) => {
+app.get('/api/quotations/next-id/:prefixOrId/:year', async (req, res) => {
     try {
         const year = parseInt(req.params.year);
-        const clientId = req.params.clientId;
+        let prefix = req.params.prefixOrId;
+        
+        // Si el 'prefix' es un UUID o muy largo, es probable que sea el clientId (código viejo)
+        if (prefix.length > 5) {
+            const pool = await getDbPool();
+            const clientRes = await pool.request()
+                .input('id', sql.VarChar(50), prefix)
+                .query('SELECT name, nombreFantasia FROM Clients WHERE id = @id');
+            
+            if (clientRes.recordset.length > 0) {
+                const c = clientRes.recordset[0];
+                const nameStr = c.nombreFantasia || c.name || 'XXX';
+                prefix = nameStr.replace(/[^A-Za-z]/g, '').substring(0, 3).toUpperCase().padEnd(3, 'X');
+            } else {
+                prefix = prefix.substring(0, 3).toUpperCase();
+            }
+        }
+
         const pool = await getDbPool();
+        // Búsqueda estricta que incluya el prefijo y el año para evitar falsos positivos
+        const pattern = prefix + '-' + year + '-%';
         const result = await pool.request()
             .input('year', sql.Int, year)
-            .input('clientId', sql.VarChar(50), clientId)
-            .query('SELECT ISNULL(MAX(correlative), 0) + 1 AS nextId FROM Quotations WHERE year = @year AND clientId = @clientId');
+            .input('pattern', sql.VarChar(50), pattern)
+            .query("SELECT ISNULL(MAX(correlative), 0) + 1 AS nextId FROM Quotations WHERE year = @year AND id LIKE @pattern");
+        
         res.json({ nextId: result.recordset[0].nextId });
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -1549,8 +1602,21 @@ app.post('/api/quotations', async (req, res) => {
             .input('subtotal', sql.Decimal(18,2), q.subtotal)
             .input('iva', sql.Decimal(18,2), q.iva)
             .input('total', sql.Decimal(18,2), q.total)
-            .query(`INSERT INTO Quotations (id, correlative, year, version, clientId, clientName, projectName, requirements, technicalConditions, commercialConditions, items1, itemsOptional, subtotal, iva, total, createdAt) 
-                    VALUES (@id, @correlative, @year, @version, @clientId, @clientName, @projectName, @requirements, @technicalConditions, @commercialConditions, @items1, @itemsOptional, @subtotal, @iva, @total, GETDATE())`);
+            .query(`
+                MERGE Quotations AS target
+                USING (SELECT @id AS id, @version AS version) AS source
+                ON (target.id = source.id AND target.version = source.version)
+                WHEN MATCHED THEN
+                    UPDATE SET 
+                        correlative = @correlative, year = @year, clientId = @clientId,
+                        clientName = @clientName, projectName = @projectName,
+                        requirements = @requirements, technicalConditions = @technicalConditions,
+                        commercialConditions = @commercialConditions, items1 = @items1,
+                        itemsOptional = @itemsOptional, subtotal = @subtotal, iva = @iva, total = @total
+                WHEN NOT MATCHED THEN
+                    INSERT (id, correlative, year, version, clientId, clientName, projectName, requirements, technicalConditions, commercialConditions, items1, itemsOptional, subtotal, iva, total, createdAt)
+                    VALUES (@id, @correlative, @year, @version, @clientId, @clientName, @projectName, @requirements, @technicalConditions, @commercialConditions, @items1, @itemsOptional, @subtotal, @iva, @total, GETDATE());
+            `);
         res.json({ success: true });
     } catch (err) {
         console.error(err);
@@ -1641,9 +1707,26 @@ app.listen(PORT, '0.0.0.0', () => {
     console.log(`🚀 Servidor iniciado y accesible en red local`);
     console.log(`🏠 Local: http://localhost:${PORT}`);
     console.log(`🌐 Red:  http://192.168.130.129:${PORT}`);
-    // Tareas de mantenimiento
-    setTimeout(() => {
-        migratePasswords();
-        deleteExpiredNotes();
-    }, 2000);
+    
+    // Tareas de mantenimiento (envueltas para evitar bloqueos)
+    setTimeout(async () => {
+        try {
+            await migratePasswords();
+            await deleteExpiredNotes();
+            await cleanOldQuotations();
+        } catch (mErr) {
+            console.error('⚠️ Error en tareas de mantenimiento iniciales:', mErr.message);
+        }
+    }, 5000); // 5 segundos para asegurar estabilidad inicial
+});
+
+// Manejo global de errores para evitar cierres inesperados
+process.on('unhandledRejection', (reason, promise) => {
+    console.error('❌ Unhandled Rejection at:', promise, 'reason:', reason);
+});
+
+process.on('uncaughtException', (err) => {
+    console.error('❌ Uncaught Exception:', err);
+    // En producción podrías querer cerrar ordenadamente, pero aquí evitamos el loop de crash directo
+    // process.exit(1); 
 });
