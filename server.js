@@ -1704,9 +1704,20 @@ app.post('/api/logs', async (req, res) => {
 
 const PORT = 3000;
 app.listen(PORT, '0.0.0.0', () => {
+    let networkIp = '127.0.0.1';
+    try {
+        const netInterfaces = require('os').networkInterfaces();
+        for (const name of Object.keys(netInterfaces)) {
+            for (const net of netInterfaces[name]) {
+                if (net.family === 'IPv4' && !net.internal) {
+                    networkIp = net.address;
+                }
+            }
+        }
+    } catch(e) {}
     console.log(`🚀 Servidor iniciado y accesible en red local`);
     console.log(`🏠 Local: http://localhost:${PORT}`);
-    console.log(`🌐 Red:  http://192.168.130.129:${PORT}`);
+    console.log(`🌐 Red:  http://${networkIp}:${PORT}`);
     
     // Tareas de mantenimiento (envueltas para evitar bloqueos)
     setTimeout(async () => {

@@ -1,2 +1,18 @@
 2026-04-07 20:24:39 - Starting C:\Program Files\nodejs\node.exe  --harmony C:\Users\Richard\Desktop\Contabilidad\ContaEste\node_modules\node-windows\lib\wrapper.js --file C:\Users\Richard\Desktop\Contabilidad\ContaEste\server.js --scriptoptions= --log "ContaEsteService wrapper" --grow 0.25 --wait 1 --maxrestarts 3 --abortonerror n --stopparentfirst undefined
 2026-04-07 20:24:39 - Started 9532
+2026-04-09 19:34:26 - Stopping contaesteservice.exe
+2026-04-09 19:34:26 - ProcessKill 9532
+2026-04-09 19:34:26 - Shutdown exception
+Message:Se está cerrando el sistema.
+
+Stacktrace:   en System.Runtime.InteropServices.Marshal.ThrowExceptionForHRInternal(Int32 errorCode, IntPtr errorInfo)
+   en System.Management.ManagementScope.InitializeGuts(Object o)
+   en System.Management.ManagementScope.Initialize()
+   en System.Management.ManagementObjectSearcher.Initialize()
+   en System.Management.ManagementObjectSearcher.Get()
+   en winsw.WrapperService.GetChildPids(Int32 pid)
+   en winsw.WrapperService.StopProcessAndChildren(Int32 pid)
+   en winsw.WrapperService.StopIt()
+   en winsw.WrapperService.OnShutdown()
+2026-04-09 19:34:49 - Starting C:\Program Files\nodejs\node.exe  --harmony C:\Users\Richard\Desktop\Contabilidad\ContaEste\node_modules\node-windows\lib\wrapper.js --file C:\Users\Richard\Desktop\Contabilidad\ContaEste\server.js --scriptoptions= --log "ContaEsteService wrapper" --grow 0.25 --wait 1 --maxrestarts 3 --abortonerror n --stopparentfirst undefined
+2026-04-09 19:34:49 - Started 5024

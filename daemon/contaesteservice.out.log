@@ -238,3 +238,112 @@
 🌐 Red:  http://192.168.130.129:3000
 ✅ Conectado a SQL Server Express
 ✅ Contraseñas: todas ya tienen hash bcrypt
+🚀 Servidor iniciado y accesible en red local
+🏠 Local: http://localhost:3000
+🌐 Red:  http://192.168.100.25:3000
+✅ Conectado a SQL Server Express
+✅ Contraseñas: todas ya tienen hash bcrypt
+📦 Historial: Sirviendo 4 cotizaciones.
+📦 Historial: Sirviendo 4 cotizaciones.
+📦 Historial: Sirviendo 4 cotizaciones.
+📦 Historial: Sirviendo 4 cotizaciones.
+📦 Historial: Sirviendo 4 cotizaciones.
+--- POST /api/transactions ---
+Body: {
+  id: '1775820177179',
+  type: 'income',
+  amount: 213123123,
+  conceptId: '1',
+  clientId: '1772545051569',
+  supplierId: null,
+  date: '2026-04-10',
+  observation: ''
+}
+Insertando nueva transacción: 1775820177179
+✅ Operación exitosa
+📝 Recibida nota ID: 1775318021589 (Archivada: false, Eliminada: false)
+✅ Nota 1775318021589 actualizada.
+📝 Recibida nota ID: 1775317950458 (Archivada: false, Eliminada: false)
+✅ Nota 1775317950458 actualizada.
+📝 Recibida nota ID: 1775318072254 (Archivada: false, Eliminada: false)
+✅ Nota 1775318072254 actualizada.
+📝 Recibida nota ID: 1775317950458 (Archivada: false, Eliminada: false)
+✅ Nota 1775317950458 actualizada.
+📝 Recibida nota ID: 1775318072254 (Archivada: false, Eliminada: false)
+✅ Nota 1775318072254 actualizada.
+📝 Recibida nota ID: 1775318072254 (Archivada: false, Eliminada: false)
+✅ Nota 1775318072254 actualizada.
+📝 Recibida nota ID: 1775317950458 (Archivada: false, Eliminada: false)
+✅ Nota 1775317950458 actualizada.
+📦 Historial: Sirviendo 4 cotizaciones.
+📝 Recibida nota ID: 1775317950458 (Archivada: false, Eliminada: false)
+✅ Nota 1775317950458 actualizada.
+📝 Recibida nota ID: 1775317950458 (Archivada: false, Eliminada: false)
+✅ Nota 1775317950458 actualizada.
+📝 Recibida nota ID: 1775317950458 (Archivada: false, Eliminada: false)
+✅ Nota 1775317950458 actualizada.
+📦 Historial: Sirviendo 4 cotizaciones.
+📦 Historial: Sirviendo 4 cotizaciones.
+📝 Recibida nota ID: 1775317950458 (Archivada: false, Eliminada: false)
+✅ Nota 1775317950458 actualizada.
+📝 Recibida nota ID: 1775318072254 (Archivada: false, Eliminada: false)
+✅ Nota 1775318072254 actualizada.
+📝 Recibida nota ID: 1775318021589 (Archivada: false, Eliminada: false)
+✅ Nota 1775318021589 actualizada.
+📝 Recibida nota ID: 1775318021589 (Archivada: false, Eliminada: false)
+✅ Nota 1775318021589 actualizada.
+📝 Recibida nota ID: N1775775245336 (Archivada: false, Eliminada: false)
+✅ Nota N1775775245336 actualizada.
+📝 Recibida nota ID: 1775317950458 (Archivada: false, Eliminada: false)
+✅ Nota 1775317950458 actualizada.
+📝 Recibida nota ID: 1775318072254 (Archivada: false, Eliminada: false)
+✅ Nota 1775318072254 actualizada.
+📝 Recibida nota ID: 1775318021589 (Archivada: false, Eliminada: false)
+✅ Nota 1775318021589 actualizada.
+📝 Recibida nota ID: N1775775245336 (Archivada: false, Eliminada: false)
+✅ Nota N1775775245336 actualizada.
+--- POST /api/transactions ---
+Body: {
+  id: '1775862357855',
+  type: 'expense',
+  amount: 190638,
+  conceptId: '1772561748138',
+  clientId: null,
+  supplierId: '1773700242793',
+  date: '2026-04-10',
+  observation: 'Materiales ProntoPaga'
+}
+Insertando nueva transacción: 1775862357855
+✅ Operación exitosa
+📝 Recibida nota ID: 1775317950458 (Archivada: false, Eliminada: false)
+✅ Nota 1775317950458 actualizada.
+📝 Recibida nota ID: 1775318072254 (Archivada: false, Eliminada: false)
+✅ Nota 1775318072254 actualizada.
+📝 Recibida nota ID: 1775317950458 (Archivada: false, Eliminada: false)
+✅ Nota 1775317950458 actualizada.
+📝 Recibida nota ID: 1775318072254 (Archivada: false, Eliminada: false)
+✅ Nota 1775318072254 actualizada.
+📝 Recibida nota ID: 1775318021589 (Archivada: false, Eliminada: false)
+✅ Nota 1775318021589 actualizada.
+📝 Recibida nota ID: 1775318072254 (Archivada: false, Eliminada: false)
+✅ Nota 1775318072254 actualizada.
+📝 Recibida nota ID: N1775775245336 (Archivada: false, Eliminada: false)
+✅ Nota N1775775245336 actualizada.
+📝 Recibida nota ID: N1775775245336 (Archivada: false, Eliminada: false)
+✅ Nota N1775775245336 actualizada.
+📝 Recibida nota ID: N1775775245336 (Archivada: false, Eliminada: false)
+✅ Nota N1775775245336 actualizada.
+📝 Recibida nota ID: 1775318072254 (Archivada: false, Eliminada: false)
+✅ Nota 1775318072254 actualizada.
+📝 Recibida nota ID: 1775317950458 (Archivada: false, Eliminada: false)
+✅ Nota 1775317950458 actualizada.
+📝 Recibida nota ID: N1775775245336 (Archivada: false, Eliminada: false)
+✅ Nota N1775775245336 actualizada.
+📝 Recibida nota ID: 1775317950458 (Archivada: false, Eliminada: false)
+✅ Nota 1775317950458 actualizada.
+📝 Recibida nota ID: 1775318072254 (Archivada: false, Eliminada: false)
+✅ Nota 1775318072254 actualizada.
+📝 Recibida nota ID: 1775317950458 (Archivada: false, Eliminada: false)
+✅ Nota 1775317950458 actualizada.
+📝 Recibida nota ID: 1775318072254 (Archivada: false, Eliminada: false)
+✅ Nota 1775318072254 actualizada.
