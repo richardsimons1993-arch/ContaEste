@@ -97,9 +97,9 @@ const ROLES = {
 };
 
 const DEFAULT_USERS = [
-    { id: '1', username: 'administrador', password: 'S0p0rt3!!2025', role: ROLES.ADMIN, name: 'Admin Simons', modules: ['finanzas', 'usuarios', 'notas'] },
-    { id: '2', username: 'operador', password: 'operador123', role: ROLES.OPERATOR, name: 'Operador Ventas', modules: ['finanzas', 'notas'] },
-    { id: '3', username: 'lector', password: 'lector123', role: ROLES.VIEWER, name: 'Invitado', modules: ['finanzas', 'notas'] }
+    { id: '1', username: 'administrador', password: 'S0p0rt3!!2025', role: ROLES.ADMIN, name: 'Admin Simons', modules: ['finanzas', 'ventas', 'proyectos', 'inventario', 'cotizaciones', 'usuarios', 'notas'] },
+    { id: '2', username: 'operador', password: 'operador123', role: ROLES.OPERATOR, name: 'Operador Ventas', modules: ['finanzas', 'ventas', 'proyectos', 'inventario', 'cotizaciones', 'notas'] },
+    { id: '3', username: 'lector', password: 'lector123', role: ROLES.VIEWER, name: 'Invitado', modules: ['finanzas', 'ventas', 'proyectos', 'inventario', 'notas'] }
 ];
 
 // Ayudante para Fecha Local (Evita desfase de zona horaria)
@@ -474,10 +474,11 @@ const UI = {
                             const savedSession = JSON.parse(localStorage.getItem('contabilidad_session') || '{}');
                             savedSession.modules = newModules;
                             localStorage.setItem('contabilidad_session', JSON.stringify(savedSession));
-                            this.applyModuleAccess();
                         }
                     }
                 }
+                // Aplicar permisos de módulos después de cargar datos
+                this.applyModuleAccess();
             } catch (e) {
                 console.error("Error al actualizar permisos dinámicos:", e);
             }
@@ -1249,11 +1250,18 @@ const UI = {
     applyModuleAccess() {
         if (!state.currentUser) return;
 
-        // ASEGURAR MÓDULO NOTAS PARA ADMINISTRADORES
-        // Si el usuario es administrador, garantizamos que tenga el módulo 'notas' disponible
-        if (state.currentUser.role === ROLES.ADMIN && !state.currentUser.modules.includes('notas')) {
-            console.log("Garantizando acceso al módulo 'notas' por rol administrativo...");
-            state.currentUser.modules.push('notas');
+        // ASEGURAR MÓDULOS PARA ADMINISTRADORES
+        // Si el usuario es administrador, garantizamos que tenga todos los módulos disponibles
+        if (state.currentUser.role === ROLES.ADMIN) {
+            const adminModules = ['finanzas', 'ventas', 'proyectos', 'inventario', 'cotizaciones', 'usuarios', 'notas'];
+            const currentModules = state.currentUser.modules || [];
+            adminModules.forEach(module => {
+                if (!currentModules.includes(module)) {
+                    console.log(`Garantizando acceso al módulo '${module}' por rol administrativo...`);
+                    currentModules.push(module);
+                }
+            });
+            state.currentUser.modules = currentModules;
         }
 
         const userModules = state.currentUser?.modules || [];
@@ -1284,8 +1292,9 @@ const UI = {
             'suppliers': 'finanzas',
             'dashboard': 'finanzas',
             'available-funds': 'finanzas',
-            'projects': 'ventas',
+            'projects': 'proyectos',
             'contracts': 'ventas',
+            'quotations': 'cotizaciones',
             'inventory': 'inventario',
             'activity': 'finanzas',
             'users': 'usuarios',
@@ -4134,25 +4143,30 @@ const UI = {
                     changeDate: formData.get('visitDate')
                 });
                 this.showToast('Registro de historial actualizado', 'success');
+                
+                // Recargar desde el servidor para obtener los cambios
+                await this.loadData();
+                this.resetProjectForm();
+                this.renderProjects();
             } else {
                 // Modo normal: Proyecto nuevo o actualización de estado (nueva fase)
+                const isPhaseUpdate = document.getElementById('is-phase-update').value === 'true';
+                const oldProject = !isNew ? state.projects.find(proj => proj.id === id) : null;
+                
                 const project = {
                     id: id || 'P' + Date.now().toString(),
-                    projectName: formData.get('projectName'),
-                    clientId: formData.get('clientId'),
+                    projectName: formData.get('projectName') || (isPhaseUpdate && oldProject ? oldProject.projectName : ''),
+                    clientId: formData.get('clientId') || (oldProject?.clientId),
                     status: formData.get('status') || 'Evaluación',
                     observations: formData.get('observations'),
                     visitDate: formData.get('visitDate') || getLocalISODate(),
-                    executionDate: id ? (state.projects.find(p => p.id === id)?.executionDate) : null,
+                    executionDate: id ? (oldProject?.executionDate) : null,
                     estimatedAmount: formData.get('estimatedAmount') ? parseFloat(formData.get('estimatedAmount').replace(/\./g, '').replace(/,/g, '.')) : null,
-                    createdAt: id ? (state.projects.find(p => p.id === id)?.createdAt) : new Date().toISOString()
+                    createdAt: id ? (oldProject?.createdAt) : new Date().toISOString()
                 };
 
                 // Log inicial en bitácora si el estado cambió o es nuevo
-                const oldProject = isNew ? null : state.projects.find(proj => proj.id === project.id);
                 const statusChanged = isNew || (oldProject && oldProject.status !== project.status);
-
-                const isPhaseUpdate = document.getElementById('is-phase-update').value === 'true';
                 const shouldAddHistory = statusChanged || isPhaseUpdate;
 
                 await window.StorageAPI.async.saveProject(project);
@@ -4165,16 +4179,17 @@ const UI = {
                     });
                 }
 
-                // Reactividad inmediata
-                if (isNew) {
-                    state.projects = [project, ...state.projects];
-                } else {
-                    state.projects = state.projects.map(p => p.id === project.id ? project : p);
-                }
                 this.showToast(isNew ? 'Proyecto registrado' : 'Proyecto actualizado', 'success');
+                
+                // Recargar desde el servidor para obtener el historial actualizado
+                await this.loadData();
+                this.resetProjectForm();
+                this.renderProjects();
             }
-            this.resetProjectForm();
-            this.renderProjects();
+            if (!historyId) {
+                this.resetProjectForm();
+                this.renderProjects();
+            }
 
         } catch (error) {
             console.error("Error al guardar proyecto:", error);
@@ -4246,6 +4261,9 @@ const UI = {
 
             this.showUndoToast(`Registro de historial eliminado`);
             
+            // Recargar desde el servidor para obtener el historial actualizado
+            await this.loadData();
+            
             // Refrescar el pipeline si estamos en la vista de proyectos
             const projectsView = document.getElementById('projects');
             if (projectsView && projectsView.classList.contains('active')) {
@@ -4316,13 +4334,12 @@ const UI = {
             this.closeModal('close-project-modal');
             this.showToast('Proyecto cerrado y deuda registrada', 'success');
             
+            // Recargar desde el servidor para obtener datos actualizados
+            await this.loadData();
             this.renderProjects();
             if (document.getElementById('projects-history-card') && document.getElementById('projects-history-card').style.display === 'block') {
                 this.renderProjectHistory();
             }
-            
-            // Refrescar datos en segundo plano para que la vista de deudores se actualice si se navega allá
-            this.loadData();
         } catch (error) {
             console.error("Error al cerrar proyecto y registrar deuda:", error);
             this.showToast('Error al cerrar proyecto', 'error');
@@ -4410,6 +4427,9 @@ const UI = {
 
             state.projects = state.projects.map(proj => proj.id === id ? project : proj);
             this.showToast('Proyecto re-abierto', 'info');
+            
+            // Recargar desde el servidor para obtener datos actualizados
+            await this.loadData();
             this.renderProjects();
             this.renderProjectHistory();
         } catch (error) {
@@ -4489,12 +4509,16 @@ const UI = {
             document.getElementById('is-phase-update').value = 'true';
             document.getElementById('project-form-title').textContent = 'Actualización de Estado / Nueva Fase';
             document.querySelector('#add-project-form button[type="submit"]').textContent = 'Confirmar Actualización';
+            // Hacer el nombre opcional en modo de actualización de fase
+            document.getElementById('project-name').removeAttribute('required');
             window.scrollTo({ top: 0, behavior: 'smooth' });
             setTimeout(() => statusSelect.focus(), 500);
         } else {
             document.getElementById('is-phase-update').value = 'false';
             document.getElementById('project-form-title').textContent = 'Editar Proyecto';
             document.querySelector('#add-project-form button[type="submit"]').textContent = 'Guardar Cambios';
+            // El nombre es requerido en modo edición normal
+            document.getElementById('project-name').setAttribute('required', 'required');
             window.scrollTo({ top: 0, behavior: 'smooth' });
         }
 
@@ -4536,6 +4560,8 @@ const UI = {
             document.getElementById('is-phase-update').value = 'false';
             document.getElementById('project-form-title').textContent = 'Nueva Solicitud / Proyecto';
             document.querySelector('#add-project-form button[type="submit"]').textContent = 'Guardar Proyecto';
+            // El nombre es requerido para proyectos nuevos
+            document.getElementById('project-name').setAttribute('required', 'required');
 
             // Restaurar select de estado inicial
             const statusSelect = form.elements['status'];

@@ -157,12 +157,17 @@
                     </button>
                 </div>
 
-                <!-- Módulo Ventas -->
-                <div class="nav-section" data-module="ventas">
-                    <div class="nav-section-header">VENTAS</div>
+                <!-- Módulo Proyectos (Independiente) -->
+                <div class="nav-section" data-module="proyectos">
+                    <div class="nav-section-header">PROYECTOS</div>
                     <button class="nav-btn" data-target="projects">
                         <i class="fa-solid fa-diagram-project"></i> Proyectos
                     </button>
+                </div>
+
+                <!-- Módulo Ventas -->
+                <div class="nav-section" data-module="ventas">
+                    <div class="nav-section-header">VENTAS</div>
                     <button class="nav-btn desktop-only" data-target="quotations">
                         <i class="fa-solid fa-file-invoice"></i> Cotizaciones
                     </button>
@@ -1000,7 +1005,7 @@
                         <input type="hidden" id="is-phase-update" value="false">
                         <div class="form-group">
                             <label for="project-name">Nombre del Proyecto</label>
-                            <input type="text" id="project-name" name="projectName" required placeholder="Ej: Instalación Eléctrica Local X"
+                            <input type="text" id="project-name" name="projectName" placeholder="Ej: Instalación Eléctrica Local X"
                                 oninvalid="this.setCustomValidity('Por favor, ingrese el nombre del proyecto')"
                                 oninput="this.setCustomValidity('')">
                         </div>
@@ -1505,7 +1510,22 @@
 
                                 <label class="checkbox-label">
                                     <input type="checkbox" name="modules" value="ventas" class="module-checkbox">
-                                    <span>Ventas y Proyectos</span>
+                                    <span>Ventas</span>
+                                </label>
+
+                                <label class="checkbox-label">
+                                    <input type="checkbox" name="modules" value="proyectos" class="module-checkbox">
+                                    <span>Proyectos</span>
+                                </label>
+
+                                <label class="checkbox-label">
+                                    <input type="checkbox" name="modules" value="inventario" class="module-checkbox">
+                                    <span>Inventario</span>
+                                </label>
+
+                                <label class="checkbox-label">
+                                    <input type="checkbox" name="modules" value="cotizaciones" class="module-checkbox">
+                                    <span>Cotizaciones</span>
                                 </label>
 
                                 <label class="checkbox-label">

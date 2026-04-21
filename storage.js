@@ -125,9 +125,9 @@ const Storage = {
         const users = syncRequest('GET', '/users') || [];
         if (users.length === 0) {
             const DEFAULT_USERS = [
-                { id: '1', username: 'administrador', password: 'S0p0rt3!!2025', role: 'administrador', name: 'Admin Simons', modules: ['finanzas', 'ventas', 'usuarios'] },
-                { id: '2', username: 'operador', password: 'operador123', role: 'operador', name: 'Operador Ventas', modules: ['finanzas', 'ventas'] },
-                { id: '3', username: 'lector', password: 'lector123', role: 'visualización', name: 'Invitado', modules: ['finanzas', 'ventas'] }
+                { id: '1', username: 'administrador', password: 'S0p0rt3!!2025', role: 'administrador', name: 'Admin Simons', modules: ['finanzas', 'ventas', 'proyectos', 'inventario', 'cotizaciones', 'usuarios'] },
+                { id: '2', username: 'operador', password: 'operador123', role: 'operador', name: 'Operador Ventas', modules: ['finanzas', 'ventas', 'proyectos', 'inventario', 'cotizaciones'] },
+                { id: '3', username: 'lector', password: 'lector123', role: 'visualización', name: 'Invitado', modules: ['finanzas','ventas','proyectos','inventario'] }
             ];
             this.saveUsers(DEFAULT_USERS);
             return DEFAULT_USERS;
