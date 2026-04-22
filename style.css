@@ -1582,3 +1582,173 @@ body.dark-mode .bottom-nav .nav-btn.active {
         box-sizing: border-box;
     }
 }
+
+/* --- SISTEMA DE PERMISOS GRANULARES --- */
+.permissions-grid-container {
+    margin-top: 1.5rem;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius);
+    overflow: hidden;
+    background: var(--card-bg);
+}
+
+.perm-module-card {
+    border-bottom: 1px solid var(--border-color);
+}
+
+.perm-module-card:last-child {
+    border-bottom: none;
+}
+
+.perm-module-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 1rem 1.25rem;
+    background: var(--background);
+    cursor: pointer;
+    transition: var(--transition);
+}
+
+.perm-module-header:hover {
+    background: var(--accent-glow);
+}
+
+.perm-module-info {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    font-weight: 600;
+    color: var(--text-main);
+}
+
+.perm-module-header i.chevron {
+    transition: transform 0.3s ease;
+}
+
+.perm-module-card.active .perm-module-header i.chevron {
+    transform: rotate(180deg);
+}
+
+.perm-sub-list {
+    display: none;
+    padding: 0;
+    list-style: none;
+    background: var(--sidebar-bg);
+    border-top: 1px solid var(--border-color);
+}
+
+.perm-module-card.active .perm-sub-list {
+    display: block;
+}
+
+.perm-item {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    padding: 0.75rem 1.25rem;
+    border-bottom: 1px dashed var(--border-color);
+    align-items: center;
+    transition: var(--transition);
+}
+
+.perm-item:last-child {
+    border-bottom: none;
+}
+
+.perm-item:hover {
+    background: rgba(0, 0, 0, 0.01);
+}
+
+.perm-item-label {
+    font-size: 0.9rem;
+    color: var(--text-main);
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.perm-item-actions {
+    display: flex;
+    gap: 1.5rem;
+    align-items: center;
+}
+
+/* Toggle Switch Premium para Permisos */
+.perm-check-wrapper {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.perm-check-label {
+    font-size: 0.65rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    min-width: 35px;
+    text-align: right;
+}
+
+.perm-toggle {
+    position: relative;
+    display: inline-block;
+    width: 32px;
+    height: 18px;
+}
+
+.perm-toggle input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.perm-slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: var(--border-color);
+    transition: .4s;
+    border-radius: 20px;
+}
+
+.perm-slider:before {
+    position: absolute;
+    content: "";
+    height: 12px;
+    width: 12px;
+    left: 3px;
+    bottom: 3px;
+    background-color: white;
+    transition: .4s;
+    border-radius: 50%;
+}
+
+input:checked + .perm-slider {
+    background-color: var(--primary-color);
+}
+
+input:checked + .perm-slider:before {
+    transform: translateX(14px);
+}
+
+/* Colores específicos por acción */
+input:checked[data-action="view"] + .perm-slider { background-color: var(--success-color); }
+input:checked[data-action="create"] + .perm-slider { background-color: var(--primary-color); }
+input:checked[data-action="edit"] + .perm-slider { background-color: var(--secondary-color); }
+input:checked[data-action="delete"] + .perm-slider { background-color: var(--danger-color); }
+
+body.dark-mode .perm-item:hover {
+    background: rgba(255, 255, 255, 0.02);
+}
+
+body.dark-mode .perm-sub-list {
+    background: #1e293b;
+}
+
+/* Tooltip simple para permisos */
+[title] {
+    position: relative;
+}

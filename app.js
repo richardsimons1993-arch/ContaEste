@@ -18,8 +18,33 @@ const rawState = {
     availables: [],
     inventory: [],
     locations: [],
+    crmProspectos: [], // Nueva propiedad para CRM
     operationalExpenses: [],
     selectedYear: new Date().getFullYear()
+};
+
+// Mapeo Global de Vistas a Módulos (para control de accesos)
+const MODULE_VIEW_MAP = {
+    'transaction-form': 'finanzas',
+    'concepts': 'finanzas',
+    'clients': 'finanzas',
+    'suppliers': 'finanzas',
+    'debts': 'finanzas',
+    'debtors': 'finanzas',
+    'operational-expenses': 'finanzas',
+    'transactions': 'finanzas',
+    'dashboard': 'finanzas',
+    'available-funds': 'finanzas',
+    'activity': 'finanzas',
+    'projects': 'proyectos',
+    'quotations': 'cotizaciones',
+    'contracts': 'ventas',
+    'inventory': 'inventario',
+    'crm-leads': 'crm',
+    'crm-emails': 'crm',
+    'users': 'usuarios',
+    'locations': 'usuarios',
+    'notas': 'notas'
 };
 
 // --- Store Reactivo ---
@@ -63,6 +88,7 @@ const Store = new Proxy(rawState, {
                 UI.renderInventory(); 
                 setTimeout(() => UI.renderDashboard(), 0); 
             },
+            'crmProspectos': () => UI.renderCRMLeads(),
             'locations': () => UI.renderLocations(),
             'operationalExpenses': () => { 
                 UI.renderOperationalExpenses(); 
@@ -96,9 +122,90 @@ const ROLES = {
     VIEWER: 'visualización'
 };
 
+const MODULES_CONFIG = [
+    {
+        id: 'finanzas',
+        name: 'Finanzas',
+        icon: 'fa-money-bill-trend-up',
+        submodules: [
+            { id: 'transaction-form', name: 'Registrar Transacción' },
+            { id: 'concepts', name: 'Gestión de Conceptos' },
+            { id: 'clients', name: 'Gestión de Clientes' },
+            { id: 'suppliers', name: 'Gestión de Proveedores' },
+            { id: 'debts', name: 'Control de Deudas' },
+            { id: 'debtors', name: 'Control de Deudores' },
+            { id: 'operational-expenses', name: 'Gastos Operacionales' },
+            { id: 'transactions', name: 'Historial de Movimientos' },
+            { id: 'dashboard', name: 'Balance y Gráficos' },
+            { id: 'available-funds', name: 'Fondos Disponibles' },
+            { id: 'activity', name: 'Registro de Actividad' }
+        ]
+    },
+    {
+        id: 'proyectos',
+        name: 'Proyectos',
+        icon: 'fa-helmet-safety',
+        submodules: [
+            { id: 'projects', name: 'Gestión de Proyectos' }
+        ]
+    },
+    {
+        id: 'crm',
+        name: 'CRM',
+        icon: 'fa-briefcase',
+        submodules: [
+            { id: 'crm-leads', name: 'Gestión de Prospectos' },
+            { id: 'crm-emails', name: 'Envío de Email Masivo' }
+        ]
+    },
+    {
+        id: 'ventas',
+        name: 'Ventas',
+        icon: 'fa-file-signature',
+        submodules: [
+            { id: 'contracts', name: 'Contratos Recurrentes' },
+            { id: 'contracts-reminder', name: 'Alertas de Facturación' }
+        ]
+    },
+    {
+        id: 'cotizaciones',
+        name: 'Cotizaciones',
+        icon: 'fa-file-invoice-dollar',
+        submodules: [
+            { id: 'quotations', name: 'Gestión de Cotizaciones' }
+        ]
+    },
+    {
+        id: 'inventario',
+        name: 'Inventario',
+        icon: 'fa-boxes-stacked',
+        submodules: [
+            { id: 'inventory', name: 'Control de Inventario' }
+        ]
+    },
+    {
+        id: 'notas',
+        name: 'Notas',
+        icon: 'fa-note-sticky',
+        submodules: [
+            { id: 'notas', name: 'Bloc de Notas' }
+        ]
+    },
+    {
+        id: 'usuarios',
+        name: 'Administración',
+        icon: 'fa-user-gear',
+        submodules: [
+            { id: 'users', name: 'Gestión de Usuarios' },
+            { id: 'locations', name: 'Gestión de Ubicaciones' }
+        ],
+        adminOnly: true
+    }
+];
+
 const DEFAULT_USERS = [
-    { id: '1', username: 'administrador', password: 'S0p0rt3!!2025', role: ROLES.ADMIN, name: 'Admin Simons', modules: ['finanzas', 'ventas', 'proyectos', 'inventario', 'cotizaciones', 'usuarios', 'notas'] },
-    { id: '2', username: 'operador', password: 'operador123', role: ROLES.OPERATOR, name: 'Operador Ventas', modules: ['finanzas', 'ventas', 'proyectos', 'inventario', 'cotizaciones', 'notas'] },
+    { id: '1', username: 'administrador', password: 'S0p0rt3!!2025', role: ROLES.ADMIN, name: 'Admin Simons', modules: ['finanzas', 'ventas', 'proyectos', 'inventario', 'cotizaciones', 'usuarios', 'notas', 'crm'] },
+    { id: '2', username: 'operador', password: 'operador123', role: ROLES.OPERATOR, name: 'Operador Ventas', modules: ['finanzas', 'ventas', 'proyectos', 'inventario', 'cotizaciones', 'notas', 'crm'] },
     { id: '3', username: 'lector', password: 'lector123', role: ROLES.VIEWER, name: 'Invitado', modules: ['finanzas', 'ventas', 'proyectos', 'inventario', 'notas'] }
 ];
 
@@ -226,6 +333,9 @@ const UI = {
 
             this.populateYearSelector(); // Poblar selector de años
             
+            // 8. Inicializar contenedor de permisos granulares (vacío)
+            this.renderGranularPermissions({});
+
             // Si hay sesión, cargar la UI normal
             if (state.currentUser) {
                 this.applyPrivileges();
@@ -383,7 +493,8 @@ const UI = {
                 window.StorageAPI.async.getAvailables(),
                 window.StorageAPI.async.getInventory(),
                 window.StorageAPI.async.getAppLocations(),
-                window.StorageAPI.async.getOperationalExpenses()
+                window.StorageAPI.async.getOperationalExpenses(),
+                window.StorageAPI.async.getCRMProspectos()
             ]);
 
             // Mapear resultados al estado global (Proxy dispara renders automáticos)
@@ -416,6 +527,7 @@ const UI = {
             setIfOk('inventory', 13);
             setIfOk('locations', 14);
             setIfOk('operationalExpenses', 15);
+            setIfOk('crmProspectos', 16);
 
             // Verificar si alguna falló y reportar
             let failedCount = 0;
@@ -637,6 +749,12 @@ const UI = {
             cancelProjectEditBtn.addEventListener('click', () => this.resetProjectForm());
         }
 
+        // --- CRM ---
+        const crmLeadForm = document.getElementById('crm-lead-form');
+        if (crmLeadForm) {
+            crmLeadForm.addEventListener('submit', (e) => this.handleCRMLeadSubmit(e));
+        }
+
         const projectFilterStatus = document.getElementById('project-filter-status');
         if (projectFilterStatus) projectFilterStatus.addEventListener('change', () => this.renderProjects());
 
@@ -783,19 +901,13 @@ const UI = {
             cancelUserEditBtn.addEventListener('click', () => this.resetUserForm());
         }
 
-        // Listener para cambio de rol (deshabilitar módulo usuarios si no es admin)
+        // Listener para cambio de rol (opcionalmente podríamos pre-seleccionar permisos según el rol)
         const roleSelect = document.getElementById('user-role');
         if (roleSelect) {
             roleSelect.addEventListener('change', (e) => {
-                const moduleUsuariosCheckbox = document.getElementById('module-usuarios');
-                if (moduleUsuariosCheckbox) {
-                    if (e.target.value !== ROLES.ADMIN) {
-                        moduleUsuariosCheckbox.checked = false;
-                        moduleUsuariosCheckbox.disabled = true;
-                    } else {
-                        moduleUsuariosCheckbox.disabled = false;
-                    }
-                }
+                // Podríamos implementar lógica para auto-seleccionar módulos comunes por rol aquí
+                // Por ahora solo aseguramos que el contenedor de permisos esté visible
+                console.log("Cambio de rol detectado:", e.target.value);
             });
         }
 
@@ -983,18 +1095,24 @@ const UI = {
             errorEl.style.display = 'none';
             e.target.reset();
 
-            this.updateUserUI();
-            this.applyPrivileges();
-            this.applyModuleAccess();
-            this.startInactivityTimer();
+            try {
+                this.updateUserUI();
+                this.applyPrivileges();
+                this.applyModuleAccess();
+                this.startInactivityTimer();
 
-            // Determinar vista inicial tras login (Dashboard en móvil, primera disponible en PC)
-            const isMobile = window.innerWidth <= 768;
-            if (isMobile) {
-                this.switchView('mobile-dashboard');
-            } else {
-                const firstView = this.getFirstAvailableView(state.currentUser.modules);
-                this.switchView(firstView);
+                // Determinar vista inicial tras login (Dashboard en móvil, primera disponible en PC)
+                const isMobile = window.innerWidth <= 768;
+                if (isMobile) {
+                    this.switchView('mobile-dashboard');
+                } else {
+                    const firstView = this.getFirstAvailableView(state.currentUser.modules);
+                    this.switchView(firstView);
+                }
+            } catch (uiErr) {
+                console.error("Error al inicializar interfaz post-login:", uiErr);
+                // Intentar al menos mostrar la vista por defecto
+                this.switchView('notas');
             }
 
             this.recordActivity('Login', 'Sistema', `Usuario ${username} inició sesión`);
@@ -1199,16 +1317,50 @@ const UI = {
     },
 
     applyPrivileges() {
-        const role = state.currentUser?.role;
-        console.log("Aplicando privilegios para rol:", role);
+        const user = state.currentUser;
+        if (!user) return;
 
-        // 1. Ocultar botones de borrar si no es ADMIN
-        const deleteButtons = document.querySelectorAll('.btn-icon.text-danger, .btn-mini-action.text-danger');
-        deleteButtons.forEach(btn => {
-            btn.style.display = (role === ROLES.ADMIN) ? 'inline-flex' : 'none';
+        const isAdminUser = user.username === 'administrador' || user.username === 'admin' || user.role === ROLES.ADMIN;
+        const role = user.role;
+        const currentView = state.currentView;
+        
+        // Determinar a qué módulo pertenece la vista actual
+        const viewModuleMap = {
+            'transaction-form': 'finanzas',
+            'concepts': 'finanzas',
+            'clients': 'finanzas',
+            'transactions': 'finanzas',
+            'debts': 'finanzas',
+            'debtors': 'finanzas',
+            'suppliers': 'finanzas',
+            'dashboard': 'finanzas',
+            'available-funds': 'finanzas',
+            'projects': 'proyectos',
+            'contracts': 'ventas',
+            'quotations': 'cotizaciones',
+            'inventory': 'inventario',
+            'activity': 'finanzas',
+            'users': 'usuarios',
+            'locations': 'usuarios',
+            'operational-expenses': 'finanzas',
+            'notas': 'notas'
+        };
+
+        const mId = viewModuleMap[currentView];
+        
+        // Permisos para la vista actual: Volvemos a lógica de ROLES para edición y eliminación
+        const canEdit = isAdminUser || (role === ROLES.ADMIN) || (role === ROLES.OPERATOR);
+        const canDelete = isAdminUser || (role === ROLES.ADMIN);
+
+        console.log(`Aplicando privilegios para ${currentView}: Edit=${canEdit}, Delete=${canDelete}`);
+
+        // 1. Controlar botones de borrado
+        const btnDelete = document.querySelectorAll('.btn-icon.text-danger, .btn-mini-action.text-danger, #btn-delete-project, #btn-delete-contract');
+        btnDelete.forEach(btn => {
+            btn.style.display = canDelete ? 'inline-flex' : 'none';
         });
 
-        // 2. Deshabilitar formularios si es VIEWER
+        // 2. Controlar botones de edición/guardado
         const forms = document.querySelectorAll('form');
         forms.forEach(form => {
             const inputs = form.querySelectorAll('input, select, textarea, button[type="submit"]');
@@ -1216,6 +1368,12 @@ const UI = {
                 if (role === ROLES.VIEWER) {
                     input.disabled = true;
                     if (input.tagName === 'BUTTON') input.style.opacity = '0.5';
+                } else if (!canEdit) {
+                    // Si no tiene permiso de edición, deshabilitar submit
+                    if (input.type === 'submit' || input.tagName === 'BUTTON') {
+                        input.disabled = true;
+                        input.style.opacity = '0.5';
+                    }
                 } else {
                     input.disabled = false;
                     if (input.tagName === 'BUTTON') input.style.opacity = '1';
@@ -1223,8 +1381,14 @@ const UI = {
             });
         });
 
-        // 3. Mostrar/Ocultar botón Usuarios (deprecated - ahora se maneja por módulos)
-        // La visibilidad se controla en applyModuleAccess()
+        // Caso especial: botones de edición en tablas (?)
+        const editTableBtns = document.querySelectorAll('.btn-icon:not(.text-danger)');
+        // Filtramos para no ocultar botones de navegación si los hay
+        editTableBtns.forEach(btn => {
+            if (btn.onclick && (btn.onclick.toString().includes('edit') || btn.onclick.toString().includes('populate'))) {
+                btn.style.display = canEdit ? 'inline-flex' : 'none';
+            }
+        });
     },
 
     // --- MODALES ---
@@ -1247,74 +1411,89 @@ const UI = {
         }
     },
 
-    applyModuleAccess() {
-        if (!state.currentUser) return;
+    hasAccess(mId, target) {
+        if (!state.currentUser) return false;
+        
+        // El usuario 'administrador' o 'admin' siempre tiene acceso total
+        const isAdminUser = state.currentUser.username === 'administrador' || 
+                           state.currentUser.username === 'admin' || 
+                           state.currentUser.role === ROLES.ADMIN;
+        if (isAdminUser) return true;
 
-        // ASEGURAR MÓDULOS PARA ADMINISTRADORES
-        // Si el usuario es administrador, garantizamos que tenga todos los módulos disponibles
-        if (state.currentUser.role === ROLES.ADMIN) {
-            const adminModules = ['finanzas', 'ventas', 'proyectos', 'inventario', 'cotizaciones', 'usuarios', 'notas'];
-            const currentModules = state.currentUser.modules || [];
-            adminModules.forEach(module => {
-                if (!currentModules.includes(module)) {
-                    console.log(`Garantizando acceso al módulo '${module}' por rol administrativo...`);
-                    currentModules.push(module);
-                }
-            });
-            state.currentUser.modules = currentModules;
+        const userModules = state.currentUser.modules || {};
+        
+        // 1. Caso Sistema Antiguo (Array)
+        if (Array.isArray(userModules)) {
+            return userModules.includes(mId);
         }
 
-        const userModules = state.currentUser?.modules || [];
-        console.log("Aplicando acceso a módulos:", userModules);
+        // 2. Caso Sistema Nuevo (Objeto)
+        const mod = userModules[mId];
+        if (!mod || !mod.view) return false;
 
-        // Ocultar/mostrar secciones de navegación según módulos
-        document.querySelectorAll('.nav-section, .bottom-nav .nav-btn').forEach(el => {
-            const module = el.dataset.module;
-            if (module) {
-                if (userModules.includes(module)) {
-                    // Si es un botón de la barra inferior, usar flex para que el texto e icono se alineen bien
-                    el.style.display = (el.classList.contains('nav-btn') && el.parentElement.classList.contains('bottom-nav')) ? 'flex' : 'block';
-                } else {
-                    el.style.display = 'none';
-                }
+        // Si no se pide un submodulo específico, basta con tener vista al módulo
+        if (!target || target === mId) return true;
+
+        // Si el target es una vista principal del módulo, no chequeamos sub-permisos (redundante)
+        const mainViews = ['finanzas', 'proyectos', 'ventas', 'cotizaciones', 'inventario', 'usuarios', 'notas'];
+        if (mainViews.includes(target)) return true;
+
+        // Checar permiso específico del submodulo
+        return !!(mod.sub && mod.sub[target]);
+    },
+
+    applyModuleAccess() {
+        if (!state.currentUser) return;
+        console.log("Aplicando accesos...");
+
+        // 1. Mostrar/Ocultar Secciones de la Sidebar (Los grupos principales como FINANZAS, VENTAS, etc.)
+        document.querySelectorAll('.nav-section').forEach(section => {
+            const mId = section.dataset.module;
+            if (mId) {
+                // Chequeo a nivel de módulo: si está habilitado el módulo, mostramos la sección
+                const hasModuleAccess = this.hasAccess(mId); 
+                section.style.display = hasModuleAccess ? 'block' : 'none';
             }
         });
 
-        // Proteger vistas: si el usuario intenta acceder a una vista no permitida
-        const currentView = state.currentView;
-        const viewModuleMap = {
-            'transaction-form': 'finanzas',
-            'concepts': 'finanzas',
-            'clients': 'finanzas',
-            'transactions': 'finanzas',
-            'debts': 'finanzas',
-            'debtors': 'finanzas',
-            'suppliers': 'finanzas',
-            'dashboard': 'finanzas',
-            'available-funds': 'finanzas',
-            'projects': 'proyectos',
-            'contracts': 'ventas',
-            'quotations': 'cotizaciones',
-            'inventory': 'inventario',
-            'activity': 'finanzas',
-            'users': 'usuarios',
-            'operational-expenses': 'finanzas',
-            'notas': 'notas'
-        };
+        // 2. Mostrar/Ocultar Botones específicos (Sidebar, Home móvil, Menú inferior, Alertas)
+        document.querySelectorAll('.nav-btn, .mobile-card-large, #contracts-reminder-btn').forEach(el => {
+            const target = el.dataset.target;
+            const mId = el.dataset.module || el.closest('.nav-section')?.dataset.module;
 
-        const requiredModule = viewModuleMap[currentView];
-        if (requiredModule && !userModules.includes(requiredModule)) {
-            // Redirigir a la primera vista disponible
-            const firstAvailableView = this.getFirstAvailableView(userModules);
-            this.switchView(firstAvailableView);
-        }
+            if (mId && target) {
+                const access = this.hasAccess(mId, target);
+                // Forzamos el display correcto (flex para iconos, para no romper el diseño)
+                el.style.display = access ? 'flex' : 'none';
+            }
+        });
     },
 
-    getFirstAvailableView(modules) {
-        if (modules.includes('notas')) return 'notas';
-        if (modules.includes('finanzas')) return 'transaction-form';
-        if (modules.includes('usuarios')) return 'users';
-        return 'notas'; // Fallback a notas
+    getFirstAvailableView(userModules) {
+        // Notas siempre es el fallback ideal
+        if (this.hasAccess('notas', 'notas')) return 'notas';
+
+        // Buscar en prioridades
+        const priorities = [
+            { m: 'finanzas', s: 'transaction-form' },
+            { m: 'finanzas', s: 'dashboard' },
+            { m: 'proyectos', s: 'projects' },
+            { m: 'ventas', s: 'contracts' },
+            { m: 'inventario', s: 'inventory' }
+        ];
+
+        for (const p of priorities) {
+            if (this.hasAccess(p.m, p.s)) return p.s;
+        }
+
+        // Si no hay nada, cualquier módulo que tenga vista
+        for (const mId in userModules) {
+            if (this.hasAccess(mId)) {
+                return mId;
+            }
+        }
+
+        return 'notas'; 
     },
 
     switchView(viewName) {
@@ -1332,10 +1511,14 @@ const UI = {
             return;
         }
 
-        // Proteger vista usuarios
-        if (viewName === 'users' && state.currentUser.role !== ROLES.ADMIN) {
-            console.warn("Acceso denegado a Usuarios. Redirigiendo...");
-            this.switchView('transaction-form');
+        // Proteger vistas críticas
+        const user = state.currentUser;
+        const targetModule = MODULE_VIEW_MAP[viewName];
+        
+        if (!this.hasAccess(targetModule, viewName)) {
+            console.warn(`Acceso denegado a ${viewName}. Redirigiendo...`);
+            const fallback = this.getFirstAvailableView(user.modules);
+            if (fallback !== viewName) this.switchView(fallback);
             return;
         }
 
@@ -1383,7 +1566,9 @@ const UI = {
             'alerts': 'Alertas',
             'activity': 'Actividad',
             'available-funds': 'Disponible',
-            'quotations': 'Cotizaciones'
+            'quotations': 'Cotizaciones',
+            'crm-leads': 'Prospectos (CRM)',
+            'crm-emails': 'CRM - Marketing'
         };
 
         const pageTitle = document.getElementById('page-title');
@@ -1413,6 +1598,7 @@ const UI = {
         if (viewName === 'activity') this.renderActivity();
         if (viewName === 'available-funds') this.renderAvailables();
         if (viewName === 'users') this.renderUsers();
+        if (viewName === 'crm-leads') this.renderCRMLeads();
         if (viewName === 'operational-expenses') this.renderOperationalExpenses();
         if (viewName === 'notas' && !this.notasInitialized) this.initNotas();
         if (viewName === 'quotations') {
@@ -1741,6 +1927,11 @@ const UI = {
         if (!tbody) return;
         tbody.innerHTML = '';
 
+        // Determinar si el usuario tiene permiso para registrar/modificar (Acciones)
+        const canRegister = this.hasAccess('finanzas', 'transaction-form');
+        const headerActions = document.getElementById('th-transactions-actions');
+        if (headerActions) headerActions.style.display = canRegister ? '' : 'none';
+
         // Obtener Transacciones Filtradas
         const displayedTransactions = this.getFilteredTransactions();
 
@@ -1783,6 +1974,7 @@ const UI = {
                 <td style="font-weight: bold; color: ${t.type === 'income' ? 'var(--secondary-color)' : 'var(--danger-color)'}">
                     ${t.type === 'income' ? '+' : '-'} ${formatCurrency(t.amount)}
                 </td>
+                ${canRegister ? `
                 <td class="actions">
                     <button class="btn-icon" title="Editar" onclick="UI.editTransaction('${t.id}')">
                         <i class="fa-solid fa-pen-to-square"></i>
@@ -1790,7 +1982,7 @@ const UI = {
                     <button class="btn-icon text-danger" title="Eliminar" onclick="UI.handleTransactionDelete('${t.id}')">
                         <i class="fa-solid fa-trash-can"></i>
                     </button>
-                </td>
+                </td>` : ''}
             `;
             tbody.appendChild(row);
         });
@@ -1804,6 +1996,7 @@ const UI = {
                     <td style="font-weight: bold; font-size: 1.1rem; color: ${totalSum >= 0 ? 'var(--secondary-color)' : 'var(--danger-color)'}">
                         ${formatCurrency(Math.abs(totalSum))}
                     </td>
+                    ${canRegister ? '<td></td>' : ''}
                 </tr>
             `;
         }
@@ -3101,6 +3294,115 @@ const UI = {
     },
 
     // --- GESTIÓN DE USUARIOS ---
+    
+    renderGranularPermissions(userPermissions = {}) {
+        const container = document.getElementById('granular-permissions-container');
+        if (!container) return;
+
+        container.innerHTML = '';
+        
+        // El formato puede ser el viejo (array) o el nuevo (objeto)
+        const perms = (!Array.isArray(userPermissions) && typeof userPermissions === 'object') 
+            ? userPermissions 
+            : this._convertLegacyPermissions(userPermissions);
+
+        MODULES_CONFIG.forEach(module => {
+            const moduleData = perms[module.id] || { view: false, sub: {}, actions: { edit: false, delete: false } };
+            const moduleCard = document.createElement('div');
+            moduleCard.className = `perm-module-card ${moduleData.view ? 'active' : ''}`;
+            
+            const submodulesHtml = module.submodules.map(sub => {
+                const isSubActive = !!moduleData.sub?.[sub.id];
+                return `
+                    <li class="perm-item">
+                        <div class="perm-item-label">
+                            <i class="fa-solid fa-circle-dot" style="font-size: 0.5rem; opacity: 0.5;"></i>
+                            ${sub.name}
+                        </div>
+                        <div class="perm-item-actions">
+                            <div class="perm-check-wrapper">
+                                <span class="perm-check-label">${isSubActive ? 'Visible' : 'Oculto'}</span>
+                                <label class="perm-toggle">
+                                    <input type="checkbox" class="submodule-check" 
+                                        data-module="${module.id}" 
+                                        data-sub="${sub.id}" 
+                                        ${isSubActive ? 'checked' : ''}
+                                        onchange="this.parentElement.previousElementSibling.textContent = this.checked ? 'Visible' : 'Oculto'">
+                                    <span class="perm-slider" data-action="view"></span>
+                                </label>
+                            </div>
+                        </div>
+                    </li>
+                `;
+            }).join('');
+
+            moduleCard.innerHTML = `
+                <div class="perm-module-header" onclick="UI.togglePermModule(this)">
+                    <div class="perm-module-info">
+                        <i class="fa-solid ${module.icon}"></i>
+                        <span>${module.name}</span>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 1.5rem;">
+                        <div class="perm-check-wrapper" onclick="event.stopPropagation()">
+                            <span class="perm-check-label" style="font-weight: 700;">${moduleData.view ? 'VISIBLE' : 'OCULTO'}</span>
+                            <label class="perm-toggle">
+                                <input type="checkbox" class="module-main-toggle" data-module="${module.id}" ${moduleData.view ? 'checked' : ''} 
+                                    onchange="UI.handleModuleMasterToggle(this)">
+                                <span class="perm-slider"></span>
+                            </label>
+                        </div>
+                        <i class="fa-solid fa-chevron-down chevron"></i>
+                    </div>
+                </div>
+                <ul class="perm-sub-list">
+                    ${submodulesHtml}
+                </ul>
+            `;
+            container.appendChild(moduleCard);
+        });
+    },
+
+    _convertLegacyPermissions(modulesArray) {
+        const obj = {};
+        if (!Array.isArray(modulesArray)) return obj;
+        
+        modulesArray.forEach(mId => {
+            const config = MODULES_CONFIG.find(c => c.id === mId);
+            if (config) {
+                obj[mId] = {
+                    view: true,
+                    sub: {},
+                    actions: { edit: true, delete: true } // Por defecto total si era el sistema viejo
+                };
+                config.submodules.forEach(s => obj[mId].sub[s.id] = true);
+            }
+        });
+        return obj;
+    },
+
+    togglePermModule(header) {
+        header.parentElement.classList.toggle('active');
+    },
+
+    handleModuleMasterToggle(input) {
+        const isChecked = input.checked;
+        const card = input.closest('.perm-module-card');
+        const label = input.parentElement.previousElementSibling;
+        if (label) label.textContent = isChecked ? 'VISIBLE' : 'OCULTO';
+        
+        if (isChecked) {
+            card.classList.add('active');
+        } else {
+            card.classList.remove('active');
+        }
+
+        // Aplicar estado a todos los submodulos
+        card.querySelectorAll('.submodule-check').forEach(cb => {
+            cb.checked = isChecked;
+            const subLabel = cb.parentElement.previousElementSibling;
+            if (subLabel) subLabel.textContent = isChecked ? 'Visible' : 'Oculto';
+        });
+    },
 
     renderUsers() {
         const tbody = document.getElementById('users-list-body');
@@ -3109,12 +3411,22 @@ const UI = {
 
         state.users.forEach(u => {
             const tr = document.createElement('tr');
-            const modulesDisplay = (u.modules || []).join(', ') || 'Ninguno';
+            // Formateo legible de permisos para la tabla
+            let permSummary = '';
+            if (u.username === 'administrador') {
+                permSummary = '<span class="tag income">Acceso Total</span>';
+            } else if (typeof u.modules === 'object' && !Array.isArray(u.modules)) {
+                const activeCount = Object.values(u.modules).filter(m => m.view).length;
+                permSummary = `<span class="tag pending">${activeCount} Módulos Activos</span>`;
+            } else {
+                permSummary = `<small style="color: var(--text-muted);">${(u.modules || []).join(', ') || 'Ninguno'}</small>`;
+            }
+
             tr.innerHTML = `
                 <td>${u.name}</td>
                 <td>${u.username}</td>
                 <td><span class="tag ${u.role === 'administrador' ? 'income' : 'expense'}">${u.role}</span></td>
-                <td><small style="color: var(--text-muted);">${modulesDisplay}</small></td>
+                <td>${permSummary}</td>
                 <td>
                     <button class="btn-icon" onclick="UI.editUser('${u.id}')"><i class="fa-solid fa-pen"></i></button>
                     ${u.username !== 'administrador' ? `<button class="btn-icon text-danger" onclick="UI.deleteUser('${u.id}')"><i class="fa-solid fa-trash"></i></button>` : ''}
@@ -3144,10 +3456,23 @@ const UI = {
             return;
         }
 
-        // Capturar módulos seleccionados
-        const selectedModules = Array.from(
-            document.querySelectorAll('.module-checkbox:checked')
-        ).map(cb => cb.value);
+        // Capturar permisos granulares
+        const permissions = {};
+        document.querySelectorAll('.perm-module-card').forEach(card => {
+            const mainToggle = card.querySelector('.module-main-toggle');
+            const mId = mainToggle.dataset.module;
+            
+            if (mainToggle.checked) {
+                permissions[mId] = {
+                    view: true,
+                    sub: {}
+                };
+                
+                card.querySelectorAll('.submodule-check').forEach(cb => {
+                    permissions[mId].sub[cb.dataset.sub] = cb.checked;
+                });
+            }
+        });
 
         const userId = id || Date.now().toString();
         const user = {
@@ -3156,7 +3481,7 @@ const UI = {
             username: username,
             password: password || '', // Vacío = no cambiar en servidor
             role: formData.get('role'),
-            modules: selectedModules
+            modules: permissions // Ahora es un objeto
         };
 
         const submitBtn = document.getElementById('btn-save-user');
@@ -3209,17 +3534,12 @@ const UI = {
         if (pwdField) {
             pwdField.value = '';
             pwdField.placeholder = 'Dejar vacío para no cambiar';
+            pwdField.required = false;
         }
         document.getElementById('user-role').value = user.role;
 
-        // Marcar módulos
-        document.querySelectorAll('.module-checkbox').forEach(cb => {
-            cb.checked = (user.modules || []).includes(cb.value);
-            // Deshabilitar "usuarios" si no es admin
-            if (cb.id === 'module-usuarios' && user.role !== ROLES.ADMIN) {
-                cb.disabled = true;
-            }
-        });
+        // Renderizar permisos granulares
+        this.renderGranularPermissions(user.modules || {});
 
         document.getElementById('btn-save-user').textContent = 'Actualizar Usuario';
         document.getElementById('cancel-user-edit').style.display = 'inline-block';
@@ -3250,10 +3570,19 @@ const UI = {
         document.getElementById('btn-save-user').textContent = 'Crear Usuario';
         document.getElementById('cancel-user-edit').style.display = 'none';
 
-        // Re-habilitar selector de rol si estaba deshabilitado (no debería, pero por si acaso)
-        // Y resetear checkboxes
+        // Re-habilitar selector de rol si estaba deshabilitado
         const roleSelect = document.getElementById('user-role');
         if (roleSelect) roleSelect.dispatchEvent(new Event('change'));
+        
+        // Resetear permisos granulares
+        this.renderGranularPermissions({});
+        
+        // La contraseña es obligatoria para nuevos usuarios
+        const pwdField = document.getElementById('user-password');
+        if (pwdField) {
+            pwdField.placeholder = '••••••••';
+            pwdField.required = true;
+        }
     },
 
     // --- EXPORTACIÓN ---
@@ -5095,15 +5424,22 @@ const UI = {
         const hasAnyAlert = totalAlerts > 0 || debtsCount > 0;
 
         if (hasAnyAlert) {
-            reminderBtn.style.display = 'inline-block';
-            if (totalAlerts > 0) {
-                pendingBadge.style.display = 'inline-block';
-                pendingBadge.textContent = totalAlerts;
+            const access = this.hasAccess('ventas', 'contracts-reminder');
+            if (access) {
+                reminderBtn.style.display = 'inline-block';
+                if (totalAlerts > 0) {
+                    pendingBadge.style.display = 'inline-block';
+                    pendingBadge.textContent = totalAlerts;
+                } else {
+                    pendingBadge.style.display = 'none';
+                }
+                // Actualizar tooltip para ser más descriptivo
+                reminderBtn.title = `${totalAlerts} alertas urgentes ${debtsCount > 0 ? `+ ${debtsCount} deudas` : ''}`;
             } else {
-                pendingBadge.style.display = 'none';
+                reminderBtn.style.display = 'none';
             }
-            // Actualizar tooltip para ser más descriptivo
-            reminderBtn.title = `${totalAlerts} alertas urgentes ${debtsCount > 0 ? `+ ${debtsCount} deudas` : ''}`;
+        } else {
+            reminderBtn.style.display = 'none';
         }
     },
     async handleOperationalSubmit(e) {
@@ -5651,6 +5987,251 @@ const UI = {
         } catch (err) {
             console.error(err);
             this.showToast('Error al actualizar fecha: ' + err.message, 'error');
+        }
+    },
+
+    // --- Módulo CRM (Nativo) ---
+
+    renderCRMLeads() {
+        const tbody = document.getElementById('crm-leads-list-body');
+        if (!tbody) return;
+        tbody.innerHTML = '';
+
+        const searchTerm = document.getElementById('crm-lead-search')?.value.toLowerCase() || '';
+        const leads = state.crmProspectos || [];
+
+        const filtered = leads.filter(l => 
+            l.nombre_empresa.toLowerCase().includes(searchTerm) || 
+            (l.contacto_principal && l.contacto_principal.toLowerCase().includes(searchTerm))
+        );
+
+        // Ordenar por fecha desc
+        const sorted = [...filtered].sort((a, b) => new Date(b.fecha_registro) - new Date(a.fecha_registro));
+
+        sorted.forEach(l => {
+            const row = document.createElement('tr');
+            let statusClass = 'cold';
+            if (l.estado === 'Tibio') statusClass = 'warm';
+            if (l.estado === 'Caliente') statusClass = 'hot';
+            if (l.estado === 'No Interesado') statusClass = 'expired';
+
+            row.innerHTML = `
+                <td>${formatDate(l.fecha_registro)}</td>
+                <td>
+                    <div style="font-weight: bold;">${l.nombre_empresa}</div>
+                    <div class="text-muted" style="font-size: 0.8rem;">${l.contacto_principal || '-'}</div>
+                </td>
+                <td><span class="tag info">${l.servicio_interes}</span></td>
+                <td><span class="tag ${statusClass}">${l.estado}</span></td>
+                <td class="actions">
+                    <button class="btn-icon" title="Bitácora de Llamadas" onclick="UI.openCRMCallsModal('${l.id}', '${l.nombre_empresa.replace(/'/g, "\\'")}')">
+                        <i class="fa-solid fa-phone-volume"></i>
+                    </button>
+                    <button class="btn-icon" title="Editar" onclick="UI.editCRMLead('${l.id}')">
+                        <i class="fa-solid fa-pen-to-square"></i>
+                    </button>
+                    <button class="btn-icon text-danger" title="Eliminar" onclick="UI.deleteCRMLead('${l.id}')">
+                        <i class="fa-solid fa-trash-can"></i>
+                    </button>
+                </td>
+            `;
+            tbody.appendChild(row);
+        });
+
+        this.updateLeadCountForEmail();
+    },
+
+    async handleCRMLeadSubmit(e) {
+        e.preventDefault();
+        const formData = new FormData(e.target);
+        const data = Object.fromEntries(formData.entries());
+
+        if (!data.id) data.id = 'L' + Date.now();
+        if (!data.fecha_registro) data.fecha_registro = new Date().toISOString();
+
+        try {
+            await window.StorageAPI.async.saveCRMProspecto(data);
+            this.showToast('Prospecto guardado correctamente', 'success');
+            this.resetCRMLeadForm();
+            await this.loadData();
+            this.renderCRMLeads();
+        } catch (err) {
+            console.error(err);
+            this.showToast('Error al guardar prospecto: ' + err.message, 'error');
+        }
+    },
+
+    editCRMLead(id) {
+        const lead = state.crmProspectos.find(l => l.id === id);
+        if (!lead) return;
+
+        document.getElementById('crm-lead-id').value = lead.id;
+        document.getElementById('crm-lead-company').value = lead.nombre_empresa;
+        document.getElementById('crm-lead-contact').value = lead.contacto_principal || '';
+        document.getElementById('crm-lead-phone').value = lead.telefono || '';
+        document.getElementById('crm-lead-email').value = lead.email || '';
+        document.getElementById('crm-lead-status').value = lead.estado;
+        document.getElementById('crm-lead-service').value = lead.servicio_interes;
+
+        document.getElementById('crm-lead-form-title').innerText = 'Editar Prospecto';
+        document.getElementById('btn-save-crm-lead').innerText = 'Actualizar Prospecto';
+        document.getElementById('cancel-crm-lead-edit').style.display = 'inline-block';
+        
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    },
+
+    resetCRMLeadForm() {
+        document.getElementById('crm-lead-form').reset();
+        document.getElementById('crm-lead-id').value = '';
+        document.getElementById('crm-lead-form-title').innerText = 'Registrar Nuevo Prospecto (Lead)';
+        document.getElementById('btn-save-crm-lead').innerText = 'Guardar Prospecto';
+        document.getElementById('cancel-crm-lead-edit').style.display = 'none';
+    },
+
+    async deleteCRMLead(id) {
+        if (!confirm('¿Está seguro de eliminar este prospecto? Se borrará también su historial de llamadas.')) return;
+
+        try {
+            await window.StorageAPI.async.deleteCRMProspecto(id);
+            this.showToast('Prospecto eliminado', 'success');
+            await this.loadData();
+            this.renderCRMLeads();
+        } catch (err) {
+            console.error(err);
+            this.showToast('Error al eliminar: ' + err.message, 'error');
+        }
+    },
+
+    async openCRMCallsModal(id, companyName) {
+        document.getElementById('crm-modal-company-name').innerText = companyName;
+        document.getElementById('crm-call-prospect-id').value = id;
+        document.getElementById('crm-call-form').reset();
+        
+        this.openModal('crm-calls-modal');
+        await this.renderCRMCalls(id);
+    },
+
+    async renderCRMCalls(prospectId) {
+        const container = document.getElementById('crm-calls-history-list');
+        if (!container) return;
+        container.innerHTML = '<p class="text-muted">Cargando historial...</p>';
+
+        try {
+            const calls = await window.StorageAPI.async.getCRMCalls(prospectId);
+            container.innerHTML = '';
+
+            if (calls.length === 0) {
+                container.innerHTML = '<p class="text-muted">No hay interacciones registradas.</p>';
+                return;
+            }
+
+            calls.forEach(c => {
+                const item = document.createElement('div');
+                item.className = 'card p-2 mb-2';
+                item.style.fontSize = '0.9rem';
+                item.innerHTML = `
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 0.3rem;">
+                        <span style="font-weight: bold; color: var(--primary-color);">${formatDateTime(c.fecha)}</span>
+                        <span class="tag info" style="font-size: 0.7rem;">${c.resultado}</span>
+                    </div>
+                    <div>${c.comentario}</div>
+                `;
+                container.appendChild(item);
+            });
+        } catch (err) {
+            container.innerHTML = '<p class="text-danger">Error al cargar historial</p>';
+        }
+    },
+
+    async handleCRMCallSubmit(e) {
+        e.preventDefault();
+        const prospectId = document.getElementById('crm-call-prospect-id').value;
+        const comentario = document.getElementById('crm-call-comment').value;
+        const resultado = document.getElementById('crm-call-result').value;
+
+        const data = {
+            id: 'C' + Date.now(),
+            prospecto_id: prospectId,
+            comentario,
+            resultado
+        };
+
+        try {
+            await window.StorageAPI.async.saveCRMCall(data);
+            this.showToast('Interacción registrada', 'success');
+            document.getElementById('crm-call-form').reset();
+            await this.renderCRMCalls(prospectId);
+        } catch (err) {
+            this.showToast('Error al registrar: ' + err.message, 'error');
+        }
+    },
+
+    updateLeadCountForEmail() {
+        const filter = document.getElementById('crm-email-filter')?.value;
+        if (!filter) return;
+
+        const leads = state.crmProspectos || [];
+        const filtered = filter === 'all' ? leads : leads.filter(l => l.estado === filter);
+        const validEmails = filtered.filter(l => l.email && l.email.includes('@'));
+
+        const countEl = document.getElementById('crm-email-recipient-count');
+        if (countEl) countEl.innerText = validEmails.length;
+    },
+
+    async sendCRMBulkEmails() {
+        const user = document.getElementById('crm-smtp-user').value;
+        const pass = document.getElementById('crm-smtp-pass').value;
+        const subject = document.getElementById('crm-email-subject').value;
+        const body = document.getElementById('crm-email-body').value;
+        const filter = document.getElementById('crm-email-filter').value;
+
+        if (!user || !pass || !subject || !body) {
+            return this.showToast('Complete todos los campos del email y configuración SMTP', 'warning');
+        }
+
+        const leads = state.crmProspectos || [];
+        const filtered = filter === 'all' ? leads : leads.filter(l => l.estado === filter);
+        const recipients = filtered.filter(l => l.email && l.email.includes('@')).map(l => l.email);
+
+        if (recipients.length === 0) {
+            return this.showToast('No hay destinatarios válidos con email para este filtro', 'warning');
+        }
+
+        if (!confirm(`¿Está seguro de enviar este correo a ${recipients.length} prospectos?`)) return;
+
+        const btn = document.getElementById('btn-send-bulk-crm');
+        const logCard = document.getElementById('crm-email-log-card');
+        const logContent = document.getElementById('crm-email-log-content');
+
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Enviando...';
+        logCard.style.display = 'block';
+        logContent.innerHTML = `[${new Date().toLocaleTimeString()}] Iniciando proceso de envío masivo...\n`;
+
+        try {
+            const result = await window.StorageAPI.async.sendCRMBulkEmails({
+                recipients,
+                subject,
+                body,
+                config: { user, pass }
+            });
+
+            logContent.innerHTML += `[${new Date().toLocaleTimeString()}] Proceso finalizado.\n`;
+            logContent.innerHTML += `✅ Enviados: ${result.sent}\n`;
+            if (result.errors && result.errors.length > 0) {
+                logContent.innerHTML += `❌ Errores: ${result.errors.length}\n`;
+                result.errors.forEach(e => {
+                    logContent.innerHTML += `   - ${e.email}: ${e.error}\n`;
+                });
+            }
+
+            this.showToast(`Envío masivo finalizado. Éxitos: ${result.sent}`, 'success');
+        } catch (err) {
+            logContent.innerHTML += `❌ ERROR FATAL: ${err.message}\n`;
+            this.showToast('Error en el proceso de envío: ' + err.message, 'error');
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> Iniciar Envío Masivo';
         }
     },
 

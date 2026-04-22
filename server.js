@@ -5,6 +5,7 @@ const bcrypt = require('bcrypt');
 const axios = require('axios');
 const fs = require('fs');
 const path = require('path');
+const nodemailer = require('nodemailer');
 
 const BCRYPT_ROUNDS = 10;
 
@@ -1088,6 +1089,128 @@ async function migratePasswords() {
         console.error('⚠️  Error en migración de contraseñas:', err.message);
     }
 }
+
+// --- ENDPOINTS PARA CRM (Prospectos y Bitácora) ---
+
+app.get('/api/crm/prospectos', (req, res) => getApi(req, res, 'CRM_Prospectos'));
+app.delete('/api/crm/prospectos/:id', (req, res) => deleteApi(req, res, 'CRM_Prospectos'));
+
+app.post('/api/crm/prospectos', async (req, res) => {
+    try {
+        const p = req.body;
+        const pool = await getDbPool();
+        const check = await pool.request().input('id', sql.VarChar(50), p.id).query('SELECT id FROM CRM_Prospectos WHERE id = @id');
+
+        if (check.recordset.length > 0) {
+            await pool.request()
+                .input('id', sql.VarChar(50), p.id)
+                .input('nombre_empresa', sql.VarChar(255), p.nombre_empresa)
+                .input('contacto_principal', sql.VarChar(255), p.contacto_principal || '')
+                .input('telefono', sql.VarChar(50), p.telefono || '')
+                .input('email', sql.VarChar(255), p.email || '')
+                .input('servicio_interes', sql.VarChar(50), p.servicio_interes)
+                .input('estado', sql.VarChar(50), p.estado || 'Frío')
+                .query(`UPDATE CRM_Prospectos SET nombre_empresa=@nombre_empresa, contacto_principal=@contacto_principal, 
+                        telefono=@telefono, email=@email, servicio_interes=@servicio_interes, estado=@estado WHERE id=@id`);
+        } else {
+            await pool.request()
+                .input('id', sql.VarChar(50), p.id)
+                .input('nombre_empresa', sql.VarChar(255), p.nombre_empresa)
+                .input('contacto_principal', sql.VarChar(255), p.contacto_principal || '')
+                .input('telefono', sql.VarChar(50), p.telefono || '')
+                .input('email', sql.VarChar(255), p.email || '')
+                .input('servicio_interes', sql.VarChar(50), p.servicio_interes)
+                .input('estado', sql.VarChar(50), p.estado || 'Frío')
+                .query(`INSERT INTO CRM_Prospectos (id, nombre_empresa, contacto_principal, telefono, email, servicio_interes, estado) 
+                        VALUES (@id, @nombre_empresa, @contacto_principal, @telefono, @email, @servicio_interes, @estado)`);
+        }
+        res.json(p);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.get('/api/crm/calls/:prospectoId', async (req, res) => {
+    try {
+        const pool = await getDbPool();
+        const result = await pool.request()
+            .input('pid', sql.VarChar(50), req.params.prospectoId)
+            .query('SELECT * FROM CRM_Historial_Llamadas WHERE prospecto_id = @pid ORDER BY fecha DESC');
+        res.json(result.recordset);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.post('/api/crm/calls', async (req, res) => {
+    try {
+        const c = req.body;
+        const pool = await getDbPool();
+        await pool.request()
+            .input('id', sql.VarChar(50), c.id)
+            .input('pid', sql.VarChar(50), c.prospecto_id)
+            .input('comentario', sql.VarChar(sql.MAX), c.comentario)
+            .input('resultado', sql.VarChar(100), c.resultado)
+            .query(`INSERT INTO CRM_Historial_Llamadas (id, prospecto_id, comentario, resultado) 
+                    VALUES (@id, @pid, @comentario, @resultado)`);
+        res.json(c);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.post('/api/crm/send-emails', async (req, res) => {
+    const { recipients, subject, body, config } = req.body;
+    
+    if (!recipients || !recipients.length || !subject || !body || !config) {
+        return res.status(400).json({ error: 'Faltan datos para el envío masivo' });
+    }
+
+    try {
+        const transporter = nodemailer.createTransport({
+            host: "smtp.office365.com",
+            port: 587,
+            secure: false, // TLS
+            auth: {
+                user: config.user,
+                pass: config.pass
+            }
+        });
+
+        console.log(`--- [CRM] Iniciando envío masivo: ${recipients.length} destinatarios ---`);
+        
+        let sentCount = 0;
+        let errors = [];
+
+        // Helper para delay asíncrono
+        const delay = ms => new Promise(res => setTimeout(res, ms));
+
+        for (const email of recipients) {
+            try {
+                await transporter.sendMail({
+                    from: config.user,
+                    to: email,
+                    subject: subject,
+                    text: body, // Podríamos soportar HTML en el futuro
+                });
+                sentCount++;
+                console.log(`✅ Email enviado a: ${email} (${sentCount}/${recipients.length})`);
+                
+                // Delay de 2 segundos entre correos para evitar bloqueos
+                if (sentCount < recipients.length) {
+                    await delay(2000);
+                }
+            } catch (err) {
+                console.error(`❌ Error enviando a ${email}:`, err.message);
+                errors.push({ email, error: err.message });
+            }
+        }
+
+        res.json({ success: true, sent: sentCount, errors });
+    } catch (err) {
+        res.status(500).json({ error: 'Error configurando SMTP: ' + err.message });
+    }
+});
 
 // --- ENDPOINTS PARA CONTRACTS ---
 app.get('/api/contracts', (req, res) => getApi(req, res, 'Contracts'));

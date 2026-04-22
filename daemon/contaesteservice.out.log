@@ -646,3 +646,107 @@ Insertando nueva transacción: 1776605462796
 📦 Historial: Sirviendo 5 cotizaciones.
 📦 Historial: Sirviendo 5 cotizaciones.
 📦 Historial: Sirviendo 5 cotizaciones.
+📦 Historial: Sirviendo 5 cotizaciones.
+📦 Historial: Sirviendo 5 cotizaciones.
+📦 Historial: Sirviendo 5 cotizaciones.
+📦 Historial: Sirviendo 5 cotizaciones.
+📦 Historial: Sirviendo 5 cotizaciones.
+📦 Historial: Sirviendo 5 cotizaciones.
+📦 Historial: Sirviendo 5 cotizaciones.
+📦 Historial: Sirviendo 5 cotizaciones.
+📦 Historial: Sirviendo 5 cotizaciones.
+📦 Historial: Sirviendo 5 cotizaciones.
+📦 Historial: Sirviendo 5 cotizaciones.
+📦 Historial: Sirviendo 5 cotizaciones.
+📦 Historial: Sirviendo 5 cotizaciones.
+📦 Historial: Sirviendo 5 cotizaciones.
+📦 Historial: Sirviendo 5 cotizaciones.
+📦 Historial: Sirviendo 5 cotizaciones.
+📦 Historial: Sirviendo 5 cotizaciones.
+📦 Historial: Sirviendo 5 cotizaciones.
+📦 Historial: Sirviendo 5 cotizaciones.
+📦 Historial: Sirviendo 5 cotizaciones.
+📦 Historial: Sirviendo 5 cotizaciones.
+📦 Historial: Sirviendo 5 cotizaciones.
+📦 Historial: Sirviendo 5 cotizaciones.
+📦 Historial: Sirviendo 5 cotizaciones.
+📦 Historial: Sirviendo 5 cotizaciones.
+📦 Historial: Sirviendo 5 cotizaciones.
+📦 Historial: Sirviendo 5 cotizaciones.
+📦 Historial: Sirviendo 5 cotizaciones.
+📦 Historial: Sirviendo 5 cotizaciones.
+📦 Historial: Sirviendo 5 cotizaciones.
+📦 Historial: Sirviendo 5 cotizaciones.
+📦 Historial: Sirviendo 5 cotizaciones.
+📦 Historial: Sirviendo 5 cotizaciones.
+📦 Historial: Sirviendo 5 cotizaciones.
+📝 Recibida nota ID: 1775317950458 (Archivada: false, Eliminada: false)
+✅ Nota 1775317950458 actualizada.
+📝 Recibida nota ID: 1775317950458 (Archivada: false, Eliminada: false)
+✅ Nota 1775317950458 actualizada.
+📝 Recibida nota ID: 1775317950458 (Archivada: false, Eliminada: false)
+✅ Nota 1775317950458 actualizada.
+📝 Recibida nota ID: 1775317950458 (Archivada: false, Eliminada: false)
+✅ Nota 1775317950458 actualizada.
+📝 Recibida nota ID: 1775317950458 (Archivada: false, Eliminada: false)
+✅ Nota 1775317950458 actualizada.
+📝 Recibida nota ID: 1775317950458 (Archivada: false, Eliminada: false)
+✅ Nota 1775317950458 actualizada.
+📝 Recibida nota ID: N1775775245336 (Archivada: false, Eliminada: false)
+✅ Nota N1775775245336 actualizada.
+📝 Recibida nota ID: 1775318021589 (Archivada: true, Eliminada: false)
+✅ Nota 1775318021589 actualizada.
+📝 Recibida nota ID: 1775318021589 (Archivada: false, Eliminada: false)
+✅ Nota 1775318021589 actualizada.
+📝 Recibida nota ID: 1775318072254 (Archivada: false, Eliminada: false)
+✅ Nota 1775318072254 actualizada.
+📦 Historial: Sirviendo 5 cotizaciones.
+📦 Historial: Sirviendo 5 cotizaciones.
+📦 Historial: Sirviendo 5 cotizaciones.
+📦 Historial: Sirviendo 5 cotizaciones.
+📦 Historial: Sirviendo 5 cotizaciones.
+📦 Historial: Sirviendo 5 cotizaciones.
+📦 Historial: Sirviendo 5 cotizaciones.
+📦 Historial: Sirviendo 5 cotizaciones.
+--- POST /api/transactions ---
+Body: {
+  id: '1776799079985',
+  type: 'expense',
+  amount: 152330,
+  conceptId: '1774961310024',
+  clientId: null,
+  supplierId: null,
+  date: '2026-04-21',
+  observation: 'Permiso de Circulación 2026-2027'
+}
+Insertando nueva transacción: 1776799079985
+✅ Operación exitosa
+--- POST /api/transactions ---
+Body: {
+  id: '1776799107892',
+  type: 'expense',
+  amount: 11490,
+  conceptId: '1774961310024',
+  clientId: null,
+  supplierId: null,
+  date: '2026-04-21',
+  observation: 'SOAP 2026-2027'
+}
+Insertando nueva transacción: 1776799107892
+✅ Operación exitosa
+📦 Historial: Sirviendo 5 cotizaciones.
+📦 Historial: Sirviendo 5 cotizaciones.
+📦 Historial: Sirviendo 5 cotizaciones.
+📦 Historial: Sirviendo 5 cotizaciones.
+📦 Historial: Sirviendo 5 cotizaciones.
+📦 Historial: Sirviendo 5 cotizaciones.
+🚀 Servidor iniciado y accesible en red local
+🏠 Local: http://localhost:3000
+🌐 Red:  http://192.168.100.25:3000
+✅ Conectado a SQL Server Express
+✅ Contraseñas: todas ya tienen hash bcrypt
+📦 Historial: Sirviendo 5 cotizaciones.
+📝 Recibida nota ID: 1775317950458 (Archivada: false, Eliminada: false)
+✅ Nota 1775317950458 actualizada.
+📝 Recibida nota ID: 1775317950458 (Archivada: false, Eliminada: false)
+✅ Nota 1775317950458 actualizada.

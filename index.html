@@ -168,11 +168,16 @@
                 <!-- Módulo Ventas -->
                 <div class="nav-section" data-module="ventas">
                     <div class="nav-section-header">VENTAS</div>
-                    <button class="nav-btn desktop-only" data-target="quotations">
-                        <i class="fa-solid fa-file-invoice"></i> Cotizaciones
-                    </button>
                     <button class="nav-btn" data-target="contracts">
                         <i class="fa-solid fa-file-contract"></i> Contratos
+                    </button>
+                </div>
+
+                <!-- Módulo Cotizaciones -->
+                <div class="nav-section" data-module="cotizaciones">
+                    <div class="nav-section-header">COTIZACIONES</div>
+                    <button class="nav-btn" data-target="quotations">
+                        <i class="fa-solid fa-file-invoice-dollar"></i> Cotizaciones
                     </button>
                 </div>
 
@@ -185,6 +190,17 @@
                 </div>
 
 
+
+                <!-- Módulo CRM (Ventas Fase Inicial) -->
+                <div class="nav-section" data-module="crm">
+                    <div class="nav-section-header">CRM</div>
+                    <button class="nav-btn" data-target="crm-leads">
+                        <i class="fa-solid fa-briefcase"></i> Prospectos
+                    </button>
+                    <button class="nav-btn" data-target="crm-emails">
+                        <i class="fa-solid fa-mail-bulk"></i> Email Masivo
+                    </button>
+                </div>
 
                 <!-- Módulo Usuarios (Admin only) -->
                 <div class="nav-section" data-module="usuarios" style="display: none;">
@@ -215,6 +231,7 @@
                 </div>
                 <div class="header-actions" style="display: flex; align-items: center; gap: 1rem;">
                     <button id="contracts-reminder-btn" class="btn-icon" title="Contratos Pendientes de Facturar"
+                        data-module="ventas" data-target="contracts-reminder"
                         style="position: relative; display: none;">
                         <i class="fa-solid fa-bell"></i>
                         <span id="contracts-badge"
@@ -247,53 +264,61 @@
                 <div class="tw-grid tw-grid-cols-3 tw-gap-2 tw-p-4 tw-w-full">
                     
                     <!-- Botón Notas -->
-                    <button class="mobile-card-large" onclick="Store.currentView = 'notas'">
+                    <button class="mobile-card-large" data-module="notas" onclick="Store.currentView = 'notas'">
                         <div class="tw-bg-[#1a73e8] tw-p-3 tw-rounded-2xl tw-shadow-md">
                             <i class="fa-solid fa-lightbulb tw-text-xl tw-text-white"></i>
                         </div>
                         <span class="tw-text-[10px] tw-font-bold tw-text-gray-900 tw-tracking-tighter tw-leading-tight">NOTAS</span>
                     </button>
                     <!-- Botón Registrar -->
-                    <button class="mobile-card-large" onclick="Store.currentView = 'transaction-form'">
+                    <button class="mobile-card-large" data-module="finanzas" data-target="transaction-form" onclick="Store.currentView = 'transaction-form'">
                         <div class="tw-bg-[#10b981] tw-p-3 tw-rounded-2xl tw-shadow-md">
                             <i class="fa-solid fa-circle-plus tw-text-xl tw-text-white"></i>
                         </div>
                         <span class="tw-text-[10px] tw-font-bold tw-text-gray-900 tw-tracking-tighter tw-leading-tight">REGISTRAR</span>
                     </button>
                     <!-- Botón Deudores -->
-                    <button class="mobile-card-large" onclick="Store.currentView = 'debtors'">
+                    <button class="mobile-card-large" data-module="finanzas" data-target="debtors" onclick="Store.currentView = 'debtors'">
                         <div class="tw-bg-blue-500 tw-p-3 tw-rounded-2xl tw-shadow-md">
                             <i class="fa-solid fa-user-tag tw-text-xl tw-text-white"></i>
                         </div>
                         <span class="tw-text-[10px] tw-font-bold tw-text-gray-900 tw-tracking-tighter tw-leading-tight">DEUDORES</span>
                     </button>
                     <!-- Botón Deudas -->
-                    <button class="mobile-card-large" onclick="Store.currentView = 'debts'">
+                    <button class="mobile-card-large" data-module="finanzas" data-target="debts" onclick="Store.currentView = 'debts'">
                         <div class="tw-bg-red-500 tw-p-3 tw-rounded-2xl tw-shadow-md">
                             <i class="fa-solid fa-hand-holding-dollar tw-text-xl tw-text-white"></i>
                         </div>
                         <span class="tw-text-[10px] tw-font-bold tw-text-gray-900 tw-tracking-tighter tw-leading-tight">DEUDAS</span>
                     </button>
                     <!-- Botón Inventario -->
-                    <button class="mobile-card-large" onclick="Store.currentView = 'inventory'">
+                    <button class="mobile-card-large" data-module="inventario" data-target="inventory" onclick="Store.currentView = 'inventory'">
                         <div class="tw-bg-indigo-500 tw-p-3 tw-rounded-2xl tw-shadow-md">
                             <i class="fa-solid fa-boxes-stacked tw-text-xl tw-text-white"></i>
                         </div>
                         <span class="tw-text-[10px] tw-font-bold tw-text-gray-900 tw-tracking-tighter tw-leading-tight">INVENTARIO</span>
                     </button>
                     <!-- Botón Movimientos -->
-                    <button class="mobile-card-large" onclick="Store.currentView = 'transactions'">
+                    <button class="mobile-card-large" data-module="finanzas" data-target="transactions" onclick="Store.currentView = 'transactions'">
                         <div class="tw-bg-slate-600 tw-p-3 tw-rounded-2xl tw-shadow-md">
                             <i class="fa-solid fa-list-ul tw-text-xl tw-text-white"></i>
                         </div>
                         <span class="tw-text-[10px] tw-font-bold tw-text-gray-900 tw-tracking-tighter tw-leading-tight">MOVIMIENTOS</span>
                     </button>
                     <!-- Botón Actividad -->
-                    <button class="mobile-card-large" onclick="Store.currentView = 'activity'">
+                    <button class="mobile-card-large" data-module="finanzas" data-target="activity" onclick="Store.currentView = 'activity'">
                         <div class="tw-bg-amber-600 tw-p-3 tw-rounded-2xl tw-shadow-md">
                             <i class="fa-solid fa-clock-rotate-left tw-text-xl tw-text-white"></i>
                         </div>
                         <span class="tw-text-[10px] tw-font-bold tw-text-gray-900 tw-tracking-tighter tw-leading-tight">ACTIVIDAD</span>
+                    </button>
+
+                    <!-- Botón Cotizaciones -->
+                    <button class="mobile-card-large" data-module="cotizaciones" data-target="quotations" onclick="Store.currentView = 'quotations'">
+                        <div class="tw-bg-orange-500 tw-p-3 tw-rounded-2xl tw-shadow-md">
+                            <i class="fa-solid fa-file-invoice-dollar tw-text-xl tw-text-white"></i>
+                        </div>
+                        <span class="tw-text-[10px] tw-font-bold tw-text-gray-900 tw-tracking-tighter tw-leading-tight">COTIZAR</span>
                     </button>
                 </div>
             </section>
@@ -542,7 +567,7 @@
                                     <th>Titular</th>
                                     <th>Obs.</th>
                                     <th>Monto</th>
-                                    <th>Acciones</th>
+                                    <th id="th-transactions-actions">Acciones</th>
                                 </tr>
                             </thead>
                             <tbody id="transactions-list-body">
@@ -1488,7 +1513,7 @@
                         <div class="grid-2">
                             <div class="form-group">
                                 <label>Contraseña</label>
-                                <input type="password" id="user-password" name="password" required
+                                <input type="password" id="user-password" name="password"
                                     placeholder="••••••••">
                             </div>
                             <div class="form-group">
@@ -1500,39 +1525,13 @@
                                 </select>
                             </div>
                         </div>
-                        <div class="form-group">
-                            <label>Módulos Permitidos</label>
-                            <div class="checkbox-group">
-                                <label class="checkbox-label">
-                                    <input type="checkbox" name="modules" value="finanzas" class="module-checkbox">
-                                    <span>Finanzas</span>
-                                </label>
-
-                                <label class="checkbox-label">
-                                    <input type="checkbox" name="modules" value="ventas" class="module-checkbox">
-                                    <span>Ventas</span>
-                                </label>
-
-                                <label class="checkbox-label">
-                                    <input type="checkbox" name="modules" value="proyectos" class="module-checkbox">
-                                    <span>Proyectos</span>
-                                </label>
-
-                                <label class="checkbox-label">
-                                    <input type="checkbox" name="modules" value="inventario" class="module-checkbox">
-                                    <span>Inventario</span>
-                                </label>
-
-                                <label class="checkbox-label">
-                                    <input type="checkbox" name="modules" value="cotizaciones" class="module-checkbox">
-                                    <span>Cotizaciones</span>
-                                </label>
-
-                                <label class="checkbox-label">
-                                    <input type="checkbox" name="modules" value="usuarios" class="module-checkbox"
-                                        id="module-usuarios">
-                                    <span>Usuarios (Solo Administradores)</span>
-                                </label>
+                        <div class="form-group" style="grid-column: span 2;">
+                            <label style="display: flex; justify-content: space-between; align-items: center;">
+                                <span>Permisos Detallados por Módulo</span>
+                                <small class="text-muted" style="font-weight: normal;">Haga clic en un módulo para expandir sus opciones</small>
+                            </label>
+                            <div id="granular-permissions-container" class="permissions-grid-container">
+                                <!-- Renderizado dinámico desde app.js -->
                             </div>
                         </div>
                         <div class="form-actions">
@@ -1563,6 +1562,145 @@
                     </div>
                 </div>
             </section>
+
+            <!-- VISTA CRM: GESTIÓN DE PROSPECTOS -->
+            <section id="crm-leads" class="view-section">
+                <div class="card form-card">
+                    <h2 id="crm-lead-form-title">Registrar Nuevo Prospecto (Lead)</h2>
+                    <form id="crm-lead-form">
+                        <input type="hidden" id="crm-lead-id" name="id">
+                        <div class="grid-2">
+                            <div class="form-group">
+                                <label>Nombre de la Empresa</label>
+                                <input type="text" id="crm-lead-company" name="nombre_empresa" required placeholder="Ej: Tech Solutions SpA">
+                            </div>
+                            <div class="form-group">
+                                <label>Contacto Principal</label>
+                                <input type="text" id="crm-lead-contact" name="contacto_principal" placeholder="Ej: Juan Pérez">
+                            </div>
+                        </div>
+                        <div class="grid-3">
+                            <div class="form-group">
+                                <label>Teléfono</label>
+                                <input type="text" id="crm-lead-phone" name="telefono" placeholder="+56 9 ...">
+                            </div>
+                            <div class="form-group">
+                                <label>Email</label>
+                                <input type="email" id="crm-lead-email" name="email" placeholder="contacto@empresa.cl">
+                            </div>
+                            <div class="form-group">
+                                <label>Estado Inicial</label>
+                                <select id="crm-lead-status" name="estado">
+                                    <option value="Frío">Frío ❄️</option>
+                                    <option value="Tibio">Tibio ⚡</option>
+                                    <option value="Caliente">Caliente 🔥</option>
+                                    <option value="No Interesado">No Interesado ❌</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label>Servicio de Interés</label>
+                            <select id="crm-lead-service" name="servicio_interes" required>
+                                <option value="Redes">Redes e Infraestructura</option>
+                                <option value="CCTV">CCTV y Seguridad</option>
+                                <option value="TI">Servicios TI / Soporte</option>
+                                <option value="Otros">Otros Servicios</option>
+                            </select>
+                        </div>
+                        <div class="form-actions mt-3">
+                            <button type="submit" class="btn-primary" id="btn-save-crm-lead">Guardar Prospecto</button>
+                            <button type="button" id="cancel-crm-lead-edit" class="btn-text" style="display: none;" onclick="UI.resetCRMLeadForm()">Cancelar</button>
+                        </div>
+                    </form>
+                </div>
+
+                <div class="card mt-4">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                        <h3>Tablero de Gestión de Leads</h3>
+                        <div class="search-box">
+                            <input type="text" id="crm-lead-search" placeholder="Buscar empresa o contacto..." oninput="UI.renderCRMLeads()">
+                        </div>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Fecha</th>
+                                    <th>Empresa</th>
+                                    <th>Servicio</th>
+                                    <th>Estado</th>
+                                    <th>Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody id="crm-leads-list-body">
+                                <!-- Inyectado por JS -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <!-- VISTA CRM: EMAIL MASIVO -->
+            <section id="crm-emails" class="view-section">
+                <div class="card">
+                    <h2>Módulo de Email Masivo (Office 365)</h2>
+                    <p class="text-muted mb-4">Envíe propuestas o información a sus prospectos filtrados por estado.</p>
+                    
+                    <div class="grid-2">
+                        <div class="card p-3" style="background: var(--bg-body); border: 1px solid var(--border-color);">
+                            <h4>Configuración SMTP</h4>
+                            <div class="form-group mt-2">
+                                <label>Usuario Office 365</label>
+                                <input type="email" id="crm-smtp-user" placeholder="usuario@empresa.cl">
+                            </div>
+                            <div class="form-group">
+                                <label>Contraseña / App Password</label>
+                                <input type="password" id="crm-smtp-pass" placeholder="••••••••">
+                            </div>
+                        </div>
+
+                        <div class="card p-3" style="background: var(--bg-body); border: 1px solid var(--border-color);">
+                            <h4>Filtros de Envío</h4>
+                            <div class="form-group mt-2">
+                                <label>Filtrar por Estado</label>
+                                <select id="crm-email-filter" onchange="UI.updateLeadCountForEmail()">
+                                    <option value="all">Todos los Prospectos</option>
+                                    <option value="Caliente">Solo "Calientes" 🔥</option>
+                                    <option value="Tibio">Solo "Tibios" ⚡</option>
+                                </select>
+                            </div>
+                            <div id="crm-email-count-alert" class="alert info mt-2">
+                                Destinatarios detectados: <strong id="crm-email-recipient-count">0</strong>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="form-card mt-4">
+                        <div class="form-group">
+                            <label>Asunto del Correo</label>
+                            <input type="text" id="crm-email-subject" placeholder="Ej: Nueva Propuesta de Servicios TI">
+                        </div>
+                        <div class="form-group">
+                            <label>Cuerpo del Mensaje</label>
+                            <textarea id="crm-email-body" rows="8" placeholder="Escriba el mensaje aquí..."></textarea>
+                        </div>
+                        <div class="form-actions mt-3">
+                            <button type="button" class="btn-primary" onclick="UI.sendCRMBulkEmails()" id="btn-send-bulk-crm">
+                                <i class="fa-solid fa-paper-plane"></i> Iniciar Envío Masivo
+                            </button>
+                            <small class="text-muted ml-3">Se aplicará un delay de 2s entre envíos.</small>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="crm-email-log-card" class="card mt-4" style="display: none;">
+                    <h3>Log de Envío</h3>
+                    <div id="crm-email-log-content" style="max-height: 200px; overflow-y: auto; font-family: monospace; font-size: 0.9rem; background: #1e1e1e; color: #d4d4d4; padding: 1rem; border-radius: 8px;">
+                        <!-- Logs dinámicos -->
+                    </div>
+                </div>
+            </section>
+
 
 
         </main>
@@ -1824,7 +1962,45 @@
         </div>
     </div>
 
+    <!-- Modal CRM: Bitácora de Llamadas -->
+    <div id="crm-calls-modal" class="modal-overlay" style="display: none;">
+        <div class="modal-card" style="max-width: 700px;">
+            <div class="modal-header">
+                <h3>Bitácora de Llamadas: <span id="crm-modal-company-name"></span></h3>
+                <button class="btn-icon" onclick="UI.closeModal('crm-calls-modal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <!-- Formulario de nueva llamada -->
+                <div class="card p-3 mb-4" style="background: var(--bg-body); border: 1px solid var(--border-color);">
+                    <h4>Registrar Nueva Interacción</h4>
+                    <form id="crm-call-form" onsubmit="UI.handleCRMCallSubmit(event)">
+                        <input type="hidden" id="crm-call-prospect-id">
+                        <div class="form-group mt-2">
+                            <label>Comentario / Resumen</label>
+                            <textarea id="crm-call-comment" rows="3" required placeholder="Ej: Se conversó con el gerente, le interesa presupuesto de redes."></textarea>
+                        </div>
+                        <div class="form-group">
+                            <label>Resultado / Próximo Paso</label>
+                            <input type="text" id="crm-call-result" required placeholder="Ej: Enviar cotización el viernes">
+                        </div>
+                        <button type="submit" class="btn-primary" style="width: 100%;">Guardar Registro</button>
+                    </form>
+                </div>
+
+                <!-- Historial de llamadas -->
+                <h4>Historial de Interacciones</h4>
+                <div id="crm-calls-history-list" class="mt-2" style="max-height: 300px; overflow-y: auto;">
+                    <!-- Inyectado por JS -->
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-secondary" onclick="UI.closeModal('crm-calls-modal')">Cerrar</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Scripts -->
+
     <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
     <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/es.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/plugins/monthSelect/index.js"></script>
