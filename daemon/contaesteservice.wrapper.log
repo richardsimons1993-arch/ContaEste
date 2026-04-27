@@ -114,3 +114,35 @@ Stacktrace:   en System.Runtime.InteropServices.Marshal.ThrowExceptionForHRInter
 2026-04-21 15:43:03 - Finished contaesteservice.exe
 2026-04-21 15:43:05 - Starting C:\Program Files\nodejs\node.exe  --harmony C:\Users\Richard\Desktop\Contabilidad\ContaEste\node_modules\node-windows\lib\wrapper.js --file C:\Users\Richard\Desktop\Contabilidad\ContaEste\server.js --scriptoptions= --log "ContaEsteService wrapper" --grow 0.25 --wait 1 --maxrestarts 3 --abortonerror n --stopparentfirst undefined
 2026-04-21 15:43:05 - Started 9204
+2026-04-22 19:04:54 - Stopping contaesteservice.exe
+2026-04-22 19:04:54 - ProcessKill 9204
+2026-04-22 19:04:55 - Shutdown exception
+Message:Se está cerrando el sistema.
+
+Stacktrace:   en System.Runtime.InteropServices.Marshal.ThrowExceptionForHRInternal(Int32 errorCode, IntPtr errorInfo)
+   en System.Management.ManagementScope.InitializeGuts(Object o)
+   en System.Management.ManagementScope.Initialize()
+   en System.Management.ManagementObjectSearcher.Initialize()
+   en System.Management.ManagementObjectSearcher.Get()
+   en winsw.WrapperService.GetChildPids(Int32 pid)
+   en winsw.WrapperService.StopProcessAndChildren(Int32 pid)
+   en winsw.WrapperService.StopIt()
+   en winsw.WrapperService.OnShutdown()
+2026-04-22 19:05:38 - Starting C:\Program Files\nodejs\node.exe  --harmony C:\Users\Richard\Desktop\Contabilidad\ContaEste\node_modules\node-windows\lib\wrapper.js --file C:\Users\Richard\Desktop\Contabilidad\ContaEste\server.js --scriptoptions= --log "ContaEsteService wrapper" --grow 0.25 --wait 1 --maxrestarts 3 --abortonerror n --stopparentfirst undefined
+2026-04-22 19:05:39 - Started 5224
+2026-04-23 20:04:41 - Stopping contaesteservice.exe
+2026-04-23 20:04:41 - ProcessKill 5224
+2026-04-23 20:04:41 - Shutdown exception
+Message:Se está cerrando el sistema.
+
+Stacktrace:   en System.Runtime.InteropServices.Marshal.ThrowExceptionForHRInternal(Int32 errorCode, IntPtr errorInfo)
+   en System.Management.ManagementScope.InitializeGuts(Object o)
+   en System.Management.ManagementScope.Initialize()
+   en System.Management.ManagementObjectSearcher.Initialize()
+   en System.Management.ManagementObjectSearcher.Get()
+   en winsw.WrapperService.GetChildPids(Int32 pid)
+   en winsw.WrapperService.StopProcessAndChildren(Int32 pid)
+   en winsw.WrapperService.StopIt()
+   en winsw.WrapperService.OnShutdown()
+2026-04-23 20:15:46 - Starting C:\Program Files\nodejs\node.exe  --harmony C:\Users\Richard\Desktop\Contabilidad\ContaEste\node_modules\node-windows\lib\wrapper.js --file C:\Users\Richard\Desktop\Contabilidad\ContaEste\server.js --scriptoptions= --log "ContaEsteService wrapper" --grow 0.25 --wait 1 --maxrestarts 3 --abortonerror n --stopparentfirst undefined
+2026-04-23 20:15:46 - Started 5356

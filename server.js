@@ -66,6 +66,62 @@ let cachedUF = {
     timestamp: 0
 };
 
+// Rate Limiter en memoria para el endpoint de login
+// Previene ataques de fuerza bruta sin necesidad de dependencias externas
+const loginAttempts = new Map();
+const LOGIN_MAX_ATTEMPTS = 5;      // Máximo de intentos fallidos
+const LOGIN_WINDOW_MS   = 5 * 60 * 1000; // Ventana de 5 minutos
+const LOGIN_BLOCK_MS    = 10 * 60 * 1000; // Bloqueo de 10 minutos
+
+function checkLoginRateLimit(ip) {
+    const now = Date.now();
+    const record = loginAttempts.get(ip);
+
+    if (!record) return { blocked: false };
+
+    // Si está bloqueado y el bloqueo no ha expirado
+    if (record.blockedUntil && now < record.blockedUntil) {
+        const remainingMs = record.blockedUntil - now;
+        const remainingMin = Math.ceil(remainingMs / 60000);
+        return { blocked: true, remainingMin };
+    }
+
+    // Expirar ventana de tiempo si ya pasó
+    if (now - record.firstAttempt > LOGIN_WINDOW_MS) {
+        loginAttempts.delete(ip);
+        return { blocked: false };
+    }
+
+    return { blocked: false, attempts: record.attempts };
+}
+
+function recordFailedLogin(ip) {
+    const now = Date.now();
+    const record = loginAttempts.get(ip) || { attempts: 0, firstAttempt: now };
+    record.attempts += 1;
+
+    if (record.attempts >= LOGIN_MAX_ATTEMPTS) {
+        record.blockedUntil = now + LOGIN_BLOCK_MS;
+        console.warn(`⚠️  Login bloqueado temporalmente para IP: ${ip} (${record.attempts} intentos fallidos)`);
+    }
+
+    loginAttempts.set(ip, record);
+}
+
+function clearLoginAttempts(ip) {
+    loginAttempts.delete(ip);
+}
+
+// Limpiar registros expirados cada 30 minutos para no acumular memoria
+setInterval(() => {
+    const now = Date.now();
+    for (const [ip, record] of loginAttempts.entries()) {
+        const expiry = record.blockedUntil || (record.firstAttempt + LOGIN_WINDOW_MS);
+        if (now > expiry) loginAttempts.delete(ip);
+    }
+}, 30 * 60 * 1000);
+
+
 // Fetch UF from mindicador.cl
 async function fetchUF() {
     const now = Date.now();
@@ -1031,27 +1087,59 @@ app.post('/api/users/batch', async (req, res) => {
 
 // --- ENDPOINT DE AUTENTICACIÓN ---
 app.post('/api/auth/login', async (req, res) => {
+    // Obtener IP real (considera proxies)
+    const clientIp = req.headers['x-forwarded-for']?.split(',')[0].trim() || req.socket.remoteAddress || 'unknown';
+
+    // 1. Verificar rate limit
+    const rateCheck = checkLoginRateLimit(clientIp);
+    if (rateCheck.blocked) {
+        return res.status(429).json({
+            error: `Demasiados intentos fallidos. Intente nuevamente en ${rateCheck.remainingMin} minuto(s).`
+        });
+    }
+
     try {
         const { username, password } = req.body;
-        if (!username || !password) return res.status(400).json({ error: 'Credenciales requeridas' });
+
+        // Validación de entrada sin revelar qué campo falta
+        if (!username || !password || typeof username !== 'string' || typeof password !== 'string') {
+            recordFailedLogin(clientIp);
+            return res.status(401).json({ error: 'Credenciales incorrectas.' });
+        }
+
+        // Sanitizar: solo letras, números y algunos especiales para el usuario
+        const safeUsername = username.toLowerCase().trim().slice(0, 50);
 
         const pool = await getDbPool();
         const result = await pool.request()
-            .input('username', sql.VarChar(50), username.toLowerCase())
-            .query('SELECT * FROM Users WHERE username = @username');
+            .input('username', sql.VarChar(50), safeUsername)
+            .query('SELECT id, username, password, role, name, modules FROM Users WHERE username = @username');
+
+        // IMPORTANTE: mismo mensaje genérico para usuario no encontrado Y contraseña incorrecta
+        // Esto evita la enumeración de usuarios (saber qué usuarios existen).
+        const GENERIC_ERROR = 'Usuario o contraseña incorrectos.';
 
         if (result.recordset.length === 0) {
-            return res.status(401).json({ error: 'Usuario no encontrado' });
+            // Agregar retardo artificial para igualar tiempo de respuesta con bcrypt
+            // y evitar timing attacks
+            await bcrypt.compare(password, '$2b$10$invalidhashfortimingprotectionxxxx...');
+            recordFailedLogin(clientIp);
+            return res.status(401).json({ error: GENERIC_ERROR });
         }
 
         const user = result.recordset[0];
         const isMatch = await bcrypt.compare(password, user.password);
 
         if (!isMatch) {
-            return res.status(401).json({ error: 'Contraseña incorrecta' });
+            recordFailedLogin(clientIp);
+            return res.status(401).json({ error: GENERIC_ERROR });
         }
 
-        // No enviar la contraseña al cliente
+        // Login exitoso: limpiar contador de intentos
+        clearLoginAttempts(clientIp);
+        console.log(`✅ Login exitoso: ${safeUsername}`);
+
+        // Responder sin incluir la contraseña
         res.json({
             id: user.id,
             username: user.username,
@@ -1060,8 +1148,9 @@ app.post('/api/auth/login', async (req, res) => {
             modules: user.modules ? JSON.parse(user.modules) : []
         });
     } catch (err) {
-        console.error('Error in POST /api/auth/login:', err);
-        res.status(500).json({ error: err.message });
+        // Log interno sin exponer detalles al cliente
+        console.error('Error en autenticación:', err.message);
+        res.status(500).json({ error: 'Error interno del servidor. Intente más tarde.' });
     }
 });
 

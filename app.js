@@ -293,6 +293,15 @@ const UI = {
             }
             await this.loadData();
             this.checkSession(); // Verificar si ya hay una sesión
+
+            // ── Recalcular alertas DESPUÉS de restaurar la sesión ──
+            // refreshAlertBadge y checkOperationalExpensesAlerts requieren
+            // state.currentUser (cargado por checkSession) para mostrar el badge.
+            // Sin esta llamada, al reiniciar el servidor el badge desaparece.
+            try {
+                this.refreshAlertBadge();
+            } catch(e) { console.warn('refreshAlertBadge on init:', e); }
+
             this.initTheme(); // Inicializar tema (claro/oscuro)
             this.setupEventListeners();
             this.setupSpanishValidation();
@@ -329,7 +338,11 @@ const UI = {
             this.initDatePickers(); // Inicializar Flatpickr después de poner el valor
             this.setupSpanishValidation(); // Asegurar mensajes de validación en español
             this.setupSubmitProtection(); // Prevenir doble submit globalmente
-            this.checkPendingContracts(); // Verificar contratos pendientes
+            this.checkPendingContracts(); // Verificar contratos pendientes (campana)
+            // Verificar gastos operacionales en la misma pasada de inicialización
+            try {
+                this.checkOperationalExpensesAlerts();
+            } catch(e) { console.warn('checkOperationalExpensesAlerts on init:', e); }
 
             this.populateYearSelector(); // Poblar selector de años
             
@@ -598,8 +611,10 @@ const UI = {
             console.log('✅ Sincronización completada');
             try {
                 this.checkPendingContracts(); // Forzar renderizado inmediato
+                this.checkOperationalExpensesAlerts(); // Forzar verificación de gastos operacionales
+                this.refreshAlertBadge(); // Actualizar campana con datos frescos de BD
             } catch (e) {
-                console.error('Error in checkPendingContracts:', e);
+                console.error('Error al verificar alertas post-carga:', e);
             }
         } catch (err) {
             console.error("Error crítico en loadData:", err);
@@ -1072,11 +1087,28 @@ const UI = {
             });
 
             if (!response.ok) {
-                const err = await response.json();
-                errorEl.textContent = err.error || 'Credenciales incorrectas.';
-                errorEl.style.display = 'block';
+                let errMsg = 'Usuario o contraseña incorrectos.';
+                try {
+                    const errData = await response.json();
+                    if (errData.error) errMsg = errData.error;
+                } catch (_) {}
+
+                // Limpiar siempre la contraseña al fallar (no dejar en campo)
                 passwordInput.value = '';
-                passwordInput.focus();
+
+                if (response.status === 429) {
+                    // Rate limit: mostrar mensaje y deshabilitar el botón temporalmente
+                    errorEl.textContent = errMsg;
+                    errorEl.style.display = 'block';
+                    if (submitBtn) {
+                        submitBtn.disabled = true;
+                        setTimeout(() => { submitBtn.disabled = false; }, 30000);
+                    }
+                } else {
+                    errorEl.textContent = errMsg;
+                    errorEl.style.display = 'block';
+                    passwordInput.focus();
+                }
                 this.hideLoading(submitBtn);
                 return;
             }
