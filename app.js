@@ -42,6 +42,7 @@ const MODULE_VIEW_MAP = {
     'inventory': 'inventario',
     'crm-leads': 'crm',
     'crm-emails': 'crm',
+    'crm-smtp-config': 'crm',
     'users': 'usuarios',
     'locations': 'usuarios',
     'notas': 'notas'
@@ -257,6 +258,21 @@ const formatDate = (date) => {
     return cleanD;
 };
 
+// Ayudante de Formateo de Fecha y Hora (DD-MM-YYYY HH:mm)
+const formatDateTime = (date) => {
+    if (!date) return '-';
+    const d = new Date(date);
+    if (isNaN(d.getTime())) return formatDate(date);
+    
+    const day = String(d.getDate()).padStart(2, '0');
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const year = d.getFullYear();
+    const hours = String(d.getHours()).padStart(2, '0');
+    const minutes = String(d.getMinutes()).padStart(2, '0');
+    
+    return `${day}-${month}-${year} ${hours}:${minutes}`;
+};
+
 // Formatear monto con puntos mientras se escribe
 const formatAmountInput = (input) => {
     let value = input.value.replace(/\D/g, '');
@@ -387,7 +403,9 @@ const UI = {
 
         // Limpiar el mensaje de error cuando el usuario empieza a escribir
         document.addEventListener('input', (e) => {
-            e.target.setCustomValidity('');
+            if (e.target && typeof e.target.setCustomValidity === 'function') {
+                e.target.setCustomValidity('');
+            }
         }, true);
     },
 
@@ -819,6 +837,13 @@ const UI = {
         const btnExportDebtorPDF = document.getElementById('btn-export-debtors-pdf');
         if (btnExportDebtorPDF) btnExportDebtorPDF.addEventListener('click', () => this.exportDebtorsToPDF());
 
+        // Exportar CRM
+        const btnExportCRMExcel = document.getElementById('btn-export-crm-excel');
+        if (btnExportCRMExcel) btnExportCRMExcel.addEventListener('click', () => this.exportCRMLeadsToExcel());
+
+        const btnExportCRMPDF = document.getElementById('btn-export-crm-pdf');
+        if (btnExportCRMPDF) btnExportCRMPDF.addEventListener('click', () => this.exportCRMLeadsToPDF());
+
 
 
         // --- FILTROS ADICIONALES ---
@@ -999,6 +1024,107 @@ const UI = {
         document.querySelectorAll('.amount-input').forEach(input => {
             input.addEventListener('input', (e) => formatAmountInput(e.target));
         });
+
+        // --- CRM: EDITOR PLACEHOLDER ---
+        const crmEditor = document.getElementById('crm-email-editor');
+        if (crmEditor) {
+            let selectedImg = null;
+            let resizeHandle = null;
+
+            // Inyectar estilos necesarios si no están
+            const style = document.createElement('style');
+            style.textContent = `
+                .selected-img { outline: 3px solid #004d4d !important; }
+                .resize-handle { 
+                    position: absolute; width: 12px; height: 12px; 
+                    background: #004d4d; border: 1px solid white; 
+                    cursor: nwse-resize; z-index: 1000; pointer-events: all;
+                }
+            `;
+            document.head.appendChild(style);
+
+            const removeHandle = () => {
+                if (resizeHandle) {
+                    resizeHandle.remove();
+                    resizeHandle = null;
+                }
+                if (selectedImg) {
+                    selectedImg.classList.remove('selected-img');
+                    selectedImg = null;
+                }
+            };
+
+            crmEditor.addEventListener('click', (e) => {
+                if (e.target.tagName === 'IMG') {
+                    e.stopPropagation();
+                    removeHandle();
+                    
+                    selectedImg = e.target;
+                    selectedImg.classList.add('selected-img');
+                    
+                    // Crear tirador de redimensionamiento
+                    resizeHandle = document.createElement('div');
+                    resizeHandle.className = 'resize-handle';
+                    document.body.appendChild(resizeHandle);
+                    
+                    const updateHandlePos = () => {
+                        const rect = selectedImg.getBoundingClientRect();
+                        resizeHandle.style.top = (rect.bottom + window.scrollY - 12) + 'px';
+                        resizeHandle.style.left = (rect.right + window.scrollX - 12) + 'px';
+                    };
+                    
+                    updateHandlePos();
+
+                    // Lógica de arrastre
+                    let isResizing = false;
+                    let startX, startWidth;
+
+                    resizeHandle.addEventListener('mousedown', (me) => {
+                        isResizing = true;
+                        startX = me.clientX;
+                        startWidth = selectedImg.offsetWidth;
+                        me.preventDefault();
+                        me.stopPropagation();
+                    });
+
+                    const onMouseMove = (me) => {
+                        if (!isResizing) return;
+                        const delta = me.clientX - startX;
+                        selectedImg.style.width = (startWidth + delta) + 'px';
+                        selectedImg.style.height = 'auto';
+                        updateHandlePos();
+                    };
+
+                    const onMouseUp = () => {
+                        isResizing = false;
+                        document.removeEventListener('mousemove', onMouseMove);
+                        document.removeEventListener('mouseup', onMouseUp);
+                    };
+
+                    document.addEventListener('mousemove', onMouseMove);
+                    document.addEventListener('mouseup', onMouseUp);
+                } else {
+                    removeHandle();
+                }
+            });
+
+            document.addEventListener('click', (e) => {
+                if (!crmEditor.contains(e.target)) removeHandle();
+            });
+
+            crmEditor.addEventListener('focus', function() {
+                const text = this.textContent.trim();
+                if (text === 'Escriba su mensaje aquí...') {
+                    this.innerHTML = '';
+                }
+            });
+            crmEditor.addEventListener('blur', function() {
+                const text = this.textContent.trim();
+                if (text === '') {
+                    this.innerHTML = '<p>Escriba su mensaje aquí...</p>';
+                }
+            });
+        }
 
         // Global error handler
         window.onerror = function(message, source, lineno, colno, error) {
@@ -1467,7 +1593,7 @@ const UI = {
         if (!target || target === mId) return true;
 
         // Si el target es una vista principal del módulo, no chequeamos sub-permisos (redundante)
-        const mainViews = ['finanzas', 'proyectos', 'ventas', 'cotizaciones', 'inventario', 'usuarios', 'notas'];
+        const mainViews = ['finanzas', 'proyectos', 'ventas', 'cotizaciones', 'inventario', 'usuarios', 'notas', 'crm-leads', 'crm-emails', 'crm-smtp-config'];
         if (mainViews.includes(target)) return true;
 
         // Checar permiso específico del submodulo
@@ -1538,6 +1664,10 @@ const UI = {
             activeSection.scrollTop = 0;
         }
 
+        // Ocultar logs persistentes al cambiar de vista
+        const crmLog = document.getElementById('crm-email-log-card');
+        if (crmLog) crmLog.style.display = 'none';
+
         if (!state.currentUser) {
             console.warn("Bloqueado: Intento de navegación sin usuario activo.");
             return;
@@ -1600,7 +1730,8 @@ const UI = {
             'available-funds': 'Disponible',
             'quotations': 'Cotizaciones',
             'crm-leads': 'Prospectos (CRM)',
-            'crm-emails': 'CRM - Marketing'
+            'crm-emails': 'CRM - Marketing',
+            'crm-smtp-config': 'CRM - Configuración SMTP'
         };
 
         const pageTitle = document.getElementById('page-title');
@@ -6030,12 +6161,21 @@ const UI = {
         tbody.innerHTML = '';
 
         const searchTerm = document.getElementById('crm-lead-search')?.value.toLowerCase() || '';
+        const statusFilter = document.getElementById('crm-lead-filter-status')?.value || 'all';
         const leads = state.crmProspectos || [];
 
-        const filtered = leads.filter(l => 
+        let filtered = leads.filter(l => 
             l.nombre_empresa.toLowerCase().includes(searchTerm) || 
-            (l.contacto_principal && l.contacto_principal.toLowerCase().includes(searchTerm))
+            (l.contacto_principal && l.contacto_principal.toLowerCase().includes(searchTerm)) ||
+            (l.email && l.email.toLowerCase().includes(searchTerm))
         );
+
+        if (statusFilter !== 'all') {
+            filtered = filtered.filter(l => l.estado === statusFilter);
+        }
+
+        // Guardar para exportación
+        this._lastFilteredCRMLeads = filtered;
 
         // Ordenar por fecha desc
         const sorted = [...filtered].sort((a, b) => new Date(b.fecha_registro) - new Date(a.fecha_registro));
@@ -6171,7 +6311,8 @@ const UI = {
                 container.appendChild(item);
             });
         } catch (err) {
-            container.innerHTML = '<p class="text-danger">Error al cargar historial</p>';
+            console.error("Error al cargar historial CRM:", err);
+            container.innerHTML = `<p class="text-danger">Error al cargar historial: ${err.message}</p>`;
         }
     },
 
@@ -6198,6 +6339,69 @@ const UI = {
         }
     },
 
+    // --- EXPORTAR CRM ---
+
+    exportCRMLeadsToExcel() {
+        if (!window.XLSX) return this.showToast('Librería Excel no disponible', 'error');
+        const leads = this._lastFilteredCRMLeads || state.crmProspectos || [];
+        if (leads.length === 0) return this.showToast('No hay prospectos para exportar', 'warning');
+
+        const exportData = leads.map(l => ({
+            Fecha: formatDate(l.fecha_registro),
+            Empresa: l.nombre_empresa,
+            Contacto: l.contacto_principal || '-',
+            Teléfono: l.telefono || '-',
+            Email: l.email || '-',
+            Servicio: l.servicio_interes,
+            Estado: l.estado
+        }));
+
+        const wb = XLSX.utils.book_new();
+        const ws = XLSX.utils.json_to_sheet(exportData);
+        
+        // Ajustar anchos
+        ws['!cols'] = [{ wch: 15 }, { wch: 30 }, { wch: 20 }, { wch: 15 }, { wch: 25 }, { wch: 20 }, { wch: 15 }];
+
+        XLSX.utils.book_append_sheet(wb, ws, "Prospectos");
+        XLSX.writeFile(wb, "CRM_Prospectos.xlsx");
+        this.showToast('Prospectos exportados a Excel', 'success');
+    },
+
+    exportCRMLeadsToPDF() {
+        if (!window.jspdf) return this.showToast('Librería PDF no disponible', 'error');
+        const leads = this._lastFilteredCRMLeads || state.crmProspectos || [];
+        if (leads.length === 0) return this.showToast('No hay prospectos para exportar', 'warning');
+
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF('l', 'mm', 'a4'); // Horizontal
+
+        doc.setFontSize(18);
+        doc.text("Gestión de Prospectos (CRM)", 14, 22);
+        doc.setFontSize(11);
+        doc.text(`Fecha de reporte: ${formatDate(new Date())}`, 14, 30);
+
+        const tableBody = leads.map(l => [
+            formatDate(l.fecha_registro),
+            l.nombre_empresa,
+            l.contacto_principal || '-',
+            l.telefono || '-',
+            l.email || '-',
+            l.servicio_interes,
+            l.estado
+        ]);
+
+        doc.autoTable({
+            startY: 40,
+            head: [['Fecha', 'Empresa', 'Contacto', 'Teléfono', 'Email', 'Servicio', 'Estado']],
+            body: tableBody,
+            theme: 'striped',
+            headStyles: { fillColor: [52, 152, 219] }
+        });
+
+        doc.save("CRM_Prospectos.pdf");
+        this.showToast('Prospectos exportados a PDF', 'success');
+    },
+
     updateLeadCountForEmail() {
         const filter = document.getElementById('crm-email-filter')?.value;
         if (!filter) return;
@@ -6210,15 +6414,118 @@ const UI = {
         if (countEl) countEl.innerText = validEmails.length;
     },
 
+    getOutlookTemplate(content) {
+        return `
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="utf-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>Propuesta Comercial</title>
+            <!--[if mso]>
+            <style type="text/css">
+                table {border-collapse: collapse; mso-table-lspace: 0pt; mso-table-rspace: 0pt;}
+                td {padding: 0;}
+                img {border: 0; height: auto; line-height: 100%; outline: none; text-decoration: none;}
+            </style>
+            <![endif]-->
+        </head>
+        <body style="margin: 0; padding: 0; background-color: #f6f9fc; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;">
+            <table width="100%" border="0" cellspacing="0" cellpadding="0" style="background-color: #f6f9fc;">
+                <tr>
+                    <td align="center" style="padding: 20px 0;">
+                        <table width="600" border="0" cellspacing="0" cellpadding="0" style="background-color: #ffffff; border-radius: 8px; box-shadow: 0 4px 10px rgba(0,0,0,0.05);">
+                            <tr>
+                                <td style="padding: 40px; color: #333333; font-size: 16px; line-height: 1.6;">
+                                    <div style="text-align: left;">
+                                        ${content}
+                                    </div>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td align="center" style="padding: 30px; background-color: #f8f9fa; border-radius: 0 0 8px 8px; color: #777777; font-size: 12px; border-top: 1px solid #eeeeee;">
+                                    <p style="margin: 0;">Este es un mensaje automático enviado desde nuestro CRM.</p>
+                                    <p style="margin: 5px 0 0;">© ${new Date().getFullYear()} Simons SpA - Soluciones Tecnológicas</p>
+                                </td>
+                            </tr>
+                        </table>
+                    </td>
+                </tr>
+            </table>
+        </body>
+        </html>
+        `;
+    },
+
+    execEditorCommand(cmd, val = null) {
+        document.execCommand(cmd, false, val);
+        document.getElementById('crm-email-editor').focus();
+    },
+
+    async handleCRMImageUpload(input) {
+        if (!input.files || !input.files[0]) return;
+        
+        const file = input.files[0];
+        const formData = new FormData();
+        formData.append('image', file);
+        
+        this.showToast('Subiendo imagen...', 'info');
+        
+        try {
+            const resp = await fetch('/api/crm/upload-image', {
+                method: 'POST',
+                body: formData
+            });
+            const data = await resp.json();
+            
+            if (data.url) {
+                // Generar URL absoluta para que el cliente la vea en el mail
+                const absoluteUrl = window.location.origin + data.url;
+                
+                // Insertar imagen centrada
+                const imgHtml = `<div style="text-align: center; margin: 15px 0;"><img src="${absoluteUrl}" alt="imagen" style="max-width: 100%; height: auto; border-radius: 4px;"></div><p><br></p>`;
+                document.execCommand('insertHTML', false, imgHtml);
+                
+                this.showToast('Imagen subida con éxito', 'success');
+            } else {
+                throw new Error(data.error || 'Error al subir');
+            }
+        } catch (err) {
+            this.showToast('Error: ' + err.message, 'error');
+        } finally {
+            input.value = ''; // Reset input
+        }
+    },
+
+    showEmailPreview() {
+        const editor = document.getElementById('crm-email-editor');
+        const content = editor.innerHTML;
+        
+        if (!content || content === '<p>Escriba su mensaje aquí...</p>') {
+            return this.showToast('Escriba un mensaje para previsualizar', 'warning');
+        }
+        
+        const html = this.getOutlookTemplate(content);
+        const container = document.getElementById('crm-email-preview-container');
+        
+        // Usar un iframe para aislar los estilos de la plantilla de la app principal
+        container.innerHTML = `<iframe id="crm-preview-iframe" style="width: 100%; height: 500px; border: none;"></iframe>`;
+        const iframe = document.getElementById('crm-preview-iframe');
+        const doc = iframe.contentDocument || iframe.contentWindow.document;
+        doc.open();
+        doc.write(html);
+        doc.close();
+        
+        this.openModal('crm-email-preview-modal');
+    },
+
     async sendCRMBulkEmails() {
-        const user = document.getElementById('crm-smtp-user').value;
-        const pass = document.getElementById('crm-smtp-pass').value;
         const subject = document.getElementById('crm-email-subject').value;
-        const body = document.getElementById('crm-email-body').value;
+        const content = document.getElementById('crm-email-editor').innerHTML;
         const filter = document.getElementById('crm-email-filter').value;
 
-        if (!user || !pass || !subject || !body) {
-            return this.showToast('Complete todos los campos del email y configuración SMTP', 'warning');
+        if (!subject || !content || content === '<p>Escriba su mensaje aquí...</p>') {
+            return this.showToast('Complete el asunto y el cuerpo del mensaje', 'warning');
         }
 
         const leads = state.crmProspectos || [];
@@ -6230,6 +6537,26 @@ const UI = {
         }
 
         if (!confirm(`¿Está seguro de enviar este correo a ${recipients.length} prospectos?`)) return;
+
+        // --- PREPARACIÓN FINAL DEL HTML ---
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = content;
+        
+        // Asegurar que todas las imágenes tengan URL absoluta
+        const images = tempDiv.querySelectorAll('img');
+        images.forEach(img => {
+            const src = img.getAttribute('src');
+            // Si la URL es relativa (/uploads/...), hacerla absoluta
+            if (src && src.startsWith('/uploads/')) {
+                img.src = window.location.origin + src;
+            }
+            // Asegurar estilos de visualización y redimensionamiento
+            img.style.maxWidth = '100%';
+            img.style.height = 'auto';
+            // Si se redimensionó vía JS (style.width), asegurar que se mantenga
+        });
+
+        const finalHtml = this.getOutlookTemplate(tempDiv.innerHTML);
 
         const btn = document.getElementById('btn-send-bulk-crm');
         const logCard = document.getElementById('crm-email-log-card');
@@ -6244,23 +6571,26 @@ const UI = {
             const result = await window.StorageAPI.async.sendCRMBulkEmails({
                 recipients,
                 subject,
-                body,
-                config: { user, pass }
+                body: finalHtml
             });
 
             logContent.innerHTML += `[${new Date().toLocaleTimeString()}] Proceso finalizado.\n`;
-            logContent.innerHTML += `✅ Enviados: ${result.sent}\n`;
-            if (result.errors && result.errors.length > 0) {
-                logContent.innerHTML += `❌ Errores: ${result.errors.length}\n`;
-                result.errors.forEach(e => {
-                    logContent.innerHTML += `   - ${e.email}: ${e.error}\n`;
+            logContent.innerHTML += `📊 RESUMEN: ${result.sent} exitosos de ${recipients.length}\n\n`;
+            
+            if (result.results && result.results.length > 0) {
+                logContent.innerHTML += `--- DETALLE DE ENVÍO ---\n`;
+                result.results.forEach(r => {
+                    const status = r.success ? '✅ OK   ' : '❌ ERROR';
+                    const errorMsg = r.error ? ` -> Error: ${r.error}` : '';
+                    logContent.innerHTML += `${status} | ${r.email}${errorMsg}\n`;
                 });
+                logContent.innerHTML += `------------------------\n`;
             }
 
             this.showToast(`Envío masivo finalizado. Éxitos: ${result.sent}`, 'success');
         } catch (err) {
             logContent.innerHTML += `❌ ERROR FATAL: ${err.message}\n`;
-            this.showToast('Error en el proceso de envío: ' + err.message, 'error');
+            this.showToast('Error del Servidor: ' + err.message, 'error');
         } finally {
             btn.disabled = false;
             btn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> Iniciar Envío Masivo';
@@ -6308,6 +6638,18 @@ const UI = {
                 if (this.showToast) this.showToast("Error: El módulo de notas no se pudo cargar.", "error");
             }
         }, interval);
+    },
+
+    toggleInputVisibility(id) {
+        const input = document.getElementById(id);
+        const icon = event.currentTarget.querySelector('i');
+        if (input.type === 'password') {
+            input.type = 'text';
+            icon.className = 'fa-solid fa-eye-slash';
+        } else {
+            input.type = 'password';
+            icon.className = 'fa-solid fa-eye';
+        }
     }
 };
 

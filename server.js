@@ -6,13 +6,42 @@ const axios = require('axios');
 const fs = require('fs');
 const path = require('path');
 const nodemailer = require('nodemailer');
+const multer = require('multer');
 
 const BCRYPT_ROUNDS = 10;
+const UPLOADS_DIR = path.join(__dirname, 'uploads');
+
+// Asegurar que existe el directorio de uploads
+if (!fs.existsSync(UPLOADS_DIR)) {
+    fs.mkdirSync(UPLOADS_DIR);
+}
+
+// Configuración de Multer para subir imágenes
+const storage = multer.diskStorage({
+    destination: (req, file, cb) => cb(null, UPLOADS_DIR),
+    filename: (req, file, cb) => {
+        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+        cb(null, uniqueSuffix + path.extname(file.originalname));
+    }
+});
+const upload = multer({ 
+    storage,
+    limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit
+    fileFilter: (req, file, cb) => {
+        if (file.mimetype.startsWith('image/')) cb(null, true);
+        else cb(new Error('Solo se permiten imágenes'), false);
+    }
+});
 
 const app = express();
 app.use(cors());
 app.use(express.json({ limit: '50mb' })); // Aumentado para soportar base64 grandes (PDF)
 app.use(express.static(__dirname)); // Sirve HTML, JS y CSS automáticamente
+
+// Asegurar que GET / sirva el index.html explícitamente
+app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, 'index.html'));
+});
 
 // Configuración de Conexión a SQL Server usando driver nativo (para evitar problemas de TCP/IP)
 const dbConfig = {
@@ -1248,57 +1277,157 @@ app.post('/api/crm/calls', async (req, res) => {
     }
 });
 
+// CONFIGURACIÓN MICROSOFT GRAPH API (CRM)
+let GRAPH_CONFIG = {
+    tenantId: '',
+    clientId: '',
+    clientSecret: '',
+    senderEmail: ''
+};
+
+// Intentar cargar configuración desde archivo externo por seguridad
+try {
+    const configPath = path.join(__dirname, 'config_crm.json');
+    if (fs.existsSync(configPath)) {
+        GRAPH_CONFIG = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+        console.log("✅ Configuración CRM cargada desde config_crm.json");
+    } else {
+        console.warn("⚠️ Advertencia: No se encontró config_crm.json. El envío de correos CRM podría fallar.");
+    }
+} catch (err) {
+    console.error("❌ Error cargando configuración CRM:", err.message);
+}
+
+// Función para obtener Access Token de Microsoft Graph
+async function getGraphAccessToken() {
+    const url = `https://login.microsoftonline.com/${GRAPH_CONFIG.tenantId}/oauth2/v2.0/token`;
+    const params = new URLSearchParams();
+    params.append('client_id', GRAPH_CONFIG.clientId);
+    params.append('scope', 'https://graph.microsoft.com/.default');
+    params.append('client_secret', GRAPH_CONFIG.clientSecret);
+    params.append('grant_type', 'client_credentials');
+
+    try {
+        const response = await axios.post(url, params.toString(), {
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
+        });
+        return response.data.access_token;
+    } catch (error) {
+        console.error('❌ Error obteniendo token de Graph:', error.response ? error.response.data : error.message);
+        throw new Error('No se pudo autenticar con Microsoft Graph');
+    }
+}
+
 app.post('/api/crm/send-emails', async (req, res) => {
-    const { recipients, subject, body, config } = req.body;
+    const { recipients, subject, body } = req.body;
     
-    if (!recipients || !recipients.length || !subject || !body || !config) {
-        return res.status(400).json({ error: 'Faltan datos para el envío masivo' });
+    console.log("--- [CRM GRAPH DEBUG] Iniciando Proceso ---");
+    console.log("Destinatarios:", recipients ? recipients.length : '0');
+    console.log("Asunto:", subject);
+
+    if (!recipients || !recipients.length || !subject || !body) {
+        return res.status(400).json({ error: 'Faltan datos obligatorios (destinatarios, asunto o cuerpo)' });
     }
 
     try {
-        const transporter = nodemailer.createTransport({
-            host: "smtp.office365.com",
-            port: 587,
-            secure: false, // TLS
-            auth: {
-                user: config.user,
-                pass: config.pass
-            }
-        });
+        const accessToken = await getGraphAccessToken();
+        console.log("✅ Token de Graph obtenido con éxito");
 
-        console.log(`--- [CRM] Iniciando envío masivo: ${recipients.length} destinatarios ---`);
-        
+        const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
+        let results = [];
         let sentCount = 0;
-        let errors = [];
 
-        // Helper para delay asíncrono
-        const delay = ms => new Promise(res => setTimeout(res, ms));
+        // --- PROCESAMIENTO DE IMÁGENES: CONVERSIÓN A BASE64 INLINE ---
+        // Esto hace que la imagen sea parte del HTML, garantizando visibilidad absoluta.
+        let processedBody = body;
+        const imgRegex = /<img[^>]+src="([^">]+)"/g;
+        let match;
+        const processedImages = new Set();
 
-        for (const email of recipients) {
-            try {
-                await transporter.sendMail({
-                    from: config.user,
-                    to: email,
-                    subject: subject,
-                    text: body, // Podríamos soportar HTML en el futuro
-                });
-                sentCount++;
-                console.log(`✅ Email enviado a: ${email} (${sentCount}/${recipients.length})`);
-                
-                // Delay de 2 segundos entre correos para evitar bloqueos
-                if (sentCount < recipients.length) {
-                    await delay(2000);
+        console.log("🔍 Escaneando imágenes para conversión Base64...");
+        
+        while ((match = imgRegex.exec(body)) !== null) {
+            const src = match[1];
+            // Solo procesamos imágenes locales (/uploads/)
+            if (src.includes('/uploads/') && !processedImages.has(src)) {
+                try {
+                    const filename = src.split('/').pop();
+                    const filePath = path.join(__dirname, 'uploads', filename);
+                    
+                    if (fs.existsSync(filePath)) {
+                        const fileContent = fs.readFileSync(filePath, { encoding: 'base64' });
+                        const extension = filename.split('.').pop().toLowerCase();
+                        const mimeType = `image/${extension === 'jpg' ? 'jpeg' : extension}`;
+                        const base64Data = `data:${mimeType};base64,${fileContent}`;
+                        
+                        // Reemplazar todas las ocurrencias de esta URL por su versión Base64
+                        processedBody = processedBody.split(src).join(base64Data);
+                        processedImages.add(src);
+                        console.log(`✨ Imagen convertida a Base64 Inline: ${filename}`);
+                    }
+                } catch (e) {
+                    console.error("❌ Error convirtiendo imagen a Base64:", e.message);
                 }
-            } catch (err) {
-                console.error(`❌ Error enviando a ${email}:`, err.message);
-                errors.push({ email, error: err.message });
             }
         }
 
-        res.json({ success: true, sent: sentCount, errors });
+        for (const email of recipients) {
+            try {
+                const message = {
+                    message: {
+                        subject: subject,
+                        body: {
+                            contentType: 'HTML',
+                            content: processedBody
+                        },
+                        toRecipients: [
+                            {
+                                emailAddress: {
+                                    address: email
+                                }
+                            }
+                        ]
+                    }
+                };
+
+                await axios.post(
+                    `https://graph.microsoft.com/v1.0/users/${GRAPH_CONFIG.senderEmail}/sendMail`,
+                    message,
+                    {
+                        headers: {
+                            'Authorization': `Bearer ${accessToken}`,
+                            'Content-Type': 'application/json'
+                        }
+                    }
+                );
+
+                sentCount++;
+                results.push({ email, success: true });
+                console.log(`✅ [Graph] Email enviado a: ${email} (${sentCount}/${recipients.length})`);
+                
+                if (sentCount < recipients.length) {
+                    await delay(1500); 
+                }
+            } catch (err) {
+                const errorDetail = err.response ? JSON.stringify(err.response.data) : err.message;
+                console.error(`❌ [Graph] Error enviando a ${email}:`, errorDetail);
+                results.push({ email, success: false, error: errorDetail });
+            }
+        }
+
+        res.json({ success: true, sent: sentCount, results });
     } catch (err) {
-        res.status(500).json({ error: 'Error configurando SMTP: ' + err.message });
+        console.error('❌ Error general en envío Graph:', err.message);
+        res.status(500).json({ error: 'Error en Microsoft Graph: ' + err.message });
     }
+});
+
+app.post('/api/crm/upload-image', upload.single('image'), (req, res) => {
+    if (!req.file) return res.status(400).json({ error: 'No se subió ninguna imagen' });
+    
+    // Devolver la URL relativa (ya que express.static sirve __dirname)
+    const imageUrl = `/uploads/${req.file.filename}`;
+    res.json({ url: imageUrl });
 });
 
 // --- ENDPOINTS PARA CONTRACTS ---

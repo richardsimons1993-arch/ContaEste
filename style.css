@@ -1751,4 +1751,40 @@ body.dark-mode .perm-sub-list {
 /* Tooltip simple para permisos */
 [title] {
     position: relative;
-}
+}
+
+/* Editor de CRM */
+.btn-editor {
+    background: white;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    padding: 4px 8px;
+    cursor: pointer;
+    transition: var(--transition);
+    color: var(--text-main);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+}
+
+.btn-editor:hover {
+    background: var(--accent-glow);
+    border-color: var(--primary-color);
+    color: var(--primary-color);
+}
+
+.btn-editor i {
+    font-size: 0.9rem;
+}
+
+#crm-email-editor img {
+    cursor: pointer;
+    transition: outline 0.1s;
+    display: inline-block;
+}
+
+#crm-email-editor img:hover {
+    outline: 3px solid var(--primary-color);
+}

@@ -282,6 +282,8 @@
             </header>
 
             <!-- Vistas (Secciones SPA) -->
+            
+            <!-- VISTA CRM: CONFIGURACION SMTP -->
 
             <!-- VISTA INICIO MÓVIL (DASHBOARD) - POSICIÓN MAESTRA -->
             <section id="mobile-dashboard" class="view-section">
@@ -1639,10 +1641,27 @@
                 </div>
 
                 <div class="card mt-4">
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
-                        <h3>Tablero de Gestión de Leads</h3>
-                        <div class="search-box">
-                            <input type="text" id="crm-lead-search" placeholder="Buscar empresa o contacto..." oninput="UI.renderCRMLeads()">
+                    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem; margin-bottom: 1.5rem;">
+                        <h3 style="margin: 0;">Tablero de Gestión de Leads</h3>
+                        <div class="crm-actions" style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
+                            <div class="search-box">
+                                <input type="text" id="crm-lead-search" placeholder="Buscar empresa o contacto..." oninput="UI.renderCRMLeads()" style="width: 220px;">
+                            </div>
+                            <select id="crm-lead-filter-status" class="form-control" style="width: 150px; height: 38px;" onchange="UI.renderCRMLeads()">
+                                <option value="all">Todos los Estados</option>
+                                <option value="Frío">Frío ❄️</option>
+                                <option value="Tibio">Tibio ⚡</option>
+                                <option value="Caliente">Caliente 🔥</option>
+                                <option value="No Interesado">No Interesado ❌</option>
+                            </select>
+                            <div style="display: flex; gap: 0.5rem; margin-left: 0.5rem;">
+                                <button class="btn-sm btn-outline-success" id="btn-export-crm-excel" title="Exportar Excel">
+                                    <i class="fa-solid fa-file-excel"></i> Excel
+                                </button>
+                                <button class="btn-sm btn-outline-danger" id="btn-export-crm-pdf" title="Exportar PDF">
+                                    <i class="fa-solid fa-file-pdf"></i> PDF
+                                </button>
+                            </div>
                         </div>
                     </div>
                     <div class="table-responsive">
@@ -1670,27 +1689,16 @@
                     <h2>Módulo de Email Masivo (Office 365)</h2>
                     <p class="text-muted mb-4">Envíe propuestas o información a sus prospectos filtrados por estado.</p>
                     
-                    <div class="grid-2">
                         <div class="card p-3" style="background: var(--bg-body); border: 1px solid var(--border-color);">
-                            <h4>Configuración SMTP</h4>
-                            <div class="form-group mt-2">
-                                <label>Usuario Office 365</label>
-                                <input type="email" id="crm-smtp-user" placeholder="usuario@empresa.cl">
-                            </div>
-                            <div class="form-group">
-                                <label>Contraseña / App Password</label>
-                                <input type="password" id="crm-smtp-pass" placeholder="••••••••">
-                            </div>
-                        </div>
-
-                        <div class="card p-3" style="background: var(--bg-body); border: 1px solid var(--border-color);">
-                            <h4>Filtros de Envío</h4>
+                            <h4>Segmentación de Destinatarios</h4>
                             <div class="form-group mt-2">
                                 <label>Filtrar por Estado</label>
                                 <select id="crm-email-filter" onchange="UI.updateLeadCountForEmail()">
                                     <option value="all">Todos los Prospectos</option>
                                     <option value="Caliente">Solo "Calientes" 🔥</option>
                                     <option value="Tibio">Solo "Tibios" ⚡</option>
+                                    <option value="Frío">Solo "Fríos" ❄️</option>
+                                    <option value="No Interesado">Solo "No Interesados" ❌</option>
                                 </select>
                             </div>
                             <div id="crm-email-count-alert" class="alert info mt-2">
@@ -1706,24 +1714,71 @@
                         </div>
                         <div class="form-group">
                             <label>Cuerpo del Mensaje</label>
-                            <textarea id="crm-email-body" rows="8" placeholder="Escriba el mensaje aquí..."></textarea>
+                            
+                            <!-- Barra de Herramientas del Editor -->
+                            <div class="editor-toolbar" style="display: flex; flex-wrap: wrap; gap: 5px; padding: 10px; background: #f8f9fa; border: 1px solid var(--border-color); border-bottom: none; border-radius: 8px 8px 0 0; align-items: center;">
+                                <div class="toolbar-group" style="display: flex; gap: 2px; border-right: 1px solid #ddd; padding-right: 5px;">
+                                    <button type="button" class="btn-editor" onclick="UI.execEditorCommand('bold')" title="Negrita"><i class="fa-solid fa-bold"></i></button>
+                                    <button type="button" class="btn-editor" onclick="UI.execEditorCommand('italic')" title="Cursiva"><i class="fa-solid fa-italic"></i></button>
+                                    <button type="button" class="btn-editor" onclick="UI.execEditorCommand('underline')" title="Subrayado"><i class="fa-solid fa-underline"></i></button>
+                                </div>
+                                <div class="toolbar-group" style="display: flex; gap: 2px; border-right: 1px solid #ddd; padding-right: 5px; padding-left: 5px;">
+                                    <select onchange="UI.execEditorCommand('fontSize', this.value)" style="height: 30px; padding: 2px; font-size: 0.8rem; border: 1px solid #ddd; border-radius: 4px;">
+                                        <option value="3">Normal</option>
+                                        <option value="1">Muy Pequeña</option>
+                                        <option value="2">Pequeña</option>
+                                        <option value="4">Grande</option>
+                                        <option value="5">Muy Grande</option>
+                                        <option value="6">Extra Grande</option>
+                                    </select>
+                                    <input type="color" onchange="UI.execEditorCommand('foreColor', this.value)" style="width: 30px; height: 30px; padding: 0; border: 1px solid #ddd; cursor: pointer; border-radius: 4px;" title="Color de Texto">
+                                </div>
+                                <div class="toolbar-group" style="display: flex; gap: 2px; border-right: 1px solid #ddd; padding-right: 5px; padding-left: 5px;">
+                                    <button type="button" class="btn-editor" onclick="UI.execEditorCommand('justifyLeft')" title="Alinear Izquierda"><i class="fa-solid fa-align-left"></i></button>
+                                    <button type="button" class="btn-editor" onclick="UI.execEditorCommand('justifyCenter')" title="Centrar"><i class="fa-solid fa-align-center"></i></button>
+                                    <button type="button" class="btn-editor" onclick="UI.execEditorCommand('justifyRight')" title="Alinear Derecha"><i class="fa-solid fa-align-right"></i></button>
+                                    <button type="button" class="btn-editor" onclick="UI.execEditorCommand('justifyFull')" title="Justificar"><i class="fa-solid fa-align-justify"></i></button>
+                                </div>
+                                <div class="toolbar-group" style="display: flex; gap: 2px; padding-left: 5px;">
+                                    <button type="button" class="btn-editor" onclick="document.getElementById('crm-image-upload').click()" title="Subir Imagen"><i class="fa-solid fa-image"></i></button>
+                                    <button type="button" class="btn-editor" onclick="UI.execEditorCommand('insertUnorderedList')" title="Lista"><i class="fa-solid fa-list-ul"></i></button>
+                                    <button type="button" class="btn-editor" onclick="UI.execEditorCommand('insertOrderedList')" title="Lista Numerada"><i class="fa-solid fa-list-ol"></i></button>
+                                    <button type="button" class="btn-editor" onclick="UI.execEditorCommand('removeFormat')" title="Limpiar Formato"><i class="fa-solid fa-eraser"></i></button>
+                                </div>
+                                <input type="file" id="crm-image-upload" style="display: none;" accept="image/*" onchange="UI.handleCRMImageUpload(this)">
+                            </div>
+                            
+                            <!-- Área Editable -->
+                            <div id="crm-email-editor" contenteditable="true" style="min-height: 400px; padding: 20px; border: 1px solid var(--border-color); border-radius: 0 0 8px 8px; background: white; overflow-y: auto; outline: none; font-size: 16px;">
+                                <p>Escriba su mensaje aquí...</p>
+                            </div>
                         </div>
-                        <div class="form-actions mt-3">
-                            <button type="button" class="btn-primary" onclick="UI.sendCRMBulkEmails()" id="btn-send-bulk-crm">
-                                <i class="fa-solid fa-paper-plane"></i> Iniciar Envío Masivo
-                            </button>
-                            <small class="text-muted ml-3">Se aplicará un delay de 2s entre envíos.</small>
+                        <div class="form-actions mt-3" style="display: flex; align-items: center; justify-content: space-between;">
+                            <div style="display: flex; gap: 1rem;">
+                                <button type="button" class="btn-primary" onclick="UI.sendCRMBulkEmails()" id="btn-send-bulk-crm">
+                                    <i class="fa-solid fa-paper-plane"></i> Iniciar Envío Masivo
+                                </button>
+                                <button type="button" class="btn-secondary" onclick="UI.showEmailPreview()">
+                                    <i class="fa-solid fa-eye"></i> Previsualizar
+                                </button>
+                            </div>
+                            <small class="text-muted">Se aplicará un delay de 2s entre envíos.</small>
+                        </div>
                         </div>
                     </div>
-                </div>
 
-                <div id="crm-email-log-card" class="card mt-4" style="display: none;">
-                    <h3>Log de Envío</h3>
-                    <div id="crm-email-log-content" style="max-height: 200px; overflow-y: auto; font-family: monospace; font-size: 0.9rem; background: #1e1e1e; color: #d4d4d4; padding: 1rem; border-radius: 8px;">
-                        <!-- Logs dinámicos -->
+                    <div id="crm-email-log-card" class="card mt-4" style="display: none; border: 1px solid #333; background: #1e1e1e; color: #d4d4d4;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                            <h3 style="color: white; margin: 0;">Log de Envío Detallado</h3>
+                            <button type="button" class="btn-secondary btn-sm" onclick="document.getElementById('crm-email-log-card').style.display='none'">Cerrar Log</button>
+                        </div>
+                        <div id="crm-email-log-content" style="max-height: 250px; overflow-y: auto; font-family: 'Consolas', monospace; font-size: 0.85rem; line-height: 1.4; padding: 10px; background: rgba(0,0,0,0.3); border-radius: 4px;">
+                            <!-- Logs dinámicos -->
+                        </div>
                     </div>
                 </div>
             </section>
+
 
 
 
@@ -1745,6 +1800,24 @@
             </div>
             <div class="modal-footer">
                 <button class="btn-secondary" onclick="UI.closeModal('contracts-modal')">Cerrar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Previsualización Email CRM -->
+    <div id="crm-email-preview-modal" class="modal-overlay" style="display: none;">
+        <div class="modal-card" style="max-width: 800px; width: 95%;">
+            <div class="modal-header">
+                <h3>Previsualización de Propuesta</h3>
+                <button class="btn-icon" onclick="UI.closeModal('crm-email-preview-modal')">&times;</button>
+            </div>
+            <div class="modal-body" style="background: #f4f4f4; padding: 2rem;">
+                <div id="crm-email-preview-container" style="background: white; padding: 0; border-radius: 4px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); overflow: hidden; min-height: 400px;">
+                    <!-- El iframe se inyectará aquí -->
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-primary" onclick="UI.closeModal('crm-email-preview-modal')">Cerrar Vista Previa</button>
             </div>
         </div>
     </div>
