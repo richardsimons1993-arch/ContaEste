@@ -1337,58 +1337,66 @@ app.post('/api/crm/send-emails', async (req, res) => {
         let results = [];
         let sentCount = 0;
 
-        // --- PROCESAMIENTO DE IMÁGENES: CONVERSIÓN A BASE64 INLINE ---
-        // Esto hace que la imagen sea parte del HTML, garantizando visibilidad absoluta.
+        // --- PROCESAMIENTO DE IMÁGENES: ADJUNTOS INLINE CON CID ---
+        // Exchange/Outlook bloquea data URIs en el body HTML.
+        // La solución estándar es adjuntar la imagen con un contentId (CID)
+        // y referenciarla en el HTML como src="cid:contentId".
         let processedBody = body;
         const imgRegex = /<img[^>]+src="([^">]+)"/g;
         let match;
-        const processedImages = new Set();
+        const processedImages = new Map(); // src -> contentId
+        const inlineAttachments = [];
+        let cidCounter = 0;
 
-        console.log("🔍 Escaneando imágenes para conversión Base64...");
-        
+        console.log("🔍 Escaneando imágenes para adjuntos CID...");
+        imgRegex.lastIndex = 0;
+
         while ((match = imgRegex.exec(body)) !== null) {
             const src = match[1];
-            // Solo procesamos imágenes locales (/uploads/)
             if (src.includes('/uploads/') && !processedImages.has(src)) {
                 try {
                     const filename = src.split('/').pop();
                     const filePath = path.join(__dirname, 'uploads', filename);
-                    
+
                     if (fs.existsSync(filePath)) {
                         const fileContent = fs.readFileSync(filePath, { encoding: 'base64' });
                         const extension = filename.split('.').pop().toLowerCase();
                         const mimeType = `image/${extension === 'jpg' ? 'jpeg' : extension}`;
-                        const base64Data = `data:${mimeType};base64,${fileContent}`;
-                        
-                        // Reemplazar todas las ocurrencias de esta URL por su versión Base64
-                        processedBody = processedBody.split(src).join(base64Data);
-                        processedImages.add(src);
-                        console.log(`✨ Imagen convertida a Base64 Inline: ${filename}`);
+                        const contentId = `img${cidCounter++}@crm`;
+
+                        // Reemplazar URL por referencia CID en el HTML
+                        processedBody = processedBody.split(src).join(`cid:${contentId}`);
+                        processedImages.set(src, contentId);
+
+                        inlineAttachments.push({
+                            '@odata.type': '#microsoft.graph.fileAttachment',
+                            name: filename,
+                            contentType: mimeType,
+                            contentBytes: fileContent,
+                            contentId: contentId,
+                            isInline: true
+                        });
+                        console.log(`✨ Imagen preparada CID: ${filename} → cid:${contentId}`);
+                    } else {
+                        console.warn(`⚠️ Archivo no encontrado: ${filePath}`);
                     }
                 } catch (e) {
-                    console.error("❌ Error convirtiendo imagen a Base64:", e.message);
+                    console.error("❌ Error preparando imagen CID:", e.message);
                 }
             }
         }
 
         for (const email of recipients) {
             try {
-                const message = {
-                    message: {
-                        subject: subject,
-                        body: {
-                            contentType: 'HTML',
-                            content: processedBody
-                        },
-                        toRecipients: [
-                            {
-                                emailAddress: {
-                                    address: email
-                                }
-                            }
-                        ]
-                    }
+                const messageBody = {
+                    subject: subject,
+                    body: { contentType: 'HTML', content: processedBody },
+                    toRecipients: [{ emailAddress: { address: email } }]
                 };
+                if (inlineAttachments.length > 0) {
+                    messageBody.attachments = inlineAttachments;
+                }
+                const message = { message: messageBody };
 
                 await axios.post(
                     `https://graph.microsoft.com/v1.0/users/${GRAPH_CONFIG.senderEmail}/sendMail`,

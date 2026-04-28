@@ -6533,55 +6533,119 @@ const UI = {
     // ----------------------------------------------------------------
     initCRMEmailEditor() {
         const editor = document.getElementById('crm-email-editor');
-        if (!editor || editor._crmEventsAttached) return; // evitar doble registro
+        if (!editor || editor._crmEventsAttached) return;
         editor._crmEventsAttached = true;
 
-        // --- EVENTO: PEGAR IMAGEN DESDE PORTAPAPELES ---
         editor.addEventListener('paste', async (e) => {
             const items = e.clipboardData && e.clipboardData.items;
             if (!items) return;
-
             for (const item of items) {
                 if (item.kind === 'file' && item.type.startsWith('image/')) {
-                    // Es una imagen pegada — evitar que el navegador la inserte como blob
                     e.preventDefault();
-                    const file = item.getAsFile();
-                    await this._uploadImageFileToEditor(file);
-                    return; // procesar solo la primera imagen por paste
+                    await this._uploadImageFileToEditor(item.getAsFile());
+                    return;
                 }
             }
-            // Si no hay imágenes, dejar que el paste normal continúe
         });
 
-        // --- EVENTOS: ARRASTRAR IMAGEN SOBRE EL EDITOR ---
         editor.addEventListener('dragover', (e) => {
-            e.preventDefault();
-            e.stopPropagation();
+            e.preventDefault(); e.stopPropagation();
             editor.style.outline = '3px dashed var(--primary-color)';
-            editor.style.backgroundColor = 'rgba(var(--primary-rgb, 0,120,212), 0.05)';
+            editor.style.backgroundColor = 'rgba(0,120,212,0.05)';
         });
-
         editor.addEventListener('dragleave', (e) => {
             e.preventDefault();
-            editor.style.outline = '';
-            editor.style.backgroundColor = 'white';
+            editor.style.outline = ''; editor.style.backgroundColor = 'white';
         });
-
         editor.addEventListener('drop', async (e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            editor.style.outline = '';
-            editor.style.backgroundColor = 'white';
-
+            e.preventDefault(); e.stopPropagation();
+            editor.style.outline = ''; editor.style.backgroundColor = 'white';
             const files = e.dataTransfer && e.dataTransfer.files;
-            if (!files || files.length === 0) return;
-
+            if (!files || !files.length) return;
             for (const file of files) {
-                if (file.type.startsWith('image/')) {
-                    await this._uploadImageFileToEditor(file);
-                }
+                if (file.type.startsWith('image/')) await this._uploadImageFileToEditor(file);
             }
         });
+
+        this.initCRMImageResize();
+    },
+
+    initCRMImageResize() {
+        if (this._crmResizeInitialized) return;
+        this._crmResizeInitialized = true;
+        const editor = document.getElementById('crm-email-editor');
+        if (!editor) return;
+
+        // Overlay con handles en las 4 esquinas
+        const overlay = document.createElement('div');
+        overlay.id = 'crm-img-resize-overlay';
+        overlay.style.cssText = 'position:fixed;border:2px dashed #0078d4;display:none;z-index:10000;pointer-events:none;box-sizing:border-box;';
+        const corners = [
+            { id: 'nw', s: 'top:-6px;left:-6px;cursor:nw-resize;' },
+            { id: 'ne', s: 'top:-6px;right:-6px;cursor:ne-resize;' },
+            { id: 'sw', s: 'bottom:-6px;left:-6px;cursor:sw-resize;' },
+            { id: 'se', s: 'bottom:-6px;right:-6px;cursor:se-resize;' }
+        ];
+        corners.forEach(c => {
+            const el = document.createElement('div');
+            el.dataset.handle = c.id;
+            el.style.cssText = `position:absolute;width:12px;height:12px;background:#0078d4;border:2px solid white;border-radius:2px;pointer-events:all;${c.s}`;
+            overlay.appendChild(el);
+        });
+        document.body.appendChild(overlay);
+
+        let selImg = null, resizing = false, corner = '', sx, sy, sw, sh;
+
+        const updateOverlay = () => {
+            if (!selImg) { overlay.style.display = 'none'; return; }
+            const r = selImg.getBoundingClientRect();
+            overlay.style.left = r.left + 'px'; overlay.style.top = r.top + 'px';
+            overlay.style.width = r.width + 'px'; overlay.style.height = r.height + 'px';
+            overlay.style.display = 'block';
+        };
+
+        editor.addEventListener('click', (e) => {
+            if (e.target.tagName === 'IMG') { selImg = e.target; updateOverlay(); }
+            else if (!overlay.contains(e.target)) { selImg = null; overlay.style.display = 'none'; }
+        });
+        editor.addEventListener('dragstart', (e) => { if (e.target.tagName === 'IMG') e.preventDefault(); });
+
+        overlay.addEventListener('mousedown', (e) => {
+            if (!e.target.dataset.handle || !selImg) return;
+            e.preventDefault();
+            resizing = true; corner = e.target.dataset.handle;
+            sx = e.clientX; sy = e.clientY;
+            const r = selImg.getBoundingClientRect();
+            sw = r.width; sh = r.height;
+            document.body.style.userSelect = 'none';
+            document.body.style.cursor = corner + '-resize';
+        });
+
+        document.addEventListener('mousemove', (e) => {
+            if (!resizing || !selImg) return;
+            const dx = e.clientX - sx, dy = e.clientY - sy;
+            let nw = sw, nh = sh;
+            if (corner === 'se') { nw = sw + dx; nh = sh + dy; }
+            else if (corner === 'sw') { nw = sw - dx; nh = sh + dy; }
+            else if (corner === 'ne') { nw = sw + dx; nh = sh - dy; }
+            else if (corner === 'nw') { nw = sw - dx; nh = sh - dy; }
+            nw = Math.max(50, Math.round(nw)); nh = Math.max(50, Math.round(nh));
+            selImg.style.width = nw + 'px'; selImg.style.height = nh + 'px';
+            selImg.setAttribute('width', nw); selImg.setAttribute('height', nh);
+            updateOverlay();
+        });
+
+        document.addEventListener('mouseup', () => {
+            if (resizing) {
+                resizing = false;
+                document.body.style.userSelect = ''; document.body.style.cursor = '';
+                updateOverlay();
+            }
+        });
+
+        editor.addEventListener('scroll', updateOverlay);
+        window.addEventListener('scroll', updateOverlay, true);
+        window.addEventListener('resize', updateOverlay);
     },
 
     showEmailPreview() {
