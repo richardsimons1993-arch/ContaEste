@@ -1762,6 +1762,7 @@ const UI = {
         if (viewName === 'available-funds') this.renderAvailables();
         if (viewName === 'users') this.renderUsers();
         if (viewName === 'crm-leads') this.renderCRMLeads();
+        if (viewName === 'crm-emails') this.initCRMEmailEditor();
         if (viewName === 'operational-expenses') this.renderOperationalExpenses();
         if (viewName === 'notas' && !this.notasInitialized) this.initNotas();
         if (viewName === 'quotations') {
@@ -6479,11 +6480,8 @@ const UI = {
             const data = await resp.json();
             
             if (data.url) {
-                // Generar URL absoluta para que el cliente la vea en el mail
-                const absoluteUrl = window.location.origin + data.url;
-                
-                // Insertar imagen centrada
-                const imgHtml = `<div style="text-align: center; margin: 15px 0;"><img src="${absoluteUrl}" alt="imagen" style="max-width: 100%; height: auto; border-radius: 4px;"></div><p><br></p>`;
+                // Usar URL relativa (/uploads/...) para que el backend la detecte y convierta a Base64 al enviar
+                const imgHtml = `<div style="text-align: center; margin: 15px 0;"><img src="${data.url}" alt="imagen" style="max-width: 100%; height: auto; border-radius: 4px;"></div><p><br></p>`;
                 document.execCommand('insertHTML', false, imgHtml);
                 
                 this.showToast('Imagen subida con éxito', 'success');
@@ -6495,6 +6493,95 @@ const UI = {
         } finally {
             input.value = ''; // Reset input
         }
+    },
+
+    // ----------------------------------------------------------------
+    // Helper: sube un objeto File al servidor y lo inserta en el editor
+    // ----------------------------------------------------------------
+    async _uploadImageFileToEditor(file) {
+        if (!file || !file.type.startsWith('image/')) return;
+
+        const formData = new FormData();
+        formData.append('image', file);
+
+        this.showToast('Subiendo imagen...', 'info');
+
+        try {
+            const resp = await fetch('/api/crm/upload-image', {
+                method: 'POST',
+                body: formData
+            });
+            const data = await resp.json();
+
+            if (data.url) {
+                // Usamos la URL relativa (/uploads/...) para que el backend la convierta a Base64 al enviar
+                const imgHtml = `<div style="text-align: center; margin: 15px 0;"><img src="${data.url}" alt="imagen" style="max-width: 100%; height: auto; border-radius: 4px;"></div><p><br></p>`;
+                document.getElementById('crm-email-editor').focus();
+                document.execCommand('insertHTML', false, imgHtml);
+                this.showToast('Imagen insertada correctamente', 'success');
+            } else {
+                throw new Error(data.error || 'Error al subir imagen');
+            }
+        } catch (err) {
+            this.showToast('Error al subir imagen: ' + err.message, 'error');
+        }
+    },
+
+    // ----------------------------------------------------------------
+    // Registra eventos paste y drag-and-drop en el editor de email CRM.
+    // Se llama UNA sola vez al navegar a la sección crm-emails.
+    // ----------------------------------------------------------------
+    initCRMEmailEditor() {
+        const editor = document.getElementById('crm-email-editor');
+        if (!editor || editor._crmEventsAttached) return; // evitar doble registro
+        editor._crmEventsAttached = true;
+
+        // --- EVENTO: PEGAR IMAGEN DESDE PORTAPAPELES ---
+        editor.addEventListener('paste', async (e) => {
+            const items = e.clipboardData && e.clipboardData.items;
+            if (!items) return;
+
+            for (const item of items) {
+                if (item.kind === 'file' && item.type.startsWith('image/')) {
+                    // Es una imagen pegada — evitar que el navegador la inserte como blob
+                    e.preventDefault();
+                    const file = item.getAsFile();
+                    await this._uploadImageFileToEditor(file);
+                    return; // procesar solo la primera imagen por paste
+                }
+            }
+            // Si no hay imágenes, dejar que el paste normal continúe
+        });
+
+        // --- EVENTOS: ARRASTRAR IMAGEN SOBRE EL EDITOR ---
+        editor.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            editor.style.outline = '3px dashed var(--primary-color)';
+            editor.style.backgroundColor = 'rgba(var(--primary-rgb, 0,120,212), 0.05)';
+        });
+
+        editor.addEventListener('dragleave', (e) => {
+            e.preventDefault();
+            editor.style.outline = '';
+            editor.style.backgroundColor = 'white';
+        });
+
+        editor.addEventListener('drop', async (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            editor.style.outline = '';
+            editor.style.backgroundColor = 'white';
+
+            const files = e.dataTransfer && e.dataTransfer.files;
+            if (!files || files.length === 0) return;
+
+            for (const file of files) {
+                if (file.type.startsWith('image/')) {
+                    await this._uploadImageFileToEditor(file);
+                }
+            }
+        });
     },
 
     showEmailPreview() {
@@ -6542,18 +6629,12 @@ const UI = {
         const tempDiv = document.createElement('div');
         tempDiv.innerHTML = content;
         
-        // Asegurar que todas las imágenes tengan URL absoluta
+        // Asegurar estilos en imágenes. Las rutas /uploads/ se mantienen relativas
+        // para que el backend las detecte y las convierta a Base64 inline al enviar.
         const images = tempDiv.querySelectorAll('img');
         images.forEach(img => {
-            const src = img.getAttribute('src');
-            // Si la URL es relativa (/uploads/...), hacerla absoluta
-            if (src && src.startsWith('/uploads/')) {
-                img.src = window.location.origin + src;
-            }
-            // Asegurar estilos de visualización y redimensionamiento
             img.style.maxWidth = '100%';
             img.style.height = 'auto';
-            // Si se redimensionó vía JS (style.width), asegurar que se mantenga
         });
 
         const finalHtml = this.getOutlookTemplate(tempDiv.innerHTML);
