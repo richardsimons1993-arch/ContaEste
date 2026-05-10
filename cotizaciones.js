@@ -215,16 +215,16 @@ const QuotationsApp = () => {
                             {
                                 width: '*',
                                 stack: [
-                                    { text: 'COTIZACIÓN', fontSize: 24, bold: true, color: '#0f172a', margin: [0, 0, 0, 5] },
-                                    { text: `N° ${formattedId}`, fontSize: 14, bold: true, color: '#0f766e', margin: [0, 0, 0, 5] },
-                                    (currentVersion > 1 ? { text: `VERSIÓN ${currentVersion}`, fontSize: 10, bold: true, color: '#94a3b8', margin: [0, 0, 0, 5] } : null),
-                                    (projectName ? { text: `Proyecto: ${projectName}`, fontSize: 12, bold: true, color: '#0f766e' } : null)
+                                    { text: 'COTIZACIÓN', fontSize: 20, bold: true, color: '#0f172a', margin: [0, 0, 0, 5] },
+                                    { text: `N° ${formattedId}`, fontSize: 12, bold: true, color: '#0f766e', margin: [0, 0, 0, 5] },
+                                    (currentVersion > 1 ? { text: `VERSIÓN ${currentVersion}`, fontSize: 9, bold: true, color: '#94a3b8', margin: [0, 0, 0, 5] } : null),
+                                    (projectName ? { text: `Proyecto: ${projectName}`, fontSize: 11, bold: true, color: '#0f766e' } : null)
                                 ].filter(Boolean)
                             },
                             {
                                 width: 200,
                                 stack: [
-                                    (logoSvg ? { svg: logoSvg, width: 150, alignment: 'right', margin: [0, -15, 0, 10] } : (logoBase64 ? { image: logoBase64, width: 150, alignment: 'right', margin: [0, -15, 0, 10] } : null)),
+                                    (logoSvg ? { svg: logoSvg, width: 120, alignment: 'right', margin: [0, -10, 0, 10] } : (logoBase64 ? { image: logoBase64, width: 120, alignment: 'right', margin: [0, -10, 0, 10] } : null)),
                                     { text: 'Simons SPA - Soluciones Tecnológicas', fontSize: 8, color: '#64748b', alignment: 'right' },
                                     { text: `Fecha: ${new Date().toLocaleDateString('es-CL')}`, fontSize: 8, color: '#64748b', alignment: 'right' }
                                 ].filter(Boolean)
