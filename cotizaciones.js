@@ -405,11 +405,11 @@ const QuotationsApp = () => {
                         {
                             width: 200,
                             stack: [
-                                { text: 'Richard Simons', fontSize: 18, color: '#0f766e', alignment: 'center', italics: true, margin: [0, 10, 0, 0] },
-                                { canvas: [{ type: 'line', x1: 20, y1: 0, x2: 180, y2: 0, lineWidth: 0.5, lineColor: '#cbd5e1' }], margin: [0, 5, 0, 5] },
+                                { text: 'Richard Simons', fontSize: 18, color: '#0f766e', alignment: 'center', italics: true, margin: [0, 0, 0, 0] },
+                                { canvas: [{ type: 'line', x1: 20, y1: 0, x2: 180, y2: 0, lineWidth: 0.5, lineColor: '#cbd5e1' }], margin: [0, 2, 0, 2] },
                                 { text: 'Richard Simons', fontSize: 9, bold: true, alignment: 'center' },
                                 { text: 'Fundador', fontSize: 8, color: '#64748b', alignment: 'center' },
-                                (logoSvg ? { svg: logoSvg, width: 40, alignment: 'center', margin: [0, 5, 0, 0] } : (logoBase64 ? { image: logoBase64, width: 40, alignment: 'center', margin: [0, 5, 0, 0] } : null))
+                                (logoSvg ? { svg: logoSvg, width: 40, alignment: 'center', margin: [0, 2, 0, 0] } : (logoBase64 ? { image: logoBase64, width: 40, alignment: 'center', margin: [0, 2, 0, 0] } : null))
                             ].filter(Boolean)
                         }
                     ]
