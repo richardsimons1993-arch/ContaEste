@@ -238,8 +238,9 @@ const QuotationsApp = () => {
                         bold: true,
                         fontSize: 10,
                         color: 'white',
-                        fillColor: '#1e293b',
-                        alignment: 'center'
+                        fillColor: '#0f766e',
+                        alignment: 'center',
+                        margin: [5, 4, 5, 4]
                     }
                 }
             };
