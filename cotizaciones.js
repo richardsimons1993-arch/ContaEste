@@ -23,7 +23,6 @@ const QuotationsApp = () => {
     const [history, setHistory] = useState([]);
     const [historyLoading, setHistoryLoading] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
-    const pdfRef = useRef();
 
     useEffect(() => {
         loadData();
@@ -169,99 +168,318 @@ const QuotationsApp = () => {
         }
         
         setIsGenerating(true);
-        const clientName = activeClient ? (activeClient.nombreFantasia || activeClient.razonSocial || 'Cliente_Desconocido') : 'Cliente_Desconocido';
-        const formattedId = displayId;
-        const versionSuffix = currentVersion > 1 ? `_v${currentVersion}` : '';
-        let spacer = null;
+
         try {
-            // Generar PDF con html2pdf
-            const element = pdfRef.current;
+            const clientName = activeClient ? (activeClient.nombreFantasia || activeClient.razonSocial || 'Cliente_Desconocido') : 'Cliente_Desconocido';
+            const formattedId = displayId;
+            const versionSuffix = currentVersion > 1 ? `_v${currentVersion}` : '';
             const safeProjectName = projectName ? `_${projectName.replace(/[^a-zA-Z0-9]/g, '_')}` : '';
             const fileName = `Cotizacion_${formattedId}${safeProjectName}${versionSuffix}.pdf`;
 
-            // Detectar si el bloque final (condiciones + firma) se dividiría entre páginas
-            // Si se dividiría, le pasamos '.void-break' a html2pdf para que fuerce el salto
-            let needsBreakBefore = false;
-            const finalBlock = element.querySelector('.void-break');
-            if (finalBlock) {
-                // html2canvas renderiza el contenedor a 794px de ancho
-                const canvasScale = 794 / element.offsetWidth;
-
-                const containerTop  = element.getBoundingClientRect().top;
-                const blockTop      = (finalBlock.getBoundingClientRect().top - containerTop) * canvasScale;
-                const blockBottom   = (finalBlock.getBoundingClientRect().bottom - containerTop) * canvasScale;
-
-                // Lógica "Safety First": Altura virtual conservadora (1150px)
-                // Esto garantiza que detectemos el corte ANTES que el motor de PDF del navegador.
-                const PAGE_H = 1150; 
-                const currentPosOnPage = blockTop % PAGE_H;
-                const availableSpace = PAGE_H - currentPosOnPage;
-                const blockHeightWithBuffer = (blockBottom - blockTop) + 50; // 50px buffer de seguridad
-
-                needsBreakBefore = (blockHeightWithBuffer > availableSpace);
-                
-                console.log(`[PDF] Block Detection: pos=${currentPosOnPage.toFixed(0)} available=${availableSpace.toFixed(0)} heightWithBuffer=${blockHeightWithBuffer.toFixed(0)} break=${needsBreakBefore}`);
+            // 1. Fetch logo
+            let logoBase64 = null;
+            try {
+                const logoRes = await fetch('logo.png');
+                const contentType = logoRes.headers.get('content-type');
+                if (logoRes.ok && contentType && contentType.startsWith('image/')) {
+                    const logoBlob = await logoRes.blob();
+                    logoBase64 = await new Promise((resolve) => {
+                        const reader = new FileReader();
+                        reader.onloadend = () => resolve(reader.result);
+                        reader.readAsDataURL(logoBlob);
+                    });
+                }
+            } catch (e) {
+                console.warn("Could not load logo.png for PDF");
             }
 
-            const opt = {
-                margin:       [10, 10],
-                filename:     fileName,
-                image:        { type: 'jpeg', quality: 0.98 },
-                html2canvas:  { 
-                    scale: 2, 
-                    useCORS: true, 
-                    width: 794,
-                    letterRendering: true,
-                    logging: false
-                },
-                jsPDF:        { unit: 'mm', format: 'letter', orientation: 'portrait' },
-                // Si el bloque se dividiría, html2pdf fuerza un salto ANTES de .void-break
-                pagebreak:    needsBreakBefore
-                    ? { mode: 'css', before: ['.void-break'] }
-                    : { mode: 'css' }
-            };
-            
-            // 1. Descarga Local Inmediata
-            await html2pdf().from(element).set(opt).save();
+            // Inicializar fuentes de pdfMake (vital para evitar cuelgues)
+            if (window.pdfMake && window.pdfMake.vfs === undefined && window.pdfMakeFonts !== undefined) {
+                window.pdfMake.vfs = window.pdfMakeFonts.pdfMake.vfs;
+            }
 
-            // 2. Obtener Base64 para OneDrive
-            const pdfBase64 = await html2pdf().from(element).set(opt).outputPdf('datauristring');
-            
-            // 3. Guardar en Base de Datos SQL
-            const qData = {
-                id: formattedId,
-                correlative: nextId,
-                year: currentYear,
-                version: currentVersion,
-                clientId: selectedClient,
-                clientName: clientName,
-                projectName: projectName,
-                requirements: requirements,
-                technicalConditions: techConditions,
-                commercialConditions: commercialConditions,
-                items1: items,
-                itemsOptional: optionals,
-                subtotal: subtotalMains,
-                iva: iva,
-                total: total
+            // 2. Build PDF Definition
+            const docDefinition = {
+                pageSize: 'LETTER',
+                pageMargins: [ 40, 35, 40, 40 ],
+                content: [
+                    // Cabecera
+                    {
+                        columns: [
+                            {
+                                width: '*',
+                                stack: [
+                                    { text: 'COTIZACIÓN', fontSize: 24, bold: true, color: '#0f172a', margin: [0, 0, 0, 5] },
+                                    { text: `N° ${formattedId}`, fontSize: 14, bold: true, color: '#0f766e', margin: [0, 0, 0, 5] },
+                                    (currentVersion > 1 ? { text: `VERSIÓN ${currentVersion}`, fontSize: 10, bold: true, color: '#94a3b8', margin: [0, 0, 0, 5] } : null),
+                                    (projectName ? { text: `Proyecto: ${projectName}`, fontSize: 12, bold: true, color: '#0f766e' } : null)
+                                ].filter(Boolean)
+                            },
+                            {
+                                width: 200,
+                                stack: [
+                                    (logoBase64 ? { image: logoBase64, width: 150, alignment: 'right', margin: [0, 0, 0, 10] } : null),
+                                    { text: 'Simons SPA - Soluciones Tecnológicas', fontSize: 8, color: '#64748b', alignment: 'right' },
+                                    { text: `Fecha: ${new Date().toLocaleDateString('es-CL')}`, fontSize: 8, color: '#64748b', alignment: 'right' }
+                                ].filter(Boolean)
+                            }
+                        ],
+                        margin: [0, 0, 0, 20]
+                    },
+                    // Línea separadora
+                    { canvas: [{ type: 'line', x1: 0, y1: 0, x2: 531.9, y2: 0, lineWidth: 2, lineColor: '#1e293b' }], margin: [0, 0, 0, 20] }
+                ],
+                defaultStyle: {
+                    fontSize: 10,
+                    color: '#334155'
+                },
+                styles: {
+                    tableHeader: {
+                        bold: true,
+                        fontSize: 10,
+                        color: 'white',
+                        fillColor: '#1e293b',
+                        alignment: 'center'
+                    }
+                }
             };
-            
-            await window.StorageAPI.async.saveQuotation(qData);
-            
-            // 4. Enviar a OneDrive
-            await window.StorageAPI.async.saveQuotationPdf({
-                clientName: clientName,
-                year: currentYear,
-                quotationId: formattedId + versionSuffix,
-                pdfBase64: pdfBase64
+
+            const content = docDefinition.content;
+
+            const buildSectionHeader = (title) => ({
+                table: {
+                    widths: [4, '*'],
+                    body: [
+                        [
+                            { text: '', fillColor: '#0f766e', border: [false, false, false, false] },
+                            { text: title, fillColor: '#f8fafc', border: [false, false, false, false], margin: [5, 4, 0, 4], color: '#1e293b', bold: true, fontSize: 10 }
+                        ]
+                    ]
+                },
+                layout: 'noBorders',
+                margin: [0, 15, 0, 10]
             });
+
+            // 1. Cliente
+            content.push(
+                buildSectionHeader(`${nClient}. CLIENTE`),
+                { text: clientName, margin: [10, 0, 0, 15] }
+            );
+
+            // 2. Requerimiento
+            if (requirements && requirements.trim()) {
+                content.push(
+                    buildSectionHeader(`${nReq}. REQUERIMIENTO`),
+                    { text: requirements, margin: [10, 0, 0, 15] }
+                );
+            }
+
+            // 3. Consideraciones Técnicas
+            if (techConditions && techConditions.trim()) {
+                content.push(
+                    buildSectionHeader(`${nTech}. CONSIDERACIONES TÉCNICAS Y ESTÁNDARES`),
+                    { text: techConditions, margin: [10, 0, 0, 15] }
+                );
+            }
+
+            // 4. Propuesta Económica
+            const tableBody = [
+                [ 
+                    { text: 'Cant.', style: 'tableHeader' }, 
+                    { text: 'Descripción', style: 'tableHeader', alignment: 'left' }, 
+                    { text: 'P. Unitario', style: 'tableHeader', alignment: 'right' }, 
+                    { text: 'Total', style: 'tableHeader', alignment: 'right' } 
+                ]
+            ];
+
+            items.forEach(item => {
+                tableBody.push([
+                    { text: item.qty.toString(), alignment: 'center' },
+                    item.desc || '-',
+                    { text: formatMoney(item.price), alignment: 'right' },
+                    { text: formatMoney(item.qty * item.price), alignment: 'right', bold: true }
+                ]);
+            });
+
+            content.push(
+                buildSectionHeader(`${nProp}. PROPUESTA ECONÓMICA`),
+                {
+                    table: {
+                        headerRows: 1,
+                        widths: [40, '*', 80, 80],
+                        body: tableBody
+                    },
+                    layout: 'lightHorizontalLines',
+                    margin: [0, 0, 0, 10]
+                }
+            );
+
+            // Totales
+            content.push({
+                columns: [
+                    { width: '*', text: '' },
+                    {
+                        width: 200,
+                        table: {
+                            widths: ['*', 80],
+                            body: [
+                                [ { text: 'Subtotal NETO:', color: '#64748b', fontSize: 9 }, { text: formatMoney(subtotalMains), alignment: 'right', fontSize: 9 } ],
+                                [ { text: 'IVA (19%):', color: '#64748b', fontSize: 9 }, { text: formatMoney(iva), alignment: 'right', fontSize: 9 } ],
+                                [ { text: 'TOTAL:', color: '#0f766e', bold: true, fontSize: 11 }, { text: formatMoney(total), alignment: 'right', bold: true, fontSize: 11, color: '#0f172a' } ]
+                            ]
+                        },
+                        layout: 'noBorders'
+                    }
+                ],
+                margin: [0, 0, 0, 20]
+            });
+
+            // Ítems Opcionales
+            if (optionals.length > 0) {
+                const optTableBody = [
+                    [ 
+                        { text: 'Cant.', style: 'tableHeader', fillColor: '#f97316' }, 
+                        { text: 'Descripción (Opcional)', style: 'tableHeader', alignment: 'left', fillColor: '#f97316' }, 
+                        { text: 'P. Unitario', style: 'tableHeader', alignment: 'right', fillColor: '#f97316' }, 
+                        { text: 'Total', style: 'tableHeader', alignment: 'right', fillColor: '#f97316' } 
+                    ]
+                ];
+
+                optionals.forEach(item => {
+                    optTableBody.push([
+                        { text: item.qty.toString(), alignment: 'center' },
+                        item.desc || '-',
+                        { text: formatMoney(item.price), alignment: 'right' },
+                        { text: formatMoney(item.qty * item.price), alignment: 'right', bold: true }
+                    ]);
+                });
+
+                content.push(
+                    buildSectionHeader(`ÍTEMS OPCIONALES SUGERIDOS`),
+                    {
+                        table: {
+                            headerRows: 1,
+                            widths: [40, '*', 80, 80],
+                            body: optTableBody
+                        },
+                        layout: 'lightHorizontalLines',
+                        margin: [0, 0, 0, 10]
+                    }
+                );
+            }
+
+            // Bloque inquebrantable: Condiciones comerciales y Firma
+            const commercialBlock = [];
             
-            fetchHistory();
-            if (currentVersion <= 1) setNextId(nextId + 1);
+            if (commercialConditions && commercialConditions.trim()) {
+                commercialBlock.push(
+                    buildSectionHeader(`${nCom}. CONDICIONES COMERCIALES`),
+                    { text: commercialConditions, margin: [10, 0, 0, 20] }
+                );
+            }
+
+            commercialBlock.push(
+                { canvas: [{ type: 'line', x1: 0, y1: 0, x2: 531.9, y2: 0, lineWidth: 2, lineColor: '#1e293b' }], margin: [0, 10, 0, 10] },
+                { text: 'DATOS DE TRANSFERENCIA', fontSize: 9, bold: true, color: '#1e293b', margin: [0, 0, 0, 5] },
+                { canvas: [{ type: 'line', x1: 0, y1: 0, x2: 531.9, y2: 0, lineWidth: 0.5, lineColor: '#cbd5e1' }], margin: [0, 5, 0, 10] },
+                {
+                    columns: [
+                        {
+                            width: '*',
+                            stack: [
+                                { text: 'Titular: SIMONS SPA', fontSize: 8, color: '#475569' },
+                                { text: 'RUT: 77.475.581-0', fontSize: 8, color: '#475569' },
+                                { text: 'Banco: Banco de Chile', fontSize: 8, color: '#475569' },
+                                { text: 'Tipo de Cuenta: Cuenta Corriente', fontSize: 8, color: '#475569' },
+                                { text: 'Número de cuenta: 1483514107', fontSize: 8, color: '#475569' },
+                                { text: 'Mail: pagos@simons.cl', fontSize: 8, color: '#475569' }
+                            ]
+                        },
+                        {
+                            width: 200,
+                            stack: [
+                                { text: 'Richard Simons', fontSize: 18, color: '#0f766e', alignment: 'center', italics: true, margin: [0, 10, 0, 0] },
+                                { canvas: [{ type: 'line', x1: 20, y1: 0, x2: 180, y2: 0, lineWidth: 0.5, lineColor: '#cbd5e1' }], margin: [0, 5, 0, 5] },
+                                { text: 'Richard Simons', fontSize: 9, bold: true, alignment: 'center' },
+                                { text: 'Fundador', fontSize: 8, color: '#64748b', alignment: 'center' },
+                                (logoBase64 ? { image: logoBase64, width: 40, alignment: 'center', margin: [0, 5, 0, 0] } : null)
+                            ].filter(Boolean)
+                        }
+                    ]
+                }
+            );
+
+            content.push({
+                unbreakable: true, // Esto obliga a pdfmake a no cortar este bloque por la mitad
+                stack: commercialBlock
+            });
+
+            // 3. Generar y guardar
+            console.log("Creando docDefinition de pdfMake...");
+            const pdfDocGenerator = pdfMake.createPdf(docDefinition);
+            console.log("pdfDocGenerator creado, llamando a getBase64...");
             
+            // Usamos una Promesa para garantizar que capturamos cualquier error en la generación asíncrona
+            await new Promise((resolve, reject) => {
+                try {
+                    console.log("Iniciando getBase64...");
+                    pdfDocGenerator.getBase64(async (base64) => {
+                        console.log("getBase64 callback completado exitosamente.");
+                        try {
+                            const pdfBase64DataUri = 'data:application/pdf;base64,' + base64;
+                            
+                            // Descargar manualmente sin reutilizar el generador
+                            console.log("Iniciando descarga del archivo...");
+                            const link = document.createElement('a');
+                            link.href = pdfBase64DataUri;
+                            link.download = fileName;
+                            document.body.appendChild(link);
+                            link.click();
+                            document.body.removeChild(link);
+                            console.log("Descarga iniciada en el navegador.");
+                            
+                            const qData = {
+                                id: formattedId,
+                                correlative: nextId,
+                                year: currentYear,
+                                version: currentVersion,
+                                clientId: selectedClient,
+                                clientName: clientName,
+                                projectName: projectName,
+                                requirements: requirements,
+                                technicalConditions: techConditions,
+                                commercialConditions: commercialConditions,
+                                items1: items,
+                                itemsOptional: optionals,
+                                subtotal: subtotalMains,
+                                iva: iva,
+                                total: total
+                            };
+                            
+                            await window.StorageAPI.async.saveQuotation(qData);
+                            
+                            await window.StorageAPI.async.saveQuotationPdf({
+                                clientName: clientName,
+                                year: currentYear,
+                                quotationId: formattedId + versionSuffix,
+                                pdfBase64: pdfBase64DataUri
+                            });
+                            
+                            fetchHistory();
+                            if (currentVersion <= 1) setNextId(nextId + 1);
+                            resolve();
+                        } catch (saveErr) {
+                            reject(saveErr);
+                        }
+                    });
+                } catch (pdfErr) {
+                    reject(pdfErr);
+                }
+            });
+
         } catch (error) {
             console.error(error);
-            alert("Error en la generación: " + error.message);
+            alert("Error al generar PDF: " + (error.message || JSON.stringify(error)));
         } finally {
             setIsGenerating(false);
         }
@@ -372,27 +590,26 @@ const QuotationsApp = () => {
     return (
         <div className="tw-flex tw-flex-col tw-min-h-full tw-bg-slate-50 tw-font-sans">
             {activeTab === 'generator' ? (
-                <div className="tw-flex tw-flex-1 tw-overflow-hidden">
-                    {/* Panel Izquierdo: Formulario */}
-                    <div className="tw-w-1/2 tw-h-full tw-overflow-y-auto tw-border-r tw-border-slate-200 tw-p-6 scrollbar-hide">
-                        <div className="tw-mb-6">
+                <div className="tw-flex-1 tw-overflow-y-auto tw-p-8 scrollbar-hide">
+                    <div className="tw-max-w-4xl tw-mx-auto">
+                        <div className="tw-mb-8">
                             <div className="tw-flex tw-justify-between tw-items-center">
                                 <h2 className="tw-text-2xl tw-font-bold tw-text-slate-800">
                                     Generador de Cotizaciones
                                 </h2>
                                 <div className="tw-text-right">
-                                    <span className="tw-px-3 tw-py-1 tw-bg-indigo-100 tw-text-indigo-800 tw-rounded-full tw-text-sm tw-font-semibold">
+                                    <span className="tw-px-4 tw-py-2 tw-bg-indigo-100 tw-text-indigo-800 tw-rounded-lg tw-text-sm tw-font-bold tw-shadow-sm">
                                         N° {displayId}
                                     </span>
                                     {currentVersion > 1 && (
-                                        <div className="tw-text-[10px] tw-font-bold tw-text-indigo-600 tw-mt-1">VERSION {currentVersion}</div>
+                                        <div className="tw-text-xs tw-font-bold tw-text-indigo-600 tw-mt-2">VERSION {currentVersion}</div>
                                     )}
                                 </div>
                             </div>
                             <div className="tw-mt-4">
                                 <button 
                                     onClick={() => setActiveTab('history')}
-                                    className="tw-bg-slate-100 tw-text-googleBlue tw-px-4 tw-py-2 tw-rounded-lg tw-text-xs tw-font-bold hover:tw-bg-googleBlue hover:tw-text-white tw-transition-all tw-flex tw-items-center tw-shadow-sm"
+                                    className="tw-bg-white tw-border tw-border-slate-300 tw-text-googleBlue tw-px-4 tw-py-2 tw-rounded-lg tw-text-xs tw-font-bold hover:tw-bg-slate-50 hover:tw-text-blue-700 tw-transition-all tw-flex tw-items-center tw-shadow-sm"
                                 >
                                     <i className="fa-solid fa-clock-rotate-left tw-mr-2"></i>VER HISTORIAL DE COTIZACIONES
                                 </button>
@@ -401,10 +618,10 @@ const QuotationsApp = () => {
 
                         <div className="tw-space-y-6">
                             {/* Cliente */}
-                            <div className="tw-bg-white tw-p-4 tw-rounded-lg tw-shadow-sm tw-border tw-border-slate-200">
-                                <label className="tw-block tw-text-sm tw-font-semibold tw-text-slate-700 tw-mb-2">Cliente</label>
+                            <div className="tw-bg-white tw-p-6 tw-rounded-xl tw-shadow-sm tw-border tw-border-slate-200">
+                                <label className="tw-block tw-text-sm tw-font-bold tw-text-slate-700 tw-mb-2">Cliente</label>
                                 <select 
-                                    className="tw-w-full tw-p-2 tw-border tw-border-slate-300 tw-rounded focus:tw-border-googleBlue focus:tw-outline-none"
+                                    className="tw-w-full tw-p-3 tw-bg-slate-50 tw-border tw-border-slate-300 tw-rounded-lg focus:tw-border-googleBlue focus:tw-ring-2 focus:tw-ring-blue-100 focus:tw-outline-none tw-transition-all"
                                     value={selectedClient}
                                     onChange={(e) => setSelectedClient(e.target.value)}
                                 >
@@ -414,11 +631,11 @@ const QuotationsApp = () => {
                             </div>
 
                             {/* Nombre del Proyecto */}
-                            <div className="tw-bg-white tw-p-4 tw-rounded-lg tw-shadow-sm tw-border tw-border-slate-200">
-                                <label className="tw-block tw-text-sm tw-font-semibold tw-text-slate-700 tw-mb-2">Nombre del Proyecto</label>
+                            <div className="tw-bg-white tw-p-6 tw-rounded-xl tw-shadow-sm tw-border tw-border-slate-200">
+                                <label className="tw-block tw-text-sm tw-font-bold tw-text-slate-700 tw-mb-2">Nombre del Proyecto</label>
                                 <input 
                                     type="text" 
-                                    className="tw-w-full tw-p-2 tw-border tw-border-slate-300 tw-rounded focus:tw-border-googleBlue focus:tw-outline-none"
+                                    className="tw-w-full tw-p-3 tw-bg-slate-50 tw-border tw-border-slate-300 tw-rounded-lg focus:tw-border-googleBlue focus:tw-ring-2 focus:tw-ring-blue-100 focus:tw-outline-none tw-transition-all"
                                     placeholder="Ej: Instalación de Puntos de Red U7"
                                     value={projectName}
                                     onChange={(e) => setProjectName(e.target.value)}
@@ -426,27 +643,27 @@ const QuotationsApp = () => {
                             </div>
 
                             {/* Textos */}
-                            <div className="tw-bg-white tw-p-4 tw-rounded-lg tw-shadow-sm tw-border tw-border-slate-200">
-                                <label className="tw-block tw-text-sm tw-font-semibold tw-text-slate-700 tw-mb-2">Requerimiento de Proyecto</label>
+                            <div className="tw-bg-white tw-p-6 tw-rounded-xl tw-shadow-sm tw-border tw-border-slate-200">
+                                <label className="tw-block tw-text-sm tw-font-bold tw-text-slate-700 tw-mb-2">Requerimiento de Proyecto</label>
                                 <textarea 
-                                    className="tw-w-full tw-p-2 tw-border tw-border-slate-300 tw-rounded focus:tw-border-googleBlue focus:tw-outline-none tw-mb-4"
+                                    className="tw-w-full tw-p-3 tw-bg-slate-50 tw-border tw-border-slate-300 tw-rounded-lg focus:tw-border-googleBlue focus:tw-ring-2 focus:tw-ring-blue-100 focus:tw-outline-none tw-transition-all tw-mb-6"
                                     rows="3"
                                     placeholder="Ej: Suministro e instalación de puntos de red..."
                                     value={requirements}
                                     onChange={(e) => setRequirements(e.target.value)}
                                 ></textarea>
 
-                                <label className="tw-block tw-text-sm tw-font-semibold tw-text-slate-700 tw-mb-2">Consideraciones Técnicas (Estándares)</label>
+                                <label className="tw-block tw-text-sm tw-font-bold tw-text-slate-700 tw-mb-2">Consideraciones Técnicas (Estándares)</label>
                                 <textarea 
-                                    className="tw-w-full tw-p-2 tw-border tw-border-slate-300 tw-rounded focus:tw-border-googleBlue focus:tw-outline-none tw-mb-4"
+                                    className="tw-w-full tw-p-3 tw-bg-slate-50 tw-border tw-border-slate-300 tw-rounded-lg focus:tw-border-googleBlue focus:tw-ring-2 focus:tw-ring-blue-100 focus:tw-outline-none tw-transition-all tw-mb-6"
                                     rows="3"
                                     value={techConditions}
                                     onChange={(e) => setTechConditions(e.target.value)}
                                 ></textarea>
 
-                                <label className="tw-block tw-text-sm tw-font-semibold tw-text-slate-700 tw-mb-2">Condiciones Comerciales</label>
+                                <label className="tw-block tw-text-sm tw-font-bold tw-text-slate-700 tw-mb-2">Condiciones Comerciales</label>
                                 <textarea 
-                                    className="tw-w-full tw-p-2 tw-border tw-border-slate-300 tw-rounded focus:tw-border-googleBlue focus:tw-outline-none"
+                                    className="tw-w-full tw-p-3 tw-bg-slate-50 tw-border tw-border-slate-300 tw-rounded-lg focus:tw-border-googleBlue focus:tw-ring-2 focus:tw-ring-blue-100 focus:tw-outline-none tw-transition-all"
                                     rows="4"
                                     value={commercialConditions}
                                     onChange={(e) => setCommercialConditions(e.target.value)}
@@ -458,215 +675,14 @@ const QuotationsApp = () => {
                             {renderTableInput(optionals, setOptionals, "Items Opcionales / Adicionales")}
 
                             {/* Acciones */}
-                            <div className="tw-pt-4 tw-pb-10">
+                            <div className="tw-pt-6 tw-pb-12">
                                 <button 
                                     onClick={handleGenerate}
                                     disabled={isGenerating}
-                                    className={`tw-w-full tw-py-3 tw-rounded-lg tw-font-semibold tw-text-white tw-shadow-md tw-transition-colors ${isGenerating ? 'tw-bg-slate-400' : 'tw-bg-googleBlue hover:tw-bg-blue-700'}`}
+                                    className={`tw-w-full tw-py-4 tw-rounded-xl tw-text-lg tw-font-bold tw-text-white tw-shadow-lg tw-transition-all ${isGenerating ? 'tw-bg-slate-400 tw-cursor-not-allowed' : 'tw-bg-googleBlue hover:tw-bg-blue-700 hover:-tw-translate-y-1 hover:tw-shadow-xl'}`}
                                 >
-                                    {isGenerating ? <span><i className="fa-solid fa-circle-notch fa-spin tw-mr-2"></i> Generando y Guardando...</span> : <span><i className="fa-solid fa-file-pdf tw-mr-2"></i> Generar Cotización PDF</span>}
+                                    {isGenerating ? <span><i className="fa-solid fa-circle-notch fa-spin tw-mr-3"></i> Generando PDF...</span> : <span><i className="fa-solid fa-file-pdf tw-mr-3"></i> Generar Cotización PDF</span>}
                                 </button>
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Panel Derecho: Live Preview (A4 Paper Style) */}
-                    <div className="tw-w-1/2 tw-h-full tw-overflow-y-auto tw-bg-slate-200 tw-p-8 tw-flex tw-justify-center scrollbar-hide">
-                        <div 
-                            id="pdf-content" 
-                            ref={pdfRef}
-                            className="tw-bg-white tw-w-[215.9mm] tw-relative tw-block tw-text-slate-800"
-                            style={{ 
-                                boxSizing: 'border-box', 
-                                border: 'none',
-                                boxShadow: '0 0 40px rgba(0,0,0,0.1)',
-                                padding: '10mm', // Margen exacto del PDF
-                                minHeight: '279.4mm', // Altura de hoja Letter
-                                pageBreakInside: 'auto' 
-                            }}
-                        >
-                            {/* Guías de Salto de Página - Dinámicas por recorte CSS (No requiere re-renders) */}
-                            <div className="tw-absolute tw-inset-0 tw-overflow-hidden tw-pointer-events-none" data-html2canvas-ignore="true">
-                                {[1, 2, 3, 4, 5, 6].map(page => (
-                                    <div
-                                        key={page}
-                                        style={{
-                                            position: 'absolute',
-                                            left: 0,
-                                            right: 0,
-                                            // 1150px = Altura virtual de seguridad para detección de cortes
-                                            top: `calc(${page} * (1150px / ${794 / 215.9}))`,
-                                            zIndex: 50
-                                        }}
-                                    >
-                                        <div style={{ borderTop: '2px dashed #3b82f6', width: '100%', position: 'relative' }}>
-                                            <span style={{
-                                                position: 'absolute',
-                                                right: '8px',
-                                                top: '4px',
-                                                fontSize: '10px',
-                                                fontWeight: 700,
-                                                color: '#3b82f6',
-                                                backgroundColor: 'white',
-                                                padding: '2px 8px',
-                                                borderRadius: '4px',
-                                                boxShadow: '0 1px 3px rgba(59,130,246,0.3)',
-                                                letterSpacing: '0.05em',
-                                                userSelect: 'none'
-                                            }}>
-                                                PÁGINA {page + 1}
-                                            </span>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                            {/* Cabecera Cotizacion */}
-                            <div className="tw-border-b-2 tw-border-slate-800 tw-pb-6 tw-mb-6 tw-flex tw-justify-between tw-items-center">
-                                <div>
-                                    <h1 className="tw-text-3xl tw-font-bold tw-text-slate-900 tw-tracking-tight">COTIZACIÓN</h1>
-                                    <p className="tw-text-lg tw-text-[#004d4d] tw-font-semibold tw-mt-1">
-                                        N° {displayId}
-                                    </p>
-                                    {currentVersion > 1 && (
-                                        <p className="tw-text-[10px] tw-text-slate-400 tw-font-bold tw-uppercase tw-mt-0">Versión {currentVersion}</p>
-                                    )}
-                                    {projectName && (
-                                        <p className="tw-text-base tw-text-[#004d4d] tw-font-medium tw-mt-1">
-                                            Proyecto: {projectName}
-                                        </p>
-                                    )}
-                                </div>
-                                <div className="tw-text-right">
-                                    <img src="logo.png" alt="Simons Logo" className="tw-h-12 tw-object-contain tw-ml-auto" />
-                                    <p className="tw-text-xs tw-text-slate-500 tw-mt-2">Simons SPA - Soluciones Tecnológicas</p>
-                                    <p className="tw-text-xs tw-text-slate-500">Fecha: {new Date().toLocaleDateString('es-CL')}</p>
-                                </div>
-                            </div>
-
-                            {/* Contenido Dinámico */}
-                            <div className="tw-block">
-                                <div style={{ pageBreakInside: 'avoid' }} className="tw-mb-8">
-                                    <h4 className="tw-text-sm tw-font-bold tw-bg-slate-100 tw-p-2 tw-border-l-4 tw-border-[#004d4d] tw-text-slate-800 tw-uppercase tw-mb-2">{nClient}. Cliente</h4>
-                                    <p className="tw-text-base tw-text-slate-700 tw-ml-2 tw-text-justify">{selectedClientName}</p>
-                                </div>
-
-                                {requirements && (
-                                    <div style={{ pageBreakInside: 'avoid' }} className="tw-mb-8">
-                                        <h4 className="tw-text-sm tw-font-bold tw-bg-slate-100 tw-p-2 tw-border-l-4 tw-border-[#004d4d] tw-text-slate-800 tw-uppercase tw-mb-2">{nReq}. Requerimiento</h4>
-                                        <p className="tw-text-sm tw-text-slate-700 tw-whitespace-pre-wrap tw-leading-relaxed tw-ml-2 tw-text-justify">{requirements}</p>
-                                    </div>
-                                )}
-
-                                {techConditions && (
-                                    <div style={{ pageBreakInside: 'avoid' }} className="tw-mb-8">
-                                        <h4 className="tw-text-sm tw-font-bold tw-bg-slate-100 tw-p-2 tw-border-l-4 tw-border-[#004d4d] tw-text-slate-800 tw-uppercase tw-mb-2">{nTech}. Consideraciones Técnicas y Estándares</h4>
-                                        <p className="tw-text-sm tw-text-slate-700 tw-whitespace-pre-wrap tw-leading-relaxed tw-ml-2 tw-text-justify">{techConditions}</p>
-                                    </div>
-                                )}
-
-                                <div style={{ pageBreakInside: 'avoid' }} className="tw-mb-8">
-                                    <h4 className="tw-text-sm tw-font-bold tw-bg-slate-100 tw-p-2 tw-border-l-4 tw-border-[#004d4d] tw-text-slate-800 tw-uppercase tw-mb-2">{nProp}. Propuesta Económica</h4>
-                                    <table className="tw-w-full tw-text-sm tw-text-left tw-border-collapse">
-                                        <thead>
-                                            <tr className="tw-bg-slate-800 tw-text-white">
-                                                <th className="tw-py-2 tw-px-3 tw-w-16">Cant.</th>
-                                                <th className="tw-py-2 tw-px-3">Descripción</th>
-                                                <th className="tw-py-2 tw-px-3 tw-text-right tw-w-28">P. Unitario</th>
-                                                <th className="tw-py-2 tw-px-3 tw-text-right tw-w-28">Total</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {items.map((item) => (
-                                                <tr key={item.id} className="tw-border-b tw-border-slate-200">
-                                                    <td className="tw-py-2 tw-px-3 tw-text-center">{item.qty}</td>
-                                                    <td className="tw-py-2 tw-px-3">{item.desc || '-'}</td>
-                                                    <td className="tw-py-2 tw-px-3 tw-text-right">{formatMoney(item.price)}</td>
-                                                    <td className="tw-py-2 tw-px-3 tw-text-right tw-font-medium">{formatMoney(item.qty * item.price)}</td>
-                                                </tr>
-                                            ))}
-                                        </tbody>
-                                    </table>
-
-                                    <div className="tw-flex tw-justify-end tw-mt-4">
-                                        <div className="tw-w-64">
-                                            <div className="tw-flex tw-justify-between tw-py-1 tw-text-sm">
-                                                <span className="tw-text-slate-600">Subtotal NETO:</span>
-                                                <span className="tw-font-medium">{formatMoney(subtotalMains)}</span>
-                                            </div>
-                                            <div className="tw-flex tw-justify-between tw-py-1 tw-text-sm border-b border-slate-200">
-                                                <span className="tw-text-slate-600">IVA (19%):</span>
-                                                <span className="tw-font-medium">{formatMoney(iva)}</span>
-                                            </div>
-                                            <div className="tw-flex tw-justify-between tw-py-2 tw-text-base tw-font-bold tw-text-[#004d4d]">
-                                                <span>TOTAL:</span>
-                                                <span>{formatMoney(total)}</span>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                {optionals.length > 0 && (
-                                    <div style={{ pageBreakInside: 'avoid' }} className="tw-mb-8">
-                                        <h4 className="tw-text-sm tw-font-bold tw-bg-slate-100 tw-p-2 tw-border-l-4 tw-border-orange-400 tw-text-slate-800 tw-uppercase tw-mb-2">Ítems Opcionales Sugeridos</h4>
-                                        <table className="tw-w-full tw-text-sm tw-text-left tw-border-collapse">
-                                            <thead>
-                                                <tr className="tw-bg-slate-100 tw-text-slate-700 tw-border-b-2 tw-border-slate-300">
-                                                    <th className="tw-py-2 tw-px-3 tw-w-16">Cant.</th>
-                                                    <th className="tw-py-2 tw-px-3">Descripción</th>
-                                                    <th className="tw-py-2 tw-px-3 tw-text-right tw-w-32">P. Unitario</th>
-                                                    <th className="tw-py-2 tw-px-3 tw-text-right tw-w-32">Total Opcional</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody>
-                                                {optionals.map((item) => (
-                                                    <tr key={item.id} className="tw-border-b tw-border-slate-200">
-                                                        <td className="tw-py-2 tw-px-3 tw-text-center">{item.qty}</td>
-                                                        <td className="tw-py-2 tw-px-3 tw-text-slate-600 italic">{item.desc || '-'}</td>
-                                                        <td className="tw-py-2 tw-px-3 tw-text-right">{formatMoney(item.price)}</td>
-                                                        <td className="tw-py-2 tw-px-3 tw-text-right tw-font-medium tw-text-slate-700">{formatMoney(item.qty * item.price)}</td>
-                                                    </tr>
-                                                ))}
-                                            </tbody>
-                                        </table>
-                                    </div>
-                                )}
-
-                                {/* Bloque de Firma + Datos inyectado para evitar saltos dentro de él */}
-                                <div className="tw-w-full tw-mt-4 void-break" style={{ breakInside: 'avoid', pageBreakInside: 'avoid', borderTop: 'none', display: 'block', overflow: 'hidden' }}>
-                                    {(commercialConditions && commercialConditions.trim() !== '') && (
-                                        <div className="tw-mb-6">
-                                            <h4 className="tw-text-sm tw-font-bold tw-bg-slate-100 tw-p-2 tw-border-l-4 tw-border-[#004d4d] tw-text-slate-800 tw-uppercase tw-mb-2">
-                                                {nCom}. Condiciones Comerciales
-                                            </h4>
-                                            <div className="tw-text-sm tw-text-slate-700 tw-whitespace-pre-wrap tw-leading-relaxed tw-ml-2 tw-text-justify">
-                                                {commercialConditions}
-                                            </div>
-                                        </div>
-                                    )}
-
-                                    <div className="tw-pt-6 tw-border-t-2 tw-border-slate-800 tw-w-full">
-                                        <div className="tw-flex tw-justify-between tw-items-end">
-                                            <div className="tw-text-xs tw-text-slate-600 tw-leading-relaxed">
-                                                <p className="tw-font-bold tw-text-slate-800 tw-mb-1 tw-uppercase">Datos de Transferencia</p>
-                                                <p>Titular: SIMONS SPA</p>
-                                                <p>RUT: 77.475.581-0</p>
-                                                <p>Banco: Banco de Chile</p>
-                                                <p>Tipo de Cuenta: Cuenta Corriente</p>
-                                                <p>Número de cuenta: 1483514107</p>
-                                                <p>Mail: pagos@simons.cl</p>
-                                            </div>
-                                            
-                                            <div className="tw-text-center tw-w-48">
-                                                <div className="tw-border-b tw-border-slate-300 tw-pb-2 tw-mb-2">
-                                                     <span className="tw-font-signature tw-text-3xl tw-text-[#004d4d]" style={{ fontFamily: "'Dancing Script', cursive" }}>Richard Simons</span>
-                                                </div>
-                                                <p className="tw-text-sm tw-font-bold tw-text-slate-800">Richard Simons</p>
-                                                <p className="tw-text-xs tw-text-slate-500">Fundador</p>
-                                                <img src="logo.png" alt="Simons" className="tw-h-4 tw-opacity-50 tw-mx-auto tw-mt-2" />
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
                             </div>
                         </div>
                     </div>

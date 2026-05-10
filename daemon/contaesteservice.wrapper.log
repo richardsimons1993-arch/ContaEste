@@ -212,3 +212,179 @@ Stacktrace:   en System.Runtime.InteropServices.Marshal.ThrowExceptionForHRInter
    en winsw.WrapperService.OnShutdown()
 2026-04-28 17:23:47 - Starting C:\Program Files\nodejs\node.exe  --harmony C:\Users\Richard\Desktop\Contabilidad\ContaEste\node_modules\node-windows\lib\wrapper.js --file C:\Users\Richard\Desktop\Contabilidad\ContaEste\server.js --scriptoptions= --log "ContaEsteService wrapper" --grow 0.25 --wait 1 --maxrestarts 3 --abortonerror n --stopparentfirst undefined
 2026-04-28 17:23:47 - Started 5172
+2026-05-02 11:49:10 - Stopping contaesteservice.exe
+2026-05-02 11:49:10 - ProcessKill 5172
+2026-05-02 11:49:10 - Shutdown exception
+Message:Se está cerrando el sistema.
+
+Stacktrace:   en System.Runtime.InteropServices.Marshal.ThrowExceptionForHRInternal(Int32 errorCode, IntPtr errorInfo)
+   en System.Management.ManagementScope.InitializeGuts(Object o)
+   en System.Management.ManagementScope.Initialize()
+   en System.Management.ManagementObjectSearcher.Initialize()
+   en System.Management.ManagementObjectSearcher.Get()
+   en winsw.WrapperService.GetChildPids(Int32 pid)
+   en winsw.WrapperService.StopProcessAndChildren(Int32 pid)
+   en winsw.WrapperService.StopIt()
+   en winsw.WrapperService.OnShutdown()
+2026-05-02 11:49:52 - Starting C:\Program Files\nodejs\node.exe  --harmony C:\Users\Richard\Desktop\Contabilidad\ContaEste\node_modules\node-windows\lib\wrapper.js --file C:\Users\Richard\Desktop\Contabilidad\ContaEste\server.js --scriptoptions= --log "ContaEsteService wrapper" --grow 0.25 --wait 1 --maxrestarts 3 --abortonerror n --stopparentfirst undefined
+2026-05-02 11:49:53 - Started 4892
+2026-05-07 19:59:14 - Stopping contaesteservice.exe
+2026-05-07 19:59:14 - ProcessKill 4892
+2026-05-07 19:59:14 - Shutdown exception
+Message:Se está cerrando el sistema.
+
+Stacktrace:   en System.Runtime.InteropServices.Marshal.ThrowExceptionForHRInternal(Int32 errorCode, IntPtr errorInfo)
+   en System.Management.ManagementScope.InitializeGuts(Object o)
+   en System.Management.ManagementScope.Initialize()
+   en System.Management.ManagementObjectSearcher.Initialize()
+   en System.Management.ManagementObjectSearcher.Get()
+   en winsw.WrapperService.GetChildPids(Int32 pid)
+   en winsw.WrapperService.StopProcessAndChildren(Int32 pid)
+   en winsw.WrapperService.StopIt()
+   en winsw.WrapperService.OnShutdown()
+2026-05-07 20:01:05 - Starting C:\Program Files\nodejs\node.exe  --harmony C:\Users\Richard\Desktop\Contabilidad\ContaEste\node_modules\node-windows\lib\wrapper.js --file C:\Users\Richard\Desktop\Contabilidad\ContaEste\server.js --scriptoptions= --log "ContaEsteService wrapper" --grow 0.25 --wait 1 --maxrestarts 3 --abortonerror n --stopparentfirst undefined
+2026-05-07 20:01:05 - Started 4996
+2026-05-09 17:57:21 - Stopping contaesteservice.exe
+2026-05-09 17:57:21 - ProcessKill 4996
+2026-05-09 17:57:21 - Found child process: 5048 Name: conhost.exe
+2026-05-09 17:57:21 - Found child process: 5428 Name: node.exe
+2026-05-09 17:57:21 - Stopping process 5048
+2026-05-09 17:57:21 - Send SIGINT 5048
+2026-05-09 17:57:21 - SIGINT to 5048 failed - Killing as fallback
+2026-05-09 17:57:21 - Stopping process 5428
+2026-05-09 17:57:21 - Send SIGINT 5428
+2026-05-09 17:57:21 - SIGINT to 5428 failed - Killing as fallback
+2026-05-09 17:57:21 - Stopping process 4996
+2026-05-09 17:57:21 - Send SIGINT 4996
+2026-05-09 17:57:21 - SIGINT to 4996 failed - Killing as fallback
+2026-05-09 17:57:21 - Finished contaesteservice.exe
+2026-05-09 17:57:21 - Starting C:\Program Files\nodejs\node.exe  --harmony C:\Users\Richard\Desktop\Contabilidad\ContaEste\node_modules\node-windows\lib\wrapper.js --file C:\Users\Richard\Desktop\Contabilidad\ContaEste\server.js --scriptoptions= --log "ContaEsteService wrapper" --grow 0.25 --wait 1 --maxrestarts 3 --abortonerror n --stopparentfirst undefined
+2026-05-09 17:57:21 - Started 9464
+2026-05-09 18:29:29 - Stopping contaesteservice.exe
+2026-05-09 18:29:29 - ProcessKill 9464
+2026-05-09 18:29:29 - Found child process: 2724 Name: conhost.exe
+2026-05-09 18:29:29 - Found child process: 9588 Name: node.exe
+2026-05-09 18:29:29 - Stopping process 2724
+2026-05-09 18:29:29 - Send SIGINT 2724
+2026-05-09 18:29:29 - SIGINT to 2724 failed - Killing as fallback
+2026-05-09 18:29:29 - Stopping process 9588
+2026-05-09 18:29:29 - Send SIGINT 9588
+2026-05-09 18:29:29 - SIGINT to 9588 failed - Killing as fallback
+2026-05-09 18:29:29 - Stopping process 9464
+2026-05-09 18:29:29 - Send SIGINT 9464
+2026-05-09 18:29:29 - SIGINT to 9464 failed - Killing as fallback
+2026-05-09 18:29:29 - Finished contaesteservice.exe
+2026-05-09 18:29:29 - Starting C:\Program Files\nodejs\node.exe  --harmony C:\Users\Richard\Desktop\Contabilidad\ContaEste\node_modules\node-windows\lib\wrapper.js --file C:\Users\Richard\Desktop\Contabilidad\ContaEste\server.js --scriptoptions= --log "ContaEsteService wrapper" --grow 0.25 --wait 1 --maxrestarts 3 --abortonerror n --stopparentfirst undefined
+2026-05-09 18:29:29 - Started 6776
+2026-05-09 18:46:26 - Stopping contaesteservice.exe
+2026-05-09 18:46:26 - ProcessKill 6776
+2026-05-09 18:46:26 - Found child process: 11460 Name: conhost.exe
+2026-05-09 18:46:26 - Found child process: 3352 Name: node.exe
+2026-05-09 18:46:26 - Stopping process 11460
+2026-05-09 18:46:26 - Send SIGINT 11460
+2026-05-09 18:46:26 - SIGINT to 11460 failed - Killing as fallback
+2026-05-09 18:46:26 - Stopping process 3352
+2026-05-09 18:46:26 - Send SIGINT 3352
+2026-05-09 18:46:26 - SIGINT to 3352 failed - Killing as fallback
+2026-05-09 18:46:26 - Stopping process 6776
+2026-05-09 18:46:26 - Send SIGINT 6776
+2026-05-09 18:46:26 - SIGINT to 6776 failed - Killing as fallback
+2026-05-09 18:46:26 - Finished contaesteservice.exe
+2026-05-09 18:46:26 - Starting C:\Program Files\nodejs\node.exe  --harmony C:\Users\Richard\Desktop\Contabilidad\ContaEste\node_modules\node-windows\lib\wrapper.js --file C:\Users\Richard\Desktop\Contabilidad\ContaEste\server.js --scriptoptions= --log "ContaEsteService wrapper" --grow 0.25 --wait 1 --maxrestarts 3 --abortonerror n --stopparentfirst undefined
+2026-05-09 18:46:26 - Started 3144
+2026-05-09 18:51:17 - Stopping contaesteservice.exe
+2026-05-09 18:51:17 - ProcessKill 3144
+2026-05-09 18:51:17 - Found child process: 5788 Name: conhost.exe
+2026-05-09 18:51:17 - Found child process: 4572 Name: node.exe
+2026-05-09 18:51:17 - Stopping process 5788
+2026-05-09 18:51:17 - Send SIGINT 5788
+2026-05-09 18:51:17 - SIGINT to 5788 failed - Killing as fallback
+2026-05-09 18:51:17 - Stopping process 4572
+2026-05-09 18:51:17 - Send SIGINT 4572
+2026-05-09 18:51:17 - SIGINT to 4572 failed - Killing as fallback
+2026-05-09 18:51:17 - Stopping process 3144
+2026-05-09 18:51:17 - Send SIGINT 3144
+2026-05-09 18:51:17 - SIGINT to 3144 failed - Killing as fallback
+2026-05-09 18:51:17 - Finished contaesteservice.exe
+2026-05-09 18:51:17 - Starting C:\Program Files\nodejs\node.exe  --harmony C:\Users\Richard\Desktop\Contabilidad\ContaEste\node_modules\node-windows\lib\wrapper.js --file C:\Users\Richard\Desktop\Contabilidad\ContaEste\server.js --scriptoptions= --log "ContaEsteService wrapper" --grow 0.25 --wait 1 --maxrestarts 3 --abortonerror n --stopparentfirst undefined
+2026-05-09 18:51:17 - Started 9084
+2026-05-09 18:55:27 - Stopping contaesteservice.exe
+2026-05-09 18:55:27 - ProcessKill 9084
+2026-05-09 18:55:27 - Found child process: 7752 Name: conhost.exe
+2026-05-09 18:55:27 - Found child process: 4968 Name: node.exe
+2026-05-09 18:55:27 - Stopping process 7752
+2026-05-09 18:55:27 - Send SIGINT 7752
+2026-05-09 18:55:27 - SIGINT to 7752 failed - Killing as fallback
+2026-05-09 18:55:27 - Stopping process 4968
+2026-05-09 18:55:27 - Send SIGINT 4968
+2026-05-09 18:55:27 - SIGINT to 4968 failed - Killing as fallback
+2026-05-09 18:55:27 - Stopping process 9084
+2026-05-09 18:55:27 - Send SIGINT 9084
+2026-05-09 18:55:27 - SIGINT to 9084 failed - Killing as fallback
+2026-05-09 18:55:27 - Finished contaesteservice.exe
+2026-05-09 18:55:27 - Starting C:\Program Files\nodejs\node.exe  --harmony C:\Users\Richard\Desktop\Contabilidad\ContaEste\node_modules\node-windows\lib\wrapper.js --file C:\Users\Richard\Desktop\Contabilidad\ContaEste\server.js --scriptoptions= --log "ContaEsteService wrapper" --grow 0.25 --wait 1 --maxrestarts 3 --abortonerror n --stopparentfirst undefined
+2026-05-09 18:55:27 - Started 4460
+2026-05-09 18:59:08 - Stopping contaesteservice.exe
+2026-05-09 18:59:08 - ProcessKill 4460
+2026-05-09 18:59:08 - Found child process: 6412 Name: conhost.exe
+2026-05-09 18:59:08 - Found child process: 8460 Name: node.exe
+2026-05-09 18:59:08 - Stopping process 6412
+2026-05-09 18:59:08 - Send SIGINT 6412
+2026-05-09 18:59:08 - SIGINT to 6412 failed - Killing as fallback
+2026-05-09 18:59:08 - Stopping process 8460
+2026-05-09 18:59:08 - Send SIGINT 8460
+2026-05-09 18:59:08 - SIGINT to 8460 failed - Killing as fallback
+2026-05-09 18:59:08 - Stopping process 4460
+2026-05-09 18:59:08 - Send SIGINT 4460
+2026-05-09 18:59:08 - SIGINT to 4460 failed - Killing as fallback
+2026-05-09 18:59:08 - Finished contaesteservice.exe
+2026-05-09 18:59:08 - Starting C:\Program Files\nodejs\node.exe  --harmony C:\Users\Richard\Desktop\Contabilidad\ContaEste\node_modules\node-windows\lib\wrapper.js --file C:\Users\Richard\Desktop\Contabilidad\ContaEste\server.js --scriptoptions= --log "ContaEsteService wrapper" --grow 0.25 --wait 1 --maxrestarts 3 --abortonerror n --stopparentfirst undefined
+2026-05-09 18:59:08 - Started 11592
+2026-05-09 19:02:51 - Stopping contaesteservice.exe
+2026-05-09 19:02:51 - ProcessKill 11592
+2026-05-09 19:02:51 - Found child process: 13348 Name: conhost.exe
+2026-05-09 19:02:51 - Found child process: 6220 Name: node.exe
+2026-05-09 19:02:51 - Stopping process 13348
+2026-05-09 19:02:51 - Send SIGINT 13348
+2026-05-09 19:02:51 - SIGINT to 13348 failed - Killing as fallback
+2026-05-09 19:02:51 - Stopping process 6220
+2026-05-09 19:02:51 - Send SIGINT 6220
+2026-05-09 19:02:51 - SIGINT to 6220 failed - Killing as fallback
+2026-05-09 19:02:51 - Stopping process 11592
+2026-05-09 19:02:51 - Send SIGINT 11592
+2026-05-09 19:02:51 - SIGINT to 11592 failed - Killing as fallback
+2026-05-09 19:02:51 - Finished contaesteservice.exe
+2026-05-09 19:02:51 - Starting C:\Program Files\nodejs\node.exe  --harmony C:\Users\Richard\Desktop\Contabilidad\ContaEste\node_modules\node-windows\lib\wrapper.js --file C:\Users\Richard\Desktop\Contabilidad\ContaEste\server.js --scriptoptions= --log "ContaEsteService wrapper" --grow 0.25 --wait 1 --maxrestarts 3 --abortonerror n --stopparentfirst undefined
+2026-05-09 19:02:51 - Started 10744
+2026-05-09 19:08:24 - Stopping contaesteservice.exe
+2026-05-09 19:08:24 - ProcessKill 10744
+2026-05-09 19:08:24 - Found child process: 8560 Name: conhost.exe
+2026-05-09 19:08:24 - Found child process: 9252 Name: node.exe
+2026-05-09 19:08:24 - Stopping process 8560
+2026-05-09 19:08:24 - Send SIGINT 8560
+2026-05-09 19:08:24 - SIGINT to 8560 failed - Killing as fallback
+2026-05-09 19:08:24 - Stopping process 9252
+2026-05-09 19:08:24 - Send SIGINT 9252
+2026-05-09 19:08:24 - SIGINT to 9252 failed - Killing as fallback
+2026-05-09 19:08:24 - Stopping process 10744
+2026-05-09 19:08:24 - Send SIGINT 10744
+2026-05-09 19:08:24 - SIGINT to 10744 failed - Killing as fallback
+2026-05-09 19:08:24 - Finished contaesteservice.exe
+2026-05-09 19:08:25 - Starting C:\Program Files\nodejs\node.exe  --harmony C:\Users\Richard\Desktop\Contabilidad\ContaEste\node_modules\node-windows\lib\wrapper.js --file C:\Users\Richard\Desktop\Contabilidad\ContaEste\server.js --scriptoptions= --log "ContaEsteService wrapper" --grow 0.25 --wait 1 --maxrestarts 3 --abortonerror n --stopparentfirst undefined
+2026-05-09 19:08:25 - Started 8544
+2026-05-09 19:14:20 - Stopping contaesteservice.exe
+2026-05-09 19:14:20 - ProcessKill 8544
+2026-05-09 19:14:20 - Found child process: 12384 Name: conhost.exe
+2026-05-09 19:14:20 - Found child process: 12364 Name: node.exe
+2026-05-09 19:14:20 - Stopping process 12384
+2026-05-09 19:14:20 - Send SIGINT 12384
+2026-05-09 19:14:20 - SIGINT to 12384 failed - Killing as fallback
+2026-05-09 19:14:20 - Stopping process 12364
+2026-05-09 19:14:20 - Send SIGINT 12364
+2026-05-09 19:14:20 - SIGINT to 12364 failed - Killing as fallback
+2026-05-09 19:14:20 - Stopping process 8544
+2026-05-09 19:14:20 - Send SIGINT 8544
+2026-05-09 19:14:20 - SIGINT to 8544 failed - Killing as fallback
+2026-05-09 19:14:20 - Finished contaesteservice.exe
+2026-05-09 19:14:20 - Starting C:\Program Files\nodejs\node.exe  --harmony C:\Users\Richard\Desktop\Contabilidad\ContaEste\node_modules\node-windows\lib\wrapper.js --file C:\Users\Richard\Desktop\Contabilidad\ContaEste\server.js --scriptoptions= --log "ContaEsteService wrapper" --grow 0.25 --wait 1 --maxrestarts 3 --abortonerror n --stopparentfirst undefined
+2026-05-09 19:14:20 - Started 11200

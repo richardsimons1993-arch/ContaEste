@@ -38,6 +38,11 @@ app.use(cors());
 app.use(express.json({ limit: '50mb' })); // Aumentado para soportar base64 grandes (PDF)
 app.use(express.static(__dirname)); // Sirve HTML, JS y CSS automáticamente
 
+// Interceptar POST a la raíz o index.html (suele ocurrir si el navegador autocompleta y envía el form antes de cargar JS)
+app.post(['/', '/index.html'], (req, res) => {
+    res.redirect('/');
+});
+
 // Asegurar que GET / sirva el index.html explícitamente
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'index.html'));

@@ -45,8 +45,9 @@
           }
         }
     </script>
-    <!-- html2pdf for Cotizaciones -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <!-- pdfmake for Cotizaciones -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/pdfmake.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/vfs_fonts.js"></script>
     <!-- Babel for JSX -->
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script type="text/babel" src="notas.js?v=20260408_16"></script>
@@ -68,7 +69,7 @@
                 <h2>Bienvenido</h2>
                 <p>Ingresa tus credenciales para continuar</p>
             </div>
-            <form id="login-form" method="post" action="#" autocomplete="on" novalidate>
+            <form id="login-form" autocomplete="on" novalidate onsubmit="return false;">
                 <div class="form-group">
                     <label for="username">Usuario</label>
                     <div class="input-with-icon">
