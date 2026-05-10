@@ -308,7 +308,7 @@ const QuotationsApp = () => {
                 ]);
             });
 
-            content.push(
+            const proposalBlock = [
                 buildSectionHeader(`${nProp}. PROPUESTA ECONÓMICA`),
                 {
                     table: {
@@ -318,27 +318,30 @@ const QuotationsApp = () => {
                     },
                     layout: 'lightHorizontalLines',
                     margin: [0, 0, 0, 10]
+                },
+                {
+                    columns: [
+                        { width: '*', text: '' },
+                        {
+                            width: 200,
+                            table: {
+                                widths: ['*', 80],
+                                body: [
+                                    [ { text: 'Subtotal NETO:', color: '#64748b', fontSize: 9 }, { text: formatMoney(subtotalMains), alignment: 'right', fontSize: 9 } ],
+                                    [ { text: 'IVA (19%):', color: '#64748b', fontSize: 9 }, { text: formatMoney(iva), alignment: 'right', fontSize: 9 } ],
+                                    [ { text: 'TOTAL:', color: '#0f766e', bold: true, fontSize: 11 }, { text: formatMoney(total), alignment: 'right', bold: true, fontSize: 11, color: '#0f172a' } ]
+                                ]
+                            },
+                            layout: 'noBorders'
+                        }
+                    ],
+                    margin: [0, 0, 0, 20]
                 }
-            );
+            ];
 
-            // Totales
             content.push({
-                columns: [
-                    { width: '*', text: '' },
-                    {
-                        width: 200,
-                        table: {
-                            widths: ['*', 80],
-                            body: [
-                                [ { text: 'Subtotal NETO:', color: '#64748b', fontSize: 9 }, { text: formatMoney(subtotalMains), alignment: 'right', fontSize: 9 } ],
-                                [ { text: 'IVA (19%):', color: '#64748b', fontSize: 9 }, { text: formatMoney(iva), alignment: 'right', fontSize: 9 } ],
-                                [ { text: 'TOTAL:', color: '#0f766e', bold: true, fontSize: 11 }, { text: formatMoney(total), alignment: 'right', bold: true, fontSize: 11, color: '#0f172a' } ]
-                            ]
-                        },
-                        layout: 'noBorders'
-                    }
-                ],
-                margin: [0, 0, 0, 20]
+                unbreakable: true,
+                stack: proposalBlock
             });
 
             // Ítems Opcionales
