@@ -177,20 +177,26 @@ const QuotationsApp = () => {
             const fileName = `Cotizacion_${formattedId}${safeProjectName}${versionSuffix}.pdf`;
 
             // 1. Fetch logo
+            let logoSvg = null;
             let logoBase64 = null;
             try {
-                const logoRes = await fetch('logo.png');
-                const contentType = logoRes.headers.get('content-type');
-                if (logoRes.ok && contentType && contentType.startsWith('image/')) {
-                    const logoBlob = await logoRes.blob();
-                    logoBase64 = await new Promise((resolve) => {
-                        const reader = new FileReader();
-                        reader.onloadend = () => resolve(reader.result);
-                        reader.readAsDataURL(logoBlob);
-                    });
+                const svgRes = await fetch('icono.svg');
+                if (svgRes.ok && svgRes.headers.get('content-type').includes('svg')) {
+                    logoSvg = await svgRes.text();
+                } else {
+                    const logoRes = await fetch('logo.png');
+                    const contentType = logoRes.headers.get('content-type');
+                    if (logoRes.ok && contentType && contentType.startsWith('image/')) {
+                        const logoBlob = await logoRes.blob();
+                        logoBase64 = await new Promise((resolve) => {
+                            const reader = new FileReader();
+                            reader.onloadend = () => resolve(reader.result);
+                            reader.readAsDataURL(logoBlob);
+                        });
+                    }
                 }
             } catch (e) {
-                console.warn("Could not load logo.png for PDF");
+                console.warn("Could not load logo for PDF");
             }
 
             // Inicializar fuentes de pdfMake (vital para evitar cuelgues)
@@ -218,7 +224,7 @@ const QuotationsApp = () => {
                             {
                                 width: 200,
                                 stack: [
-                                    (logoBase64 ? { image: logoBase64, width: 150, alignment: 'right', margin: [0, 0, 0, 10] } : null),
+                                    (logoSvg ? { svg: logoSvg, width: 150, alignment: 'right', margin: [0, 0, 0, 10] } : (logoBase64 ? { image: logoBase64, width: 150, alignment: 'right', margin: [0, 0, 0, 10] } : null)),
                                     { text: 'Simons SPA - Soluciones Tecnológicas', fontSize: 8, color: '#64748b', alignment: 'right' },
                                     { text: `Fecha: ${new Date().toLocaleDateString('es-CL')}`, fontSize: 8, color: '#64748b', alignment: 'right' }
                                 ].filter(Boolean)
@@ -403,7 +409,7 @@ const QuotationsApp = () => {
                                 { canvas: [{ type: 'line', x1: 20, y1: 0, x2: 180, y2: 0, lineWidth: 0.5, lineColor: '#cbd5e1' }], margin: [0, 5, 0, 5] },
                                 { text: 'Richard Simons', fontSize: 9, bold: true, alignment: 'center' },
                                 { text: 'Fundador', fontSize: 8, color: '#64748b', alignment: 'center' },
-                                (logoBase64 ? { image: logoBase64, width: 40, alignment: 'center', margin: [0, 5, 0, 0] } : null)
+                                (logoSvg ? { svg: logoSvg, width: 40, alignment: 'center', margin: [0, 5, 0, 0] } : (logoBase64 ? { image: logoBase64, width: 40, alignment: 'center', margin: [0, 5, 0, 0] } : null))
                             ].filter(Boolean)
                         }
                     ]
