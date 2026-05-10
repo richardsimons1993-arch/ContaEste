@@ -224,7 +224,7 @@ const QuotationsApp = () => {
                             {
                                 width: 200,
                                 stack: [
-                                    (logoSvg ? { svg: logoSvg, width: 150, alignment: 'right', margin: [0, 0, 0, 10] } : (logoBase64 ? { image: logoBase64, width: 150, alignment: 'right', margin: [0, 0, 0, 10] } : null)),
+                                    (logoSvg ? { svg: logoSvg, width: 150, alignment: 'right', margin: [0, -15, 0, 10] } : (logoBase64 ? { image: logoBase64, width: 150, alignment: 'right', margin: [0, -15, 0, 10] } : null)),
                                     { text: 'Simons SPA - Soluciones Tecnológicas', fontSize: 8, color: '#64748b', alignment: 'right' },
                                     { text: `Fecha: ${new Date().toLocaleDateString('es-CL')}`, fontSize: 8, color: '#64748b', alignment: 'right' }
                                 ].filter(Boolean)
@@ -422,28 +422,22 @@ const QuotationsApp = () => {
             });
 
             // 3. Generar y guardar
-            console.log("Creando docDefinition de pdfMake...");
             const pdfDocGenerator = pdfMake.createPdf(docDefinition);
-            console.log("pdfDocGenerator creado, llamando a getBase64...");
             
             // Usamos una Promesa para garantizar que capturamos cualquier error en la generación asíncrona
             await new Promise((resolve, reject) => {
                 try {
-                    console.log("Iniciando getBase64...");
                     pdfDocGenerator.getBase64(async (base64) => {
-                        console.log("getBase64 callback completado exitosamente.");
                         try {
                             const pdfBase64DataUri = 'data:application/pdf;base64,' + base64;
                             
                             // Descargar manualmente sin reutilizar el generador
-                            console.log("Iniciando descarga del archivo...");
                             const link = document.createElement('a');
                             link.href = pdfBase64DataUri;
                             link.download = fileName;
                             document.body.appendChild(link);
                             link.click();
                             document.body.removeChild(link);
-                            console.log("Descarga iniciada en el navegador.");
                             
                             const qData = {
                                 id: formattedId,
