@@ -1,6 +1,6 @@
 const express = require('express');
 const cors = require('cors');
-const sql = require('mssql/msnodesqlv8');
+const sql = require('mssql');
 const bcrypt = require('bcrypt');
 const axios = require('axios');
 const fs = require('fs');
@@ -35,6 +35,9 @@ const upload = multer({
 
 const app = express();
 
+// Confiar en el proxy de Cloudflare para manejar HTTPS correctamente
+app.set('trust proxy', true);
+
 // --- CORS: solo permitir mismo origen (no se necesita CORS para una app de red local) ---
 app.use(cors({ origin: false }));
 
@@ -61,9 +64,16 @@ app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'index.html'));
 });
 
-// Configuración de Conexión a SQL Server usando driver nativo (para evitar problemas de TCP/IP)
+// Configuración de Conexión a SQL Server
 const dbConfig = {
-    connectionString: 'Driver={ODBC Driver 18 for SQL Server};Server=localhost\\SIMONS;Database=ContabilidadDB;UID=sa;PWD=S0p0rt3!!2025;Encrypt=yes;TrustServerCertificate=yes;'
+    user: 'SA',
+    password: 'S0p0rt3!!2025',
+    server: 'localhost',
+    database: 'ContabilidadDB',
+    options: {
+        encrypt: false,
+        trustServerCertificate: true
+    }
 };
 
 // Helper para parsear fechas de forma robusta (DD-MM-YYYY o YYYY-MM-DD)
@@ -2136,9 +2146,12 @@ const httpApp = http.createServer((req, res) => {
     const cfRay           = req.headers['cf-ray'];      // Header exclusivo de Cloudflare
     const isProxiedHttps  = forwardedProto === 'https' || !!cfRay;
 
+    console.log(`[HTTP Request] Path: ${req.url}, Host: ${req.headers.host}, x-forwarded-proto: ${forwardedProto}, cf-ray: ${cfRay}, isProxiedHttps: ${isProxiedHttps}`);
+
     if (httpsActive && !isProxiedHttps) {
         // Acceso HTTP directo sin proxy → redirigir a HTTPS local
         const host = (req.headers.host || 'localhost').replace(`:${HTTP_PORT}`, `:${HTTPS_PORT}`);
+        console.log(`[HTTP Redirect] Redirecting to https://${host}${req.url}`);
         res.writeHead(301, { Location: `https://${host}${req.url}` });
         res.end();
     } else {
