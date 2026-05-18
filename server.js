@@ -34,11 +34,24 @@ const upload = multer({
 });
 
 const app = express();
-app.use(cors());
+
+// --- CORS: solo permitir mismo origen (no se necesita CORS para una app de red local) ---
+app.use(cors({ origin: false }));
+
+// --- Cabeceras de seguridad HTTP básicas (sin dependencias externas) ---
+app.use((req, res, next) => {
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('X-Frame-Options', 'SAMEORIGIN');
+    res.setHeader('X-XSS-Protection', '1; mode=block');
+    res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+    res.removeHeader('X-Powered-By');
+    next();
+});
+
 app.use(express.json({ limit: '50mb' })); // Aumentado para soportar base64 grandes (PDF)
 app.use(express.static(__dirname)); // Sirve HTML, JS y CSS automáticamente
 
-// Interceptar POST a la raíz o index.html (suele ocurrir si el navegador autocompleta y envía el form antes de cargar JS)
+// Interceptar POST a la raíz o index.html
 app.post(['/', '/index.html'], (req, res) => {
     res.redirect('/');
 });
@@ -193,7 +206,8 @@ const getApi = async (req, res, table) => {
         const result = await pool.request().query(query);
         res.json(result.recordset);
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        console.error(`Error en getApi(${table}):`, err.message);
+        res.status(500).json({ error: 'Error interno del servidor.' });
     }
 };
 
@@ -205,7 +219,8 @@ const deleteApi = async (req, res, table) => {
             .query(`DELETE FROM ${table} WHERE id = @id`);
         res.json({ success: true });
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        console.error(`Error en deleteApi(${table}):`, err.message);
+        res.status(500).json({ error: 'Error interno del servidor.' });
     }
 };
 
@@ -2059,40 +2074,35 @@ app.post('/api/logs', async (req, res) => {
 const http = require('http');
 const https = require('https');
 
-const HTTP_PORT = process.env.PORT || 3000;
-const HTTPS_PORT = process.env.HTTPS_PORT || 3443;
+const HTTP_PORT  = parseInt(process.env.PORT)        || 3000;
+const HTTPS_PORT = parseInt(process.env.HTTPS_PORT)  || 3443;
 
-// 1. Iniciar Servidor HTTP (Siempre disponible)
-const httpServer = http.createServer(app);
-httpServer.listen(HTTP_PORT, '0.0.0.0', () => {
-    let networkIp = '127.0.0.1';
+// Función para detectar IP de red local
+function getNetworkIp() {
     try {
         const netInterfaces = require('os').networkInterfaces();
         for (const name of Object.keys(netInterfaces)) {
             for (const net of netInterfaces[name]) {
-                if (net.family === 'IPv4' && !net.internal) {
-                    networkIp = net.address;
-                }
+                if (net.family === 'IPv4' && !net.internal) return net.address;
             }
         }
     } catch(e) {}
-    console.log(`🚀 Servidor HTTP iniciado y accesible en red local`);
-    console.log(`🏠 Local: http://localhost:${HTTP_PORT}`);
-    console.log(`🌐 Red:  http://${networkIp}:${HTTP_PORT}`);
-    
-    // Tareas de mantenimiento (envueltas para evitar bloqueos)
-    setTimeout(async () => {
-        try {
-            await migratePasswords();
-            await deleteExpiredNotes();
-            await cleanOldQuotations();
-        } catch (mErr) {
-            console.error('⚠️ Error en tareas de mantenimiento iniciales:', mErr.message);
-        }
-    }, 5000); // 5 segundos para asegurar estabilidad inicial
-});
+    return '127.0.0.1';
+}
 
-// 2. Iniciar Servidor HTTPS (Si el certificado existe y es válido)
+// Función de inicio de tareas de mantenimiento
+async function runMaintenanceTasks() {
+    try {
+        await migratePasswords();
+        await deleteExpiredNotes();
+        await cleanOldQuotations();
+    } catch (mErr) {
+        console.error('⚠️ Error en tareas de mantenimiento iniciales:', mErr.message);
+    }
+}
+
+// Intentar iniciar servidor HTTPS con certificado
+let httpsActive = false;
 try {
     const pfxPath = path.join(__dirname, 'certificate.pfx');
     if (fs.existsSync(pfxPath)) {
@@ -2102,15 +2112,44 @@ try {
         };
         const httpsServer = https.createServer(httpsOptions, app);
         httpsServer.listen(HTTPS_PORT, '0.0.0.0', () => {
-            console.log(`🔒 Servidor HTTPS iniciado en https://localhost:${HTTPS_PORT}`);
+            const ip = getNetworkIp();
+            console.log(`🔒 Servidor HTTPS iniciado`);
+            console.log(`🏠 Local: https://localhost:${HTTPS_PORT}`);
+            console.log(`🌐 Red:  https://${ip}:${HTTPS_PORT}`);
+            httpsActive = true;
+            setTimeout(runMaintenanceTasks, 5000);
         });
     } else {
-        console.log('⚠️ No se encontró el certificado SSL/TLS (certificate.pfx). Solo HTTP disponible.');
+        console.log('⚠️ No se encontró certificate.pfx. Solo HTTP disponible.');
     }
 } catch (sslErr) {
     console.error('❌ Error al cargar certificado SSL:', sslErr.message);
     console.log('⚠️ El servidor HTTPS no pudo iniciarse. Solo HTTP disponible.');
 }
+
+// Servidor HTTP: redirige a HTTPS si está activo, o sirve directamente si no
+const httpApp = http.createServer((req, res) => {
+    if (httpsActive) {
+        // Redirigir a HTTPS preservando host y ruta
+        const host = (req.headers.host || 'localhost').replace(`:${HTTP_PORT}`, `:${HTTPS_PORT}`);
+        res.writeHead(301, { Location: `https://${host}${req.url}` });
+        res.end();
+    } else {
+        // Fallback: servir la app por HTTP si no hay HTTPS
+        app(req, res);
+    }
+});
+httpApp.listen(HTTP_PORT, '0.0.0.0', () => {
+    const ip = getNetworkIp();
+    if (httpsActive) {
+        console.log(`↪️  HTTP:${HTTP_PORT} → redirige a HTTPS:${HTTPS_PORT}`);
+    } else {
+        console.log(`🚀 Servidor HTTP iniciado (sin HTTPS)`);
+        console.log(`🏠 Local: http://localhost:${HTTP_PORT}`);
+        console.log(`🌐 Red:  http://${ip}:${HTTP_PORT}`);
+        setTimeout(runMaintenanceTasks, 5000);
+    }
+});
 
 // Manejo global de errores para evitar cierres inesperados
 process.on('unhandledRejection', (reason, promise) => {
