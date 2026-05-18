@@ -2056,8 +2056,15 @@ app.post('/api/logs', async (req, res) => {
     }
 });
 
-const PORT = 3000;
-app.listen(PORT, '0.0.0.0', () => {
+const http = require('http');
+const https = require('https');
+
+const HTTP_PORT = process.env.PORT || 3000;
+const HTTPS_PORT = process.env.HTTPS_PORT || 3443;
+
+// 1. Iniciar Servidor HTTP (Siempre disponible)
+const httpServer = http.createServer(app);
+httpServer.listen(HTTP_PORT, '0.0.0.0', () => {
     let networkIp = '127.0.0.1';
     try {
         const netInterfaces = require('os').networkInterfaces();
@@ -2069,9 +2076,9 @@ app.listen(PORT, '0.0.0.0', () => {
             }
         }
     } catch(e) {}
-    console.log(`🚀 Servidor iniciado y accesible en red local`);
-    console.log(`🏠 Local: http://localhost:${PORT}`);
-    console.log(`🌐 Red:  http://${networkIp}:${PORT}`);
+    console.log(`🚀 Servidor HTTP iniciado y accesible en red local`);
+    console.log(`🏠 Local: http://localhost:${HTTP_PORT}`);
+    console.log(`🌐 Red:  http://${networkIp}:${HTTP_PORT}`);
     
     // Tareas de mantenimiento (envueltas para evitar bloqueos)
     setTimeout(async () => {
@@ -2084,6 +2091,26 @@ app.listen(PORT, '0.0.0.0', () => {
         }
     }, 5000); // 5 segundos para asegurar estabilidad inicial
 });
+
+// 2. Iniciar Servidor HTTPS (Si el certificado existe y es válido)
+try {
+    const pfxPath = path.join(__dirname, 'certificate.pfx');
+    if (fs.existsSync(pfxPath)) {
+        const httpsOptions = {
+            pfx: fs.readFileSync(pfxPath),
+            passphrase: process.env.CERT_PASSPHRASE || 'S0p0rt3!!2025'
+        };
+        const httpsServer = https.createServer(httpsOptions, app);
+        httpsServer.listen(HTTPS_PORT, '0.0.0.0', () => {
+            console.log(`🔒 Servidor HTTPS iniciado en https://localhost:${HTTPS_PORT}`);
+        });
+    } else {
+        console.log('⚠️ No se encontró el certificado SSL/TLS (certificate.pfx). Solo HTTP disponible.');
+    }
+} catch (sslErr) {
+    console.error('❌ Error al cargar certificado SSL:', sslErr.message);
+    console.log('⚠️ El servidor HTTPS no pudo iniciarse. Solo HTTP disponible.');
+}
 
 // Manejo global de errores para evitar cierres inesperados
 process.on('unhandledRejection', (reason, promise) => {

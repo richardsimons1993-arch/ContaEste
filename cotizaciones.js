@@ -23,10 +23,14 @@ const QuotationsApp = () => {
     const [history, setHistory] = useState([]);
     const [historyLoading, setHistoryLoading] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
+    const [previewUrl, setPreviewUrl] = useState(null);
+    const [logoData, setLogoData] = useState({ svg: null, base64: null });
+    const previewTimeoutRef = useRef(null);
 
     useEffect(() => {
         loadData();
         fetchHistory(); // Cargar historial al inicio también
+        loadLogo();
 
         // Polling para sincronizar con el estado de Finanzas si cambia
         const syncInterval = setInterval(() => {
@@ -41,8 +45,35 @@ const QuotationsApp = () => {
             }
         }, 1500);
 
-        return () => clearInterval(syncInterval);
+        return () => {
+            clearInterval(syncInterval);
+            if (previewUrl) URL.revokeObjectURL(previewUrl);
+        };
     }, []);
+
+    const loadLogo = async () => {
+        try {
+            const svgRes = await fetch('icono.svg');
+            if (svgRes.ok && svgRes.headers.get('content-type').includes('svg')) {
+                const svgText = await svgRes.text();
+                setLogoData({ svg: svgText, base64: null });
+            } else {
+                const logoRes = await fetch('logo.png');
+                const contentType = logoRes.headers.get('content-type');
+                if (logoRes.ok && contentType && contentType.startsWith('image/')) {
+                    const logoBlob = await logoRes.blob();
+                    const base64 = await new Promise((resolve) => {
+                        const reader = new FileReader();
+                        reader.onloadend = () => resolve(reader.result);
+                        reader.readAsDataURL(logoBlob);
+                    });
+                    setLogoData({ svg: null, base64: base64 });
+                }
+            }
+        } catch (e) {
+            console.warn("Could not load logo for PDF", e);
+        }
+    };
 
     const loadData = async () => {
         try {
@@ -154,12 +185,256 @@ const QuotationsApp = () => {
         setState(list.filter(item => item.id !== id));
     };
 
-    let sectionCounter = 1;
-    const nClient = sectionCounter++;
-    const nReq = (requirements && requirements.trim()) ? sectionCounter++ : null;
-    const nTech = (techConditions && techConditions.trim()) ? sectionCounter++ : null;
-    const nProp = sectionCounter++;
-    const nCom = (commercialConditions && commercialConditions.trim()) ? sectionCounter++ : null;
+        let sectionCounter = 1;
+        const nReq = (requirements && requirements.trim()) ? sectionCounter++ : null;
+        const nTech = (techConditions && techConditions.trim()) ? sectionCounter++ : null;
+        const nProp = sectionCounter++;
+        const nCom = (commercialConditions && commercialConditions.trim()) ? sectionCounter++ : null;
+
+    const buildDocDefinition = () => {
+        const clientName = activeClient ? (activeClient.nombreFantasia || activeClient.razonSocial || 'Cliente_Desconocido') : 'Cliente_Desconocido';
+        const formattedId = displayId;
+
+        // Asegurar que pdfMake esté inicializado
+        if (window.pdfMake && window.pdfMake.vfs === undefined && window.pdfMakeFonts !== undefined) {
+            window.pdfMake.vfs = window.pdfMakeFonts.pdfMake.vfs;
+        }
+
+        const docDefinition = {
+            pageSize: 'LETTER',
+            pageMargins: [ 40, 35, 40, 40 ],
+            content: [
+                // Cabecera
+                {
+                    columns: [
+                        {
+                            width: '*',
+                            stack: [
+                                { text: 'COTIZACIÓN', fontSize: 20, bold: true, color: '#0f172a', margin: [0, 0, 0, 5] },
+                                { text: `N° ${formattedId}`, fontSize: 12, bold: true, color: '#0f766e', margin: [0, 0, 0, 5] },
+                                (currentVersion > 1 ? { text: `VERSIÓN ${currentVersion}`, fontSize: 9, bold: true, color: '#94a3b8', margin: [0, 0, 0, 5] } : null),
+                                (projectName ? { text: `Proyecto: ${projectName}`, fontSize: 11, bold: true, color: '#000000' } : null),
+                                { text: `Cliente: ${clientName.replace(/_/g, ' ')}`, fontSize: 11, bold: true, color: '#000000', margin: [0, 2, 0, 0] }
+                            ].filter(Boolean)
+                        },
+                        {
+                            width: 200,
+                            stack: [
+                                (logoData.svg ? { svg: logoData.svg, width: 120, alignment: 'right', margin: [0, -10, 0, 10] } : (logoData.base64 ? { image: logoData.base64, width: 120, alignment: 'right', margin: [0, -10, 0, 10] } : null)),
+                                { text: 'Simons SPA - Soluciones Tecnológicas', fontSize: 8, color: '#64748b', alignment: 'right' },
+                                { text: `Fecha: ${new Date().toLocaleDateString('es-CL')}`, fontSize: 8, color: '#64748b', alignment: 'right' }
+                            ].filter(Boolean)
+                        }
+                    ],
+                    margin: [0, 0, 0, 20]
+                },
+                // Línea separadora
+                { canvas: [{ type: 'line', x1: 0, y1: 0, x2: 531.9, y2: 0, lineWidth: 2, lineColor: '#1e293b' }], margin: [0, 0, 0, 20] }
+            ],
+            defaultStyle: {
+                fontSize: 10,
+                color: '#334155'
+            },
+            styles: {
+                tableHeader: {
+                    bold: true,
+                    fontSize: 10,
+                    color: 'white',
+                    fillColor: '#0f766e',
+                    alignment: 'center',
+                    margin: [5, 4, 5, 4]
+                }
+            }
+        };
+
+        const content = docDefinition.content;
+
+        const buildSectionHeader = (title) => ({
+            table: {
+                widths: [4, '*'],
+                body: [
+                    [
+                        { text: '', fillColor: '#0f766e', border: [false, false, false, false] },
+                        { text: title, fillColor: '#f8fafc', border: [false, false, false, false], margin: [5, 4, 0, 4], color: '#1e293b', bold: true, fontSize: 10 }
+                    ]
+                ]
+            },
+            layout: 'noBorders',
+            margin: [0, 15, 0, 10]
+        });
+
+        // 1. Requerimiento (Ahora inicia aquí)
+        if (requirements && requirements.trim()) {
+            content.push(
+                buildSectionHeader(`${nReq}. REQUERIMIENTO`),
+                { text: requirements, margin: [10, 0, 0, 15] }
+            );
+        }
+
+        // 3. Consideraciones Técnicas
+        if (techConditions && techConditions.trim()) {
+            content.push(
+                buildSectionHeader(`${nTech}. CONSIDERACIONES TÉCNICAS Y ESTÁNDARES`),
+                { text: techConditions, margin: [10, 0, 0, 15] }
+            );
+        }
+
+        // 4. Propuesta Económica
+        const tableBody = [
+            [ 
+                { text: 'Cant.', style: 'tableHeader' }, 
+                { text: 'Descripción', style: 'tableHeader', alignment: 'left' }, 
+                { text: 'P. Unitario', style: 'tableHeader', alignment: 'right' }, 
+                { text: 'Total', style: 'tableHeader', alignment: 'right' } 
+            ]
+        ];
+
+        items.forEach(item => {
+            tableBody.push([
+                { text: item.qty.toString(), alignment: 'center' },
+                item.desc || '-',
+                { text: formatMoney(item.price), alignment: 'right' },
+                { text: formatMoney(item.qty * item.price), alignment: 'right', bold: true }
+            ]);
+        });
+
+        const proposalBlock = [
+            buildSectionHeader(`${nProp}. PROPUESTA ECONÓMICA`),
+            {
+                table: {
+                    headerRows: 1,
+                    widths: [40, '*', 80, 80],
+                    body: tableBody
+                },
+                layout: 'lightHorizontalLines',
+                margin: [0, 0, 0, 10]
+            },
+            {
+                columns: [
+                    { width: '*', text: '' },
+                    {
+                        width: 200,
+                        table: {
+                            widths: ['*', 80],
+                            body: [
+                                [ { text: 'Subtotal NETO:', color: '#64748b', fontSize: 9 }, { text: formatMoney(subtotalMains), alignment: 'right', fontSize: 9 } ],
+                                [ { text: 'IVA (19%):', color: '#64748b', fontSize: 9 }, { text: formatMoney(iva), alignment: 'right', fontSize: 9 } ],
+                                [ { text: 'TOTAL:', color: '#0f766e', bold: true, fontSize: 11 }, { text: formatMoney(total), alignment: 'right', bold: true, fontSize: 11, color: '#0f172a' } ]
+                            ]
+                        },
+                        layout: 'noBorders'
+                    }
+                ],
+                margin: [0, 0, 0, 20]
+            }
+        ];
+
+        content.push({
+            unbreakable: true,
+            stack: proposalBlock
+        });
+
+        // Ítems Opcionales
+        if (optionals.length > 0) {
+            const optTableBody = [
+                [ 
+                    { text: 'Cant.', style: 'tableHeader', fillColor: '#f97316' }, 
+                    { text: 'Descripción (Opcional)', style: 'tableHeader', alignment: 'left', fillColor: '#f97316' }, 
+                    { text: 'P. Unitario', style: 'tableHeader', alignment: 'right', fillColor: '#f97316' }, 
+                    { text: 'Total', style: 'tableHeader', alignment: 'right', fillColor: '#f97316' } 
+                ]
+            ];
+
+            optionals.forEach(item => {
+                optTableBody.push([
+                    { text: item.qty.toString(), alignment: 'center' },
+                    item.desc || '-',
+                    { text: formatMoney(item.price), alignment: 'right' },
+                    { text: formatMoney(item.qty * item.price), alignment: 'right', bold: true }
+                ]);
+            });
+
+            content.push(
+                buildSectionHeader(`ÍTEMS OPCIONALES SUGERIDOS`),
+                {
+                    table: {
+                        headerRows: 1,
+                        widths: [40, '*', 80, 80],
+                        body: optTableBody
+                    },
+                    layout: 'lightHorizontalLines',
+                    margin: [0, 0, 0, 10]
+                }
+            );
+        }
+
+        // Bloque inquebrantable: Condiciones comerciales y Firma
+        const commercialBlock = [];
+        
+        if (commercialConditions && commercialConditions.trim()) {
+            commercialBlock.push(
+                buildSectionHeader(`${nCom}. CONDICIONES COMERCIALES`),
+                { text: commercialConditions, margin: [10, 0, 0, 20] }
+            );
+        }
+
+        commercialBlock.push(
+            { canvas: [{ type: 'line', x1: 0, y1: 0, x2: 531.9, y2: 0, lineWidth: 2, lineColor: '#1e293b' }], margin: [0, 10, 0, 10] },
+            { text: 'DATOS DE TRANSFERENCIA', fontSize: 9, bold: true, color: '#1e293b', margin: [0, 0, 0, 5] },
+            { canvas: [{ type: 'line', x1: 0, y1: 0, x2: 531.9, y2: 0, lineWidth: 0.5, lineColor: '#cbd5e1' }], margin: [0, 5, 0, 10] },
+            {
+                columns: [
+                    {
+                        width: '*',
+                        stack: [
+                            { text: 'Titular: SIMONS SPA', fontSize: 8, color: '#475569' },
+                            { text: 'RUT: 77.475.581-0', fontSize: 8, color: '#475569' },
+                            { text: 'Banco: Banco de Chile', fontSize: 8, color: '#475569' },
+                            { text: 'Tipo de Cuenta: Cuenta Corriente', fontSize: 8, color: '#475569' },
+                            { text: 'Número de cuenta: 1483514107', fontSize: 8, color: '#475569' },
+                            { text: 'Mail: pagos@simons.cl', fontSize: 8, color: '#475569' }
+                        ]
+                    }
+                ]
+            }
+        );
+
+        content.push({
+            unbreakable: true, 
+            stack: commercialBlock
+        });
+
+        return docDefinition;
+    };
+
+    const updatePreview = async () => {
+        if (!selectedClient || !window.pdfMake) return;
+        
+        try {
+            const docDefinition = buildDocDefinition();
+            const pdfDocGenerator = pdfMake.createPdf(docDefinition);
+            pdfDocGenerator.getBlob((blob) => {
+                if (previewUrl) URL.revokeObjectURL(previewUrl);
+                const url = URL.createObjectURL(blob);
+                setPreviewUrl(url);
+            });
+        } catch (err) {
+            console.error("Error actualizando previsualización:", err);
+        }
+    };
+
+    useEffect(() => {
+        if (activeTab !== 'generator') return;
+        
+        if (previewTimeoutRef.current) clearTimeout(previewTimeoutRef.current);
+        previewTimeoutRef.current = setTimeout(() => {
+            updatePreview();
+        }, 1000);
+
+        return () => {
+            if (previewTimeoutRef.current) clearTimeout(previewTimeoutRef.current);
+        };
+    }, [selectedClient, projectName, requirements, techConditions, commercialConditions, items, optionals, activeTab, logoData]);
 
     const handleGenerate = async () => {
         if (!selectedClient) {
@@ -170,249 +445,11 @@ const QuotationsApp = () => {
         setIsGenerating(true);
 
         try {
+            const docDefinition = buildDocDefinition();
             const clientName = activeClient ? (activeClient.nombreFantasia || activeClient.razonSocial || 'Cliente_Desconocido') : 'Cliente_Desconocido';
-            const formattedId = displayId;
             const versionSuffix = currentVersion > 1 ? `_v${currentVersion}` : '';
             const safeProjectName = projectName ? `_${projectName.replace(/[^a-zA-Z0-9]/g, '_')}` : '';
-            const fileName = `Cotizacion_${formattedId}${safeProjectName}${versionSuffix}.pdf`;
-
-            // 1. Fetch logo
-            let logoSvg = null;
-            let logoBase64 = null;
-            try {
-                const svgRes = await fetch('icono.svg');
-                if (svgRes.ok && svgRes.headers.get('content-type').includes('svg')) {
-                    logoSvg = await svgRes.text();
-                } else {
-                    const logoRes = await fetch('logo.png');
-                    const contentType = logoRes.headers.get('content-type');
-                    if (logoRes.ok && contentType && contentType.startsWith('image/')) {
-                        const logoBlob = await logoRes.blob();
-                        logoBase64 = await new Promise((resolve) => {
-                            const reader = new FileReader();
-                            reader.onloadend = () => resolve(reader.result);
-                            reader.readAsDataURL(logoBlob);
-                        });
-                    }
-                }
-            } catch (e) {
-                console.warn("Could not load logo for PDF");
-            }
-
-            // Inicializar fuentes de pdfMake (vital para evitar cuelgues)
-            if (window.pdfMake && window.pdfMake.vfs === undefined && window.pdfMakeFonts !== undefined) {
-                window.pdfMake.vfs = window.pdfMakeFonts.pdfMake.vfs;
-            }
-
-            // 2. Build PDF Definition
-            const docDefinition = {
-                pageSize: 'LETTER',
-                pageMargins: [ 40, 35, 40, 40 ],
-                content: [
-                    // Cabecera
-                    {
-                        columns: [
-                            {
-                                width: '*',
-                                stack: [
-                                    { text: 'COTIZACIÓN', fontSize: 20, bold: true, color: '#0f172a', margin: [0, 0, 0, 5] },
-                                    { text: `N° ${formattedId}`, fontSize: 12, bold: true, color: '#0f766e', margin: [0, 0, 0, 5] },
-                                    (currentVersion > 1 ? { text: `VERSIÓN ${currentVersion}`, fontSize: 9, bold: true, color: '#94a3b8', margin: [0, 0, 0, 5] } : null),
-                                    (projectName ? { text: `Proyecto: ${projectName}`, fontSize: 11, bold: true, color: '#0f766e' } : null)
-                                ].filter(Boolean)
-                            },
-                            {
-                                width: 200,
-                                stack: [
-                                    (logoSvg ? { svg: logoSvg, width: 120, alignment: 'right', margin: [0, -10, 0, 10] } : (logoBase64 ? { image: logoBase64, width: 120, alignment: 'right', margin: [0, -10, 0, 10] } : null)),
-                                    { text: 'Simons SPA - Soluciones Tecnológicas', fontSize: 8, color: '#64748b', alignment: 'right' },
-                                    { text: `Fecha: ${new Date().toLocaleDateString('es-CL')}`, fontSize: 8, color: '#64748b', alignment: 'right' }
-                                ].filter(Boolean)
-                            }
-                        ],
-                        margin: [0, 0, 0, 20]
-                    },
-                    // Línea separadora
-                    { canvas: [{ type: 'line', x1: 0, y1: 0, x2: 531.9, y2: 0, lineWidth: 2, lineColor: '#1e293b' }], margin: [0, 0, 0, 20] }
-                ],
-                defaultStyle: {
-                    fontSize: 10,
-                    color: '#334155'
-                },
-                styles: {
-                    tableHeader: {
-                        bold: true,
-                        fontSize: 10,
-                        color: 'white',
-                        fillColor: '#0f766e',
-                        alignment: 'center',
-                        margin: [5, 4, 5, 4]
-                    }
-                }
-            };
-
-            const content = docDefinition.content;
-
-            const buildSectionHeader = (title) => ({
-                table: {
-                    widths: [4, '*'],
-                    body: [
-                        [
-                            { text: '', fillColor: '#0f766e', border: [false, false, false, false] },
-                            { text: title, fillColor: '#f8fafc', border: [false, false, false, false], margin: [5, 4, 0, 4], color: '#1e293b', bold: true, fontSize: 10 }
-                        ]
-                    ]
-                },
-                layout: 'noBorders',
-                margin: [0, 15, 0, 10]
-            });
-
-            // 1. Cliente
-            content.push(
-                buildSectionHeader(`${nClient}. CLIENTE`),
-                { text: clientName, margin: [10, 0, 0, 15] }
-            );
-
-            // 2. Requerimiento
-            if (requirements && requirements.trim()) {
-                content.push(
-                    buildSectionHeader(`${nReq}. REQUERIMIENTO`),
-                    { text: requirements, margin: [10, 0, 0, 15] }
-                );
-            }
-
-            // 3. Consideraciones Técnicas
-            if (techConditions && techConditions.trim()) {
-                content.push(
-                    buildSectionHeader(`${nTech}. CONSIDERACIONES TÉCNICAS Y ESTÁNDARES`),
-                    { text: techConditions, margin: [10, 0, 0, 15] }
-                );
-            }
-
-            // 4. Propuesta Económica
-            const tableBody = [
-                [ 
-                    { text: 'Cant.', style: 'tableHeader' }, 
-                    { text: 'Descripción', style: 'tableHeader', alignment: 'left' }, 
-                    { text: 'P. Unitario', style: 'tableHeader', alignment: 'right' }, 
-                    { text: 'Total', style: 'tableHeader', alignment: 'right' } 
-                ]
-            ];
-
-            items.forEach(item => {
-                tableBody.push([
-                    { text: item.qty.toString(), alignment: 'center' },
-                    item.desc || '-',
-                    { text: formatMoney(item.price), alignment: 'right' },
-                    { text: formatMoney(item.qty * item.price), alignment: 'right', bold: true }
-                ]);
-            });
-
-            const proposalBlock = [
-                buildSectionHeader(`${nProp}. PROPUESTA ECONÓMICA`),
-                {
-                    table: {
-                        headerRows: 1,
-                        widths: [40, '*', 80, 80],
-                        body: tableBody
-                    },
-                    layout: 'lightHorizontalLines',
-                    margin: [0, 0, 0, 10]
-                },
-                {
-                    columns: [
-                        { width: '*', text: '' },
-                        {
-                            width: 200,
-                            table: {
-                                widths: ['*', 80],
-                                body: [
-                                    [ { text: 'Subtotal NETO:', color: '#64748b', fontSize: 9 }, { text: formatMoney(subtotalMains), alignment: 'right', fontSize: 9 } ],
-                                    [ { text: 'IVA (19%):', color: '#64748b', fontSize: 9 }, { text: formatMoney(iva), alignment: 'right', fontSize: 9 } ],
-                                    [ { text: 'TOTAL:', color: '#0f766e', bold: true, fontSize: 11 }, { text: formatMoney(total), alignment: 'right', bold: true, fontSize: 11, color: '#0f172a' } ]
-                                ]
-                            },
-                            layout: 'noBorders'
-                        }
-                    ],
-                    margin: [0, 0, 0, 20]
-                }
-            ];
-
-            content.push({
-                unbreakable: true,
-                stack: proposalBlock
-            });
-
-            // Ítems Opcionales
-            if (optionals.length > 0) {
-                const optTableBody = [
-                    [ 
-                        { text: 'Cant.', style: 'tableHeader', fillColor: '#f97316' }, 
-                        { text: 'Descripción (Opcional)', style: 'tableHeader', alignment: 'left', fillColor: '#f97316' }, 
-                        { text: 'P. Unitario', style: 'tableHeader', alignment: 'right', fillColor: '#f97316' }, 
-                        { text: 'Total', style: 'tableHeader', alignment: 'right', fillColor: '#f97316' } 
-                    ]
-                ];
-
-                optionals.forEach(item => {
-                    optTableBody.push([
-                        { text: item.qty.toString(), alignment: 'center' },
-                        item.desc || '-',
-                        { text: formatMoney(item.price), alignment: 'right' },
-                        { text: formatMoney(item.qty * item.price), alignment: 'right', bold: true }
-                    ]);
-                });
-
-                content.push(
-                    buildSectionHeader(`ÍTEMS OPCIONALES SUGERIDOS`),
-                    {
-                        table: {
-                            headerRows: 1,
-                            widths: [40, '*', 80, 80],
-                            body: optTableBody
-                        },
-                        layout: 'lightHorizontalLines',
-                        margin: [0, 0, 0, 10]
-                    }
-                );
-            }
-
-            // Bloque inquebrantable: Condiciones comerciales y Firma
-            const commercialBlock = [];
-            
-            if (commercialConditions && commercialConditions.trim()) {
-                commercialBlock.push(
-                    buildSectionHeader(`${nCom}. CONDICIONES COMERCIALES`),
-                    { text: commercialConditions, margin: [10, 0, 0, 20] }
-                );
-            }
-
-            commercialBlock.push(
-                { canvas: [{ type: 'line', x1: 0, y1: 0, x2: 531.9, y2: 0, lineWidth: 2, lineColor: '#1e293b' }], margin: [0, 10, 0, 10] },
-                { text: 'DATOS DE TRANSFERENCIA', fontSize: 9, bold: true, color: '#1e293b', margin: [0, 0, 0, 5] },
-                { canvas: [{ type: 'line', x1: 0, y1: 0, x2: 531.9, y2: 0, lineWidth: 0.5, lineColor: '#cbd5e1' }], margin: [0, 5, 0, 10] },
-                {
-                    columns: [
-                        {
-                            width: '*',
-                            stack: [
-                                { text: 'Titular: SIMONS SPA', fontSize: 8, color: '#475569' },
-                                { text: 'RUT: 77.475.581-0', fontSize: 8, color: '#475569' },
-                                { text: 'Banco: Banco de Chile', fontSize: 8, color: '#475569' },
-                                { text: 'Tipo de Cuenta: Cuenta Corriente', fontSize: 8, color: '#475569' },
-                                { text: 'Número de cuenta: 1483514107', fontSize: 8, color: '#475569' },
-                                { text: 'Mail: pagos@simons.cl', fontSize: 8, color: '#475569' }
-                            ]
-                        }
-                    ]
-                }
-            );
-
-            content.push({
-                unbreakable: true, // Esto obliga a pdfmake a no cortar este bloque por la mitad
-                stack: commercialBlock
-            });
+            const fileName = `Cotizacion_${displayId}${safeProjectName}${versionSuffix}.pdf`;
 
             // 3. Generar y guardar
             const pdfDocGenerator = pdfMake.createPdf(docDefinition);
@@ -433,7 +470,7 @@ const QuotationsApp = () => {
                             document.body.removeChild(link);
                             
                             const qData = {
-                                id: formattedId,
+                                id: displayId,
                                 correlative: nextId,
                                 year: currentYear,
                                 version: currentVersion,
@@ -455,7 +492,7 @@ const QuotationsApp = () => {
                             await window.StorageAPI.async.saveQuotationPdf({
                                 clientName: clientName,
                                 year: currentYear,
-                                quotationId: formattedId + versionSuffix,
+                                quotationId: displayId + versionSuffix,
                                 pdfBase64: pdfBase64DataUri
                             });
                             
@@ -584,8 +621,8 @@ const QuotationsApp = () => {
     return (
         <div className="tw-flex tw-flex-col tw-min-h-full tw-bg-slate-50 tw-font-sans">
             {activeTab === 'generator' ? (
-                <div className="tw-flex-1 tw-overflow-y-auto tw-p-8 scrollbar-hide">
-                    <div className="tw-max-w-4xl tw-mx-auto">
+                <div className="tw-flex-1 tw-overflow-y-auto tw-p-4 md:tw-p-8 scrollbar-hide">
+                    <div className="tw-max-w-7xl tw-mx-auto">
                         <div className="tw-mb-8">
                             <div className="tw-flex tw-justify-between tw-items-center">
                                 <h2 className="tw-text-2xl tw-font-bold tw-text-slate-800">
@@ -610,73 +647,100 @@ const QuotationsApp = () => {
                             </div>
                         </div>
 
-                        <div className="tw-space-y-6">
-                            {/* Cliente */}
-                            <div className="tw-bg-white tw-p-6 tw-rounded-xl tw-shadow-sm tw-border tw-border-slate-200">
-                                <label className="tw-block tw-text-sm tw-font-bold tw-text-slate-700 tw-mb-2">Cliente</label>
-                                <select 
-                                    className="tw-w-full tw-p-3 tw-bg-slate-50 tw-border tw-border-slate-300 tw-rounded-lg focus:tw-border-googleBlue focus:tw-ring-2 focus:tw-ring-blue-100 focus:tw-outline-none tw-transition-all"
-                                    value={selectedClient}
-                                    onChange={(e) => setSelectedClient(e.target.value)}
-                                >
-                                    <option value="">-- Seleccionar Cliente --</option>
-                                    {clients.map(c => <option key={c.id} value={c.id}>{c.nombreFantasia || c.razonSocial}</option>)}
-                                </select>
+                        <div className="tw-flex tw-flex-col lg:tw-flex-row tw-gap-8">
+                            {/* Columna Formulario */}
+                            <div className="tw-flex-1 tw-space-y-6">
+                                {/* Cliente */}
+                                <div className="tw-bg-white tw-p-6 tw-rounded-xl tw-shadow-sm tw-border tw-border-slate-200">
+                                    <label className="tw-block tw-text-sm tw-font-bold tw-text-slate-700 tw-mb-2">Cliente</label>
+                                    <select 
+                                        className="tw-w-full tw-p-3 tw-bg-slate-50 tw-border tw-border-slate-300 tw-rounded-lg focus:tw-border-googleBlue focus:tw-ring-2 focus:tw-ring-blue-100 focus:tw-outline-none tw-transition-all"
+                                        value={selectedClient}
+                                        onChange={(e) => setSelectedClient(e.target.value)}
+                                    >
+                                        <option value="">-- Seleccionar Cliente --</option>
+                                        {clients.map(c => <option key={c.id} value={c.id}>{c.nombreFantasia || c.razonSocial}</option>)}
+                                    </select>
+                                </div>
+
+                                {/* Nombre del Proyecto */}
+                                <div className="tw-bg-white tw-p-6 tw-rounded-xl tw-shadow-sm tw-border tw-border-slate-200">
+                                    <label className="tw-block tw-text-sm tw-font-bold tw-text-slate-700 tw-mb-2">Nombre del Proyecto</label>
+                                    <input 
+                                        type="text" 
+                                        className="tw-w-full tw-p-3 tw-bg-slate-50 tw-border tw-border-slate-300 tw-rounded-lg focus:tw-border-googleBlue focus:tw-ring-2 focus:tw-ring-blue-100 focus:tw-outline-none tw-transition-all"
+                                        placeholder="Ej: Instalación de Puntos de Red U7"
+                                        value={projectName}
+                                        onChange={(e) => setProjectName(e.target.value)}
+                                    />
+                                </div>
+
+                                {/* Textos */}
+                                <div className="tw-bg-white tw-p-6 tw-rounded-xl tw-shadow-sm tw-border tw-border-slate-200">
+                                    <label className="tw-block tw-text-sm tw-font-bold tw-text-slate-700 tw-mb-2">Requerimiento de Proyecto</label>
+                                    <textarea 
+                                        className="tw-w-full tw-p-3 tw-bg-slate-50 tw-border tw-border-slate-300 tw-rounded-lg focus:tw-border-googleBlue focus:tw-ring-2 focus:tw-ring-blue-100 focus:tw-outline-none tw-transition-all tw-mb-6"
+                                        rows="3"
+                                        placeholder="Ej: Suministro e instalación de puntos de red..."
+                                        value={requirements}
+                                        onChange={(e) => setRequirements(e.target.value)}
+                                    ></textarea>
+
+                                    <label className="tw-block tw-text-sm tw-font-bold tw-text-slate-700 tw-mb-2">Consideraciones Técnicas (Estándares)</label>
+                                    <textarea 
+                                        className="tw-w-full tw-p-3 tw-bg-slate-50 tw-border tw-border-slate-300 tw-rounded-lg focus:tw-border-googleBlue focus:tw-ring-2 focus:tw-ring-blue-100 focus:tw-outline-none tw-transition-all tw-mb-6"
+                                        rows="3"
+                                        value={techConditions}
+                                        onChange={(e) => setTechConditions(e.target.value)}
+                                    ></textarea>
+
+                                    <label className="tw-block tw-text-sm tw-font-bold tw-text-slate-700 tw-mb-2">Condiciones Comerciales</label>
+                                    <textarea 
+                                        className="tw-w-full tw-p-3 tw-bg-slate-50 tw-border tw-border-slate-300 tw-rounded-lg focus:tw-border-googleBlue focus:tw-ring-2 focus:tw-ring-blue-100 focus:tw-outline-none tw-transition-all"
+                                        rows="4"
+                                        value={commercialConditions}
+                                        onChange={(e) => setCommercialConditions(e.target.value)}
+                                    ></textarea>
+                                </div>
+
+                                {/* Tablas */}
+                                {renderTableInput(items, setItems, "Propuesta Económica (Principal)")}
+                                {renderTableInput(optionals, setOptionals, "Items Opcionales / Adicionales")}
+
+                                {/* Acciones */}
+                                <div className="tw-pt-6 tw-pb-12">
+                                    <button 
+                                        onClick={handleGenerate}
+                                        disabled={isGenerating}
+                                        className={`tw-w-full tw-py-4 tw-rounded-xl tw-text-lg tw-font-bold tw-text-white tw-shadow-lg tw-transition-all ${isGenerating ? 'tw-bg-slate-400 tw-cursor-not-allowed' : 'tw-bg-googleBlue hover:tw-bg-blue-700 hover:-tw-translate-y-1 hover:tw-shadow-xl'}`}
+                                    >
+                                        {isGenerating ? <span><i className="fa-solid fa-circle-notch fa-spin tw-mr-3"></i> Generando PDF...</span> : <span><i className="fa-solid fa-file-pdf tw-mr-3"></i> Generar y Descargar Cotización PDF</span>}
+                                    </button>
+                                </div>
                             </div>
 
-                            {/* Nombre del Proyecto */}
-                            <div className="tw-bg-white tw-p-6 tw-rounded-xl tw-shadow-sm tw-border tw-border-slate-200">
-                                <label className="tw-block tw-text-sm tw-font-bold tw-text-slate-700 tw-mb-2">Nombre del Proyecto</label>
-                                <input 
-                                    type="text" 
-                                    className="tw-w-full tw-p-3 tw-bg-slate-50 tw-border tw-border-slate-300 tw-rounded-lg focus:tw-border-googleBlue focus:tw-ring-2 focus:tw-ring-blue-100 focus:tw-outline-none tw-transition-all"
-                                    placeholder="Ej: Instalación de Puntos de Red U7"
-                                    value={projectName}
-                                    onChange={(e) => setProjectName(e.target.value)}
-                                />
-                            </div>
-
-                            {/* Textos */}
-                            <div className="tw-bg-white tw-p-6 tw-rounded-xl tw-shadow-sm tw-border tw-border-slate-200">
-                                <label className="tw-block tw-text-sm tw-font-bold tw-text-slate-700 tw-mb-2">Requerimiento de Proyecto</label>
-                                <textarea 
-                                    className="tw-w-full tw-p-3 tw-bg-slate-50 tw-border tw-border-slate-300 tw-rounded-lg focus:tw-border-googleBlue focus:tw-ring-2 focus:tw-ring-blue-100 focus:tw-outline-none tw-transition-all tw-mb-6"
-                                    rows="3"
-                                    placeholder="Ej: Suministro e instalación de puntos de red..."
-                                    value={requirements}
-                                    onChange={(e) => setRequirements(e.target.value)}
-                                ></textarea>
-
-                                <label className="tw-block tw-text-sm tw-font-bold tw-text-slate-700 tw-mb-2">Consideraciones Técnicas (Estándares)</label>
-                                <textarea 
-                                    className="tw-w-full tw-p-3 tw-bg-slate-50 tw-border tw-border-slate-300 tw-rounded-lg focus:tw-border-googleBlue focus:tw-ring-2 focus:tw-ring-blue-100 focus:tw-outline-none tw-transition-all tw-mb-6"
-                                    rows="3"
-                                    value={techConditions}
-                                    onChange={(e) => setTechConditions(e.target.value)}
-                                ></textarea>
-
-                                <label className="tw-block tw-text-sm tw-font-bold tw-text-slate-700 tw-mb-2">Condiciones Comerciales</label>
-                                <textarea 
-                                    className="tw-w-full tw-p-3 tw-bg-slate-50 tw-border tw-border-slate-300 tw-rounded-lg focus:tw-border-googleBlue focus:tw-ring-2 focus:tw-ring-blue-100 focus:tw-outline-none tw-transition-all"
-                                    rows="4"
-                                    value={commercialConditions}
-                                    onChange={(e) => setCommercialConditions(e.target.value)}
-                                ></textarea>
-                            </div>
-
-                            {/* Tablas */}
-                            {renderTableInput(items, setItems, "Propuesta Económica (Principal)")}
-                            {renderTableInput(optionals, setOptionals, "Items Opcionales / Adicionales")}
-
-                            {/* Acciones */}
-                            <div className="tw-pt-6 tw-pb-12">
-                                <button 
-                                    onClick={handleGenerate}
-                                    disabled={isGenerating}
-                                    className={`tw-w-full tw-py-4 tw-rounded-xl tw-text-lg tw-font-bold tw-text-white tw-shadow-lg tw-transition-all ${isGenerating ? 'tw-bg-slate-400 tw-cursor-not-allowed' : 'tw-bg-googleBlue hover:tw-bg-blue-700 hover:-tw-translate-y-1 hover:tw-shadow-xl'}`}
-                                >
-                                    {isGenerating ? <span><i className="fa-solid fa-circle-notch fa-spin tw-mr-3"></i> Generando PDF...</span> : <span><i className="fa-solid fa-file-pdf tw-mr-3"></i> Generar Cotización PDF</span>}
-                                </button>
+                            {/* Columna Previsualización */}
+                            <div className="tw-hidden lg:tw-block tw-w-[450px] tw-sticky tw-top-0 tw-h-[calc(100vh-120px)]">
+                                <div className="tw-bg-white tw-rounded-xl tw-shadow-md tw-border tw-border-slate-200 tw-h-full tw-flex tw-flex-col tw-overflow-hidden">
+                                    <div className="tw-bg-slate-800 tw-text-white tw-px-4 tw-py-2 tw-text-xs tw-font-bold tw-flex tw-justify-between tw-items-center">
+                                        <span>PREVISUALIZACIÓN REAL</span>
+                                        <i className="fa-solid fa-eye"></i>
+                                    </div>
+                                    <div className="tw-flex-1 tw-bg-slate-100 tw-relative">
+                                        {previewUrl ? (
+                                            <iframe 
+                                                src={previewUrl} 
+                                                className="tw-w-full tw-h-full tw-border-none"
+                                                title="PDF Preview"
+                                            ></iframe>
+                                        ) : (
+                                            <div className="tw-absolute tw-inset-0 tw-flex tw-flex-col tw-items-center tw-justify-center tw-text-slate-400 tw-p-8 tw-text-center">
+                                                <i className="fa-solid fa-file-pdf tw-text-5xl tw-mb-4 tw-opacity-20"></i>
+                                                <p className="tw-text-sm">Seleccione un cliente para ver la previsualización del PDF en tiempo real.</p>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>

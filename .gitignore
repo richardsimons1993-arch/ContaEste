@@ -1,4 +1,10 @@
+.env
+config_crm.json
 node_modules/
+*.pfx
+*.crt
+*.bat
+*.ps1
 .vscode/
 test_*.js
 audit_test.js
