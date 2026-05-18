@@ -2127,15 +2127,22 @@ try {
     console.log('⚠️ El servidor HTTPS no pudo iniciarse. Solo HTTP disponible.');
 }
 
-// Servidor HTTP: redirige a HTTPS si está activo, o sirve directamente si no
+// Servidor HTTP:
+// - Si viene de Cloudflare/proxy (X-Forwarded-Proto: https o CF-Ray), sirve directamente (Cloudflare ya maneja HTTPS)
+// - Si es acceso HTTP directo local y hay HTTPS activo, redirige a HTTPS
+// - Si no hay HTTPS activo, sirve directamente
 const httpApp = http.createServer((req, res) => {
-    if (httpsActive) {
-        // Redirigir a HTTPS preservando host y ruta
+    const forwardedProto = req.headers['x-forwarded-proto'];
+    const cfRay           = req.headers['cf-ray'];      // Header exclusivo de Cloudflare
+    const isProxiedHttps  = forwardedProto === 'https' || !!cfRay;
+
+    if (httpsActive && !isProxiedHttps) {
+        // Acceso HTTP directo sin proxy → redirigir a HTTPS local
         const host = (req.headers.host || 'localhost').replace(`:${HTTP_PORT}`, `:${HTTPS_PORT}`);
         res.writeHead(301, { Location: `https://${host}${req.url}` });
         res.end();
     } else {
-        // Fallback: servir la app por HTTP si no hay HTTPS
+        // Viene de Cloudflare (ya es HTTPS en el borde) o no hay HTTPS → servir app
         app(req, res);
     }
 });
