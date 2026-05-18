@@ -10,4 +10,7 @@ test_*.js
 audit_test.js
 validate_persistence.js
 package-lock.json
-config_crm.json
+scratch/
+temp_parse/
+vendor/
+daemon/*.log
