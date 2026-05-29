@@ -52,7 +52,13 @@ app.use((req, res, next) => {
 });
 
 app.use(express.json({ limit: '50mb' })); // Aumentado para soportar base64 grandes (PDF)
-app.use(express.static(__dirname)); // Sirve HTML, JS y CSS automáticamente
+app.use(express.static(__dirname, {
+    setHeaders: (res, path) => {
+        if (path.endsWith('.html') || path.endsWith('.js') || path.endsWith('.css')) {
+            res.setHeader('Cache-Control', 'no-cache, must-revalidate');
+        }
+    }
+})); // Sirve HTML, JS y CSS automáticamente
 
 // Interceptar POST a la raíz o index.html
 app.post(['/', '/index.html'], (req, res) => {
@@ -61,6 +67,7 @@ app.post(['/', '/index.html'], (req, res) => {
 
 // Asegurar que GET / sirva el index.html explícitamente
 app.get('/', (req, res) => {
+    res.set('Cache-Control', 'no-cache, must-revalidate');
     res.sendFile(path.join(__dirname, 'index.html'));
 });
 

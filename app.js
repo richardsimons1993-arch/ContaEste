@@ -1196,6 +1196,20 @@ const UI = {
         } else {
             console.log("No hay sesión guardada. Solicitando login...");
             document.body.classList.add('login-pending');
+
+            // Mostrar mensaje de aviso de cierre de sesión si existe
+            const logoutMsg = sessionStorage.getItem('logout_message');
+            if (logoutMsg) {
+                setTimeout(() => {
+                    const errorEl = document.getElementById('login-error');
+                    if (errorEl) {
+                        errorEl.textContent = logoutMsg;
+                        errorEl.style.display = 'block';
+                        errorEl.style.color = 'var(--warning-color, #e67e22)';
+                    }
+                }, 100);
+                sessionStorage.removeItem('logout_message');
+            }
         }
     },
 
@@ -1261,31 +1275,10 @@ const UI = {
             };
             state.currentUser = user;
             localStorage.setItem('contabilidad_session', JSON.stringify(sessionData));
-            document.body.classList.remove('login-pending');
-            errorEl.style.display = 'none';
-            e.target.reset();
-
-            try {
-                this.updateUserUI();
-                this.applyPrivileges();
-                this.applyModuleAccess();
-                this.startInactivityTimer();
-
-                // Determinar vista inicial tras login (Dashboard en móvil, primera disponible en PC)
-                const isMobile = window.innerWidth <= 768;
-                if (isMobile) {
-                    this.switchView('mobile-dashboard');
-                } else {
-                    const firstView = this.getFirstAvailableView(state.currentUser.modules);
-                    this.switchView(firstView);
-                }
-            } catch (uiErr) {
-                console.error("Error al inicializar interfaz post-login:", uiErr);
-                // Intentar al menos mostrar la vista por defecto
-                this.switchView('notas');
-            }
-
             this.recordActivity('Login', 'Sistema', `Usuario ${username} inició sesión`);
+
+            // Recargar la página completa para asegurar la última versión de los scripts y datos limpios
+            window.location.reload();
         } catch (err) {
             errorEl.textContent = 'Error de conexión con el servidor. Verifique que el servidor esté activo.';
             errorEl.style.display = 'block';
@@ -1299,7 +1292,9 @@ const UI = {
         this.stopInactivityTimer();
         state.currentUser = null;
         localStorage.removeItem('contabilidad_session');
-        document.body.classList.add('login-pending');
+        
+        // Recargar para limpiar estados e iniciar sesión limpia
+        window.location.reload();
     },
 
     // --- CONTROL DE INACTIVIDAD ---
@@ -1439,17 +1434,12 @@ const UI = {
         this.stopInactivityTimer();
         state.currentUser = null;
         localStorage.removeItem('contabilidad_session');
-        document.body.classList.add('login-pending');
+        
+        // Guardar mensaje de aviso temporal en sessionStorage
+        sessionStorage.setItem('logout_message', 'Su sesión fue cerrada automáticamente por 30 minutos de inactividad.');
 
-        // Mostrar mensaje en el login
-        setTimeout(() => {
-            const errorEl = document.getElementById('login-error');
-            if (errorEl) {
-                errorEl.textContent = 'Su sesión fue cerrada automáticamente por 30 minutos de inactividad.';
-                errorEl.style.display = 'block';
-                errorEl.style.color = 'var(--warning-color, #e67e22)';
-            }
-        }, 100);
+        // Recargar la página completa
+        window.location.reload();
     },
 
     updateUserUI() {
