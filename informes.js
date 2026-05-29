@@ -427,22 +427,10 @@ const ReportsApp = () => {
         conclusionsBlock.push(
             { canvas: [{ type: 'line', x1: 0, y1: 0, x2: 531.9, y2: 0, lineWidth: 1.5, lineColor: '#1e293b' }], margin: [0, 15, 0, 15] },
             {
-                columns: [
-                    {
-                        width: '*',
-                        stack: [
-                            { text: 'ELABORADO POR:', fontSize: 8, bold: true, color: '#64748b', margin: [0, 0, 0, 25] },
-                            { text: 'Departamento de Operaciones', fontSize: 9, bold: true, color: '#1e293b' },
-                            { text: 'Simons SPA - Soluciones Tecnológicas', fontSize: 8, color: '#475569' }
-                        ]
-                    },
-                    {
-                        width: 180,
-                        stack: [
-                            { text: 'APROBADO POR:', fontSize: 8, bold: true, color: '#64748b', margin: [0, 0, 0, 25] },
-                            { text: 'Firma y Aprobación del Cliente', fontSize: 9, color: '#94a3b8', decoration: 'underline', alignment: 'center' }
-                        ]
-                    }
+                stack: [
+                    { text: 'ELABORADO POR:', fontSize: 8, bold: true, color: '#64748b', margin: [0, 0, 0, 25] },
+                    { text: 'Departamento de Proyectos', fontSize: 9, bold: true, color: '#1e293b' },
+                    { text: 'Simons SPA - Soluciones Tecnológicas', fontSize: 8, color: '#475569' }
                 ],
                 margin: [0, 10, 0, 10]
             }
