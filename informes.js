@@ -14,7 +14,7 @@ const ReportsApp = () => {
     // Secciones del Formulario
     const [generalData, setGeneralData] = useState('');
     const [scope, setScope] = useState('');
-    const [materials, setMaterials] = useState([{ id: Date.now(), qty: 1, desc: '', notes: '' }]);
+    const [materials, setMaterials] = useState([{ id: Date.now(), desc: '', notes: '' }]);
     const [results, setResults] = useState('');
     const [conclusions, setConclusions] = useState('');
     const [images, setImages] = useState([]); // URLs de imágenes subidas (/uploads/filename.jpg)
@@ -166,7 +166,7 @@ const ReportsApp = () => {
     };
 
     const addMaterialRow = () => {
-        setMaterials([...materials, { id: Date.now(), qty: 1, desc: '', notes: '' }]);
+        setMaterials([...materials, { id: Date.now(), desc: '', notes: '' }]);
     };
 
     const removeMaterialRow = (id) => {
@@ -320,34 +320,51 @@ const ReportsApp = () => {
         content.push({ text: scope || 'No se ingresó alcance del proyecto.', margin: [8, 0, 0, 12] });
 
         // 3. Materiales Utilizados
-        addSectionHeader('3. MATERIALES UTILIZADOS');
+        const materialsStackElements = [];
+        materialsStackElements.push({
+            table: {
+                widths: [4, '*'],
+                body: [
+                    [
+                        { text: '', fillColor: '#0f766e', border: [false, false, false, false] },
+                        { text: '3. MATERIALES UTILIZADOS', fillColor: '#f8fafc', border: [false, false, false, false], margin: [5, 4, 0, 4], color: '#1e293b', bold: true, fontSize: 10 }
+                    ]
+                ]
+            },
+            layout: 'noBorders',
+            margin: [0, 15, 0, 8]
+        });
+
         if (materials && materials.length > 0) {
             const tableBody = [
                 [
-                    { text: 'Cant.', style: 'tableHeader', alignment: 'center' },
                     { text: 'Descripción del Material', style: 'tableHeader', alignment: 'left' },
                     { text: 'Notas / Detalles', style: 'tableHeader', alignment: 'left' }
                 ]
             ];
             materials.forEach(m => {
                 tableBody.push([
-                    { text: m.qty.toString(), alignment: 'center' },
                     m.desc || '-',
                     m.notes || '-'
                 ]);
             });
-            content.push({
+            materialsStackElements.push({
                 table: {
                     headerRows: 1,
-                    widths: [50, '*', '*'],
+                    widths: ['*', '*'],
                     body: tableBody
                 },
                 layout: 'lightHorizontalLines',
                 margin: [8, 0, 0, 12]
             });
         } else {
-            content.push({ text: 'No se listaron materiales.', margin: [8, 0, 0, 12], italics: true });
+            materialsStackElements.push({ text: 'No se listaron materiales.', margin: [8, 0, 0, 12], italics: true });
         }
+
+        content.push({
+            unbreakable: true,
+            stack: materialsStackElements
+        });
 
         // 4. Resultados del Proyecto (Texto + Imágenes)
         addSectionHeader('4. RESULTADOS DEL PROYECTO');
@@ -687,9 +704,8 @@ const ReportsApp = () => {
                                         <table className="tw-w-full">
                                             <thead>
                                                 <tr className="tw-text-[10px] tw-font-bold tw-text-slate-400 tw-uppercase tw-tracking-wider tw-border-b tw-border-slate-100">
-                                                    <th className="tw-text-left tw-pb-2 tw-w-20">Cant.</th>
                                                     <th className="tw-text-left tw-pb-2">Descripción del Material</th>
-                                                    <th className="tw-text-left tw-pb-2 tw-w-56">Notas / Detalles</th>
+                                                    <th className="tw-text-left tw-pb-2 tw-w-72">Notas / Detalles</th>
                                                     <th className="tw-w-10"></th>
                                                 </tr>
                                             </thead>
@@ -697,14 +713,6 @@ const ReportsApp = () => {
                                                 {materials.map((m) => (
                                                     <tr key={m.id} className="tw-border-b tw-border-slate-50 last:tw-border-0">
                                                         <td className="tw-py-2 tw-pr-2">
-                                                            <input 
-                                                                type="number" 
-                                                                className="tw-w-full tw-p-2 tw-border tw-border-slate-300 tw-rounded tw-text-sm tw-text-center"
-                                                                value={m.qty}
-                                                                onChange={(e) => handleMaterialChange(m.id, 'qty', parseInt(e.target.value) || 1)}
-                                                            />
-                                                        </td>
-                                                        <td className="tw-py-2">
                                                             <input 
                                                                 type="text" 
                                                                 placeholder="Material / Componente..."
