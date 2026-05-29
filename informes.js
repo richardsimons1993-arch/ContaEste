@@ -428,7 +428,7 @@ const ReportsApp = () => {
             { canvas: [{ type: 'line', x1: 0, y1: 0, x2: 531.9, y2: 0, lineWidth: 1.5, lineColor: '#1e293b' }], margin: [0, 15, 0, 15] },
             {
                 stack: [
-                    { text: 'ELABORADO POR:', fontSize: 8, bold: true, color: '#64748b', margin: [0, 0, 0, 25] },
+                    { text: 'ELABORADO POR:', fontSize: 8, bold: true, color: '#64748b', margin: [0, 0, 0, 2] },
                     { text: 'Departamento de Proyectos', fontSize: 9, bold: true, color: '#1e293b' },
                     { text: 'Simons SPA - Soluciones Tecnológicas', fontSize: 8, color: '#475569' }
                 ],
