@@ -353,6 +353,14 @@ const Storage = {
         deleteQuotation: (id, version) => asyncRequest('DELETE', `/quotations/${id}/${version}`),
         saveQuotationPdf: (data) => asyncRequest('POST', '/quotations/save-pdf', data),
 
+        // --- Informes ---
+        getReports: () => asyncRequest('GET', '/reports'),
+        getNextReportId: (prefix, year) => asyncRequest('GET', `/reports/next-id/${prefix}/${year}`),
+        getReportNextVersion: (id) => asyncRequest('GET', `/reports/next-version/${id}`),
+        saveReport: (r) => asyncRequest('POST', '/reports', r),
+        deleteReport: (id, version) => asyncRequest('DELETE', `/reports/${id}/${version}`),
+        saveReportPdf: (data) => asyncRequest('POST', '/reports/save-pdf', data),
+
         // --- Módulo CRM ---
         getCRMProspectos: () => asyncRequest('GET', '/crm/prospectos'),
         saveCRMProspecto: (p) => asyncRequest('POST', '/crm/prospectos', p),

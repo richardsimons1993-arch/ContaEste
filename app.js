@@ -38,6 +38,7 @@ const MODULE_VIEW_MAP = {
     'activity': 'finanzas',
     'projects': 'proyectos',
     'quotations': 'cotizaciones',
+    'reports': 'informes',
     'contracts': 'ventas',
     'inventory': 'inventario',
     'crm-leads': 'crm',
@@ -177,6 +178,14 @@ const MODULES_CONFIG = [
         ]
     },
     {
+        id: 'informes',
+        name: 'Informes',
+        icon: 'fa-file-lines',
+        submodules: [
+            { id: 'reports', name: 'Gestión de Informes' }
+        ]
+    },
+    {
         id: 'inventario',
         name: 'Inventario',
         icon: 'fa-boxes-stacked',
@@ -205,8 +214,8 @@ const MODULES_CONFIG = [
 ];
 
 const DEFAULT_USERS = [
-    { id: '1', username: 'administrador', password: 'S0p0rt3!!2025', role: ROLES.ADMIN, name: 'Admin Simons', modules: ['finanzas', 'ventas', 'proyectos', 'inventario', 'cotizaciones', 'usuarios', 'notas', 'crm'] },
-    { id: '2', username: 'operador', password: 'operador123', role: ROLES.OPERATOR, name: 'Operador Ventas', modules: ['finanzas', 'ventas', 'proyectos', 'inventario', 'cotizaciones', 'notas', 'crm'] },
+    { id: '1', username: 'administrador', password: 'S0p0rt3!!2025', role: ROLES.ADMIN, name: 'Admin Simons', modules: ['finanzas', 'ventas', 'proyectos', 'inventario', 'cotizaciones', 'informes', 'usuarios', 'notas', 'crm'] },
+    { id: '2', username: 'operador', password: 'operador123', role: ROLES.OPERATOR, name: 'Operador Ventas', modules: ['finanzas', 'ventas', 'proyectos', 'inventario', 'cotizaciones', 'informes', 'notas', 'crm'] },
     { id: '3', username: 'lector', password: 'lector123', role: ROLES.VIEWER, name: 'Invitado', modules: ['finanzas', 'ventas', 'proyectos', 'inventario', 'notas'] }
 ];
 
@@ -339,6 +348,9 @@ const UI = {
             this.initNotas();
             if(typeof window.initQuotations === 'function') {
                 window.initQuotations();
+            }
+            if(typeof window.initReports === 'function') {
+                window.initReports();
             }
 
             // Establecer fecha por defecto a hoy (Hacerlo ANTES de Flatpickr)
@@ -1768,6 +1780,11 @@ const UI = {
         if (viewName === 'quotations') {
             if(typeof window.initQuotations === 'function') {
                 window.initQuotations();
+            }
+        }
+        if (viewName === 'reports') {
+            if(typeof window.initReports === 'function') {
+                window.initReports();
             }
         }
 

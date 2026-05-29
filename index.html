@@ -52,6 +52,7 @@
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script type="text/babel" src="notas.js?v=20260408_16"></script>
     <script type="text/babel" src="cotizaciones.js?v=20260408_16"></script>
+    <script type="text/babel" src="informes.js?v=20260528"></script>
 
     <script>
         window.onerror = function (msg, url, line, col, error) {
@@ -187,6 +188,14 @@
                     <div class="nav-section-header">PROYECTOS</div>
                     <button class="nav-btn" data-target="projects">
                         <i class="fa-solid fa-diagram-project"></i> Proyectos
+                    </button>
+                </div>
+
+                <!-- Módulo Informes (Independiente) -->
+                <div class="nav-section" data-module="informes">
+                    <div class="nav-section-header">INFORMES</div>
+                    <button class="nav-btn" data-target="reports">
+                        <i class="fa-solid fa-file-lines"></i> Informes
                     </button>
                 </div>
 
@@ -344,6 +353,11 @@
             <!-- VISTA COTIZACIONES (React Container) -->
             <section id="quotations" class="view-section scrollable">
                 <div id="quotations-root"></div>
+            </section>
+
+            <!-- VISTA INFORMES (React Container) -->
+            <section id="reports" class="view-section scrollable">
+                <div id="reports-root"></div>
             </section>
 
             <!-- VISTA DASHBOARD -->
