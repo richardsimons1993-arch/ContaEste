@@ -539,9 +539,20 @@ const ReportsApp = () => {
                             
                             fetchHistory();
                             if (currentVersion <= 1) setNextId(nextId + 1);
-                            
-                            alert("Informe generado, descargado y guardado en tu OneDrive con éxito.");
-                            resolve();
+                             
+                             // Limpiar formulario tras generar informe
+                             setSelectedClient('');
+                             setProjectName('');
+                             setGeneralData('');
+                             setScope('');
+                             setMaterials([{ id: Date.now(), desc: '', notes: '' }]);
+                             setResults('');
+                             setConclusions('');
+                             setImages([]);
+                             setCurrentVersion(1);
+
+                             alert("Informe generado, descargado y guardado en tu OneDrive con éxito.");
+                             resolve();
                         } catch (saveErr) {
                             reject(saveErr);
                         }

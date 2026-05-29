@@ -498,6 +498,17 @@ const QuotationsApp = () => {
                             
                             fetchHistory();
                             if (currentVersion <= 1) setNextId(nextId + 1);
+
+                            // Limpiar formulario tras generar cotización
+                            setSelectedClient('');
+                            setProjectName('');
+                            setRequirements('');
+                            setTechConditions('');
+                            setCommercialConditions('• Cotización con validez de 10 días hábiles desde fecha de emisión de propuesta.\n• Se considera aprobada solicitud al recibir Orden de Compra por la totalidad de la propuesta comercial o al depositar el 50% del mismo.');
+                            setItems([{ id: Date.now(), desc: '', qty: 1, price: 0 }]);
+                            setOptionals([]);
+                            setCurrentVersion(1);
+
                             resolve();
                         } catch (saveErr) {
                             reject(saveErr);
