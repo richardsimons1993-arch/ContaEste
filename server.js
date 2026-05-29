@@ -2020,26 +2020,76 @@ app.post('/api/quotations/save-pdf', async (req, res) => {
     try {
         const { clientName, year, quotationId, pdfBase64 } = req.body;
         
-        // Ruta Base en OneDrive
-        const baseDriveDir = path.join('C:', 'Users', 'Richard', 'OneDrive - SIMONS SPA', 'Simons SPA', 'Clientes', 'Cotizaciones APP');
-        const yearDir = path.join(baseDriveDir, year.toString());
-        const clientDir = path.join(yearDir, clientName);
-        
-        // Crear directorios si no existen
-        if (!fs.existsSync(baseDriveDir)) fs.mkdirSync(baseDriveDir, { recursive: true });
-        if (!fs.existsSync(yearDir)) fs.mkdirSync(yearDir, { recursive: true });
-        if (!fs.existsSync(clientDir)) fs.mkdirSync(clientDir, { recursive: true });
-
         // Limpiar base64 header si existe de manera robusta
         const base64Data = pdfBase64.includes('base64,') ? pdfBase64.split('base64,')[1] : pdfBase64;
-        
         const fileName = `Cotizacion_${quotationId}_${clientName.replace(/[^a-zA-Z0-9 -]/g, '')}.pdf`;
-        const filePath = path.join(clientDir, fileName);
 
-        fs.writeFileSync(filePath, base64Data, 'base64');
-        
-        console.log(`✅ PDF cotización guardado: ${filePath}`);
-        res.json({ success: true, filePath });
+        const isWindows = process.platform === 'win32';
+
+        if (isWindows) {
+            // Ruta Base en OneDrive (Comportamiento original en Windows)
+            const baseDriveDir = path.join('C:', 'Users', 'Richard', 'OneDrive - SIMONS SPA', 'Simons SPA', 'Clientes', 'Cotizaciones APP');
+            const yearDir = path.join(baseDriveDir, year.toString());
+            const clientDir = path.join(yearDir, clientName);
+            
+            // Crear directorios si no existen
+            if (!fs.existsSync(baseDriveDir)) fs.mkdirSync(baseDriveDir, { recursive: true });
+            if (!fs.existsSync(yearDir)) fs.mkdirSync(yearDir, { recursive: true });
+            if (!fs.existsSync(clientDir)) fs.mkdirSync(clientDir, { recursive: true });
+
+            const filePath = path.join(clientDir, fileName);
+            fs.writeFileSync(filePath, base64Data, 'base64');
+            
+            console.log(`✅ PDF cotización guardado localmente (Windows): ${filePath}`);
+            res.json({ success: true, filePath });
+        } else {
+            // Comportamiento Linux (Ubuntu Server) con rclone
+            const localTempDir = path.join(__dirname, 'temp_pdfs');
+            if (!fs.existsSync(localTempDir)) {
+                fs.mkdirSync(localTempDir, { recursive: true });
+            }
+            const localFilePath = path.join(localTempDir, fileName);
+            fs.writeFileSync(localFilePath, base64Data, 'base64');
+            console.log(`✅ PDF cotización guardado localmente temporal: ${localFilePath}`);
+
+            // Subir a OneDrive usando rclone
+            const { execFile } = require('child_process');
+            
+            // Ruta remota en OneDrive
+            const remoteDestDir = `onedrive_backup:Simons SPA/Clientes/Cotizaciones APP/${year}/${clientName}`;
+            
+            const rcloneArgs = [
+                'copy',
+                localFilePath,
+                remoteDestDir
+            ];
+            
+            // Usar config específico si existe
+            const rcloneConfigPath = '/home/administrador/.config/rclone/rclone.conf';
+            if (fs.existsSync(rcloneConfigPath)) {
+                rcloneArgs.push('--config', rcloneConfigPath);
+            }
+            
+            execFile('/usr/bin/rclone', rcloneArgs, (error, stdout, stderr) => {
+                // Eliminar el archivo temporal local de todas formas
+                try {
+                    if (fs.existsSync(localFilePath)) {
+                        fs.unlinkSync(localFilePath);
+                    }
+                } catch (unlinkErr) {
+                    console.error('Error al eliminar PDF temporal:', unlinkErr);
+                }
+
+                if (error) {
+                    console.error('Error al subir PDF a OneDrive con rclone:', error);
+                    console.error('stderr:', stderr);
+                    return res.status(500).json({ error: `Error de subida a OneDrive con rclone: ${error.message}` });
+                }
+                
+                console.log(`✅ PDF cotización subido con éxito a OneDrive (${remoteDestDir}/${fileName})`);
+                res.json({ success: true, filePath: `${remoteDestDir}/${fileName}` });
+            });
+        }
     } catch (err) {
         console.error('Error al guardar PDF:', err);
         res.status(500).json({ error: err.message });
