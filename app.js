@@ -652,6 +652,18 @@ const UI = {
         }
     },
 
+    async reloadProjects() {
+        try {
+            console.log('--- Recargando solo datos de Proyectos ---');
+            const projects = await window.StorageAPI.async.getProjects();
+            state.projects = projects;
+            console.log('--- Proyectos actualizados con éxito ---');
+        } catch (err) {
+            console.error("Error al recargar proyectos:", err);
+            throw err;
+        }
+    },
+
 
     setupEventListeners() {
         console.log("Configurando oyentes de eventos...");

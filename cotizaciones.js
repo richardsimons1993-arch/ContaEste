@@ -499,9 +499,9 @@ const QuotationsApp = () => {
                             fetchHistory();
                             if (currentVersion <= 1) setNextId(nextId + 1);
 
-                            // Refrescar UI general (Proyectos, etc.)
-                            if (window.UI && typeof window.UI.loadData === 'function') {
-                                window.UI.loadData().catch(err => console.error('Error al actualizar datos de la UI:', err));
+                            // Refrescar UI general de Proyectos
+                            if (window.UI && typeof window.UI.reloadProjects === 'function') {
+                                window.UI.reloadProjects().catch(err => console.error('Error al recargar proyectos:', err));
                             }
 
                             // Limpiar formulario tras generar cotización

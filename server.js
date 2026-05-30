@@ -2033,18 +2033,41 @@ app.post('/api/quotations', async (req, res) => {
                         INSERT INTO Projects (id, projectName, clientId, status, observations, estimatedAmount, visitDate) 
                         VALUES (@id, @projectName, @clientId, @status, @observations, @estimatedAmount, GETDATE())
                     `);
+
+                // Registrar en la bitácora de historial del proyecto
+                await pool.request()
+                    .input('projectId', sql.VarChar(50), projectId)
+                    .input('newStatus', sql.VarChar(50), projectStatus)
+                    .input('note', sql.VarChar(sql.MAX), 'Creado automáticamente desde Cotización N° ' + q.id + versionSuffix)
+                    .query(`
+                        INSERT INTO ProjectHistory (projectId, previousStatus, newStatus, note, changeDate) 
+                        VALUES (@projectId, NULL, @newStatus, @note, GETDATE())
+                    `);
             } else {
-                // Si ya existe, actualizamos solo si el estado actual sigue siendo 'Cotizado'
+                // Si ya existe, actualizamos siempre el nombre, monto y forzamos el estado a 'Cotizado'
                 const currentStatus = projectCheck.recordset[0].status;
-                if (currentStatus === 'Cotizado') {
+                
+                await pool.request()
+                    .input('id', sql.VarChar(50), projectId)
+                    .input('projectName', sql.VarChar(255), finalProjectName)
+                    .input('status', sql.VarChar(50), projectStatus)
+                    .input('estimatedAmount', sql.Decimal(18, 2), q.total)
+                    .query(`
+                        UPDATE Projects 
+                        SET projectName = @projectName, estimatedAmount = @estimatedAmount, status = @status, visitDate = GETDATE() 
+                        WHERE id = @id
+                    `);
+
+                // Si el estado anterior era diferente, registrar el cambio de fase en el historial
+                if (currentStatus !== projectStatus) {
                     await pool.request()
-                        .input('id', sql.VarChar(50), projectId)
-                        .input('projectName', sql.VarChar(255), finalProjectName)
-                        .input('estimatedAmount', sql.Decimal(18, 2), q.total)
+                        .input('projectId', sql.VarChar(50), projectId)
+                        .input('previousStatus', sql.VarChar(50), currentStatus)
+                        .input('newStatus', sql.VarChar(50), projectStatus)
+                        .input('note', sql.VarChar(sql.MAX), 'Actualizado automáticamente a Cotizado desde Cotización N° ' + q.id + versionSuffix)
                         .query(`
-                            UPDATE Projects 
-                            SET projectName = @projectName, estimatedAmount = @estimatedAmount, visitDate = GETDATE() 
-                            WHERE id = @id
+                            INSERT INTO ProjectHistory (projectId, previousStatus, newStatus, note, changeDate) 
+                            VALUES (@projectId, @previousStatus, @newStatus, @note, GETDATE())
                         `);
                 }
             }
