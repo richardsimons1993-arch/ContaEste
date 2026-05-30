@@ -1771,7 +1771,10 @@ const UI = {
         if (viewName === 'debts') this.renderDebts();
         if (viewName === 'debtors') this.renderDebtors();
         if (viewName === 'contracts') this.renderContracts();
-        if (viewName === 'projects') this.renderProjects();
+        if (viewName === 'projects') {
+            this.renderProjects();
+            this.reloadProjects().catch(err => console.error("Error al recargar proyectos al cambiar de vista:", err));
+        }
         if (viewName === 'activity') this.renderActivity();
         if (viewName === 'available-funds') this.renderAvailables();
         if (viewName === 'users') this.renderUsers();
