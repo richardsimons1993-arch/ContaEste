@@ -242,7 +242,7 @@
                     <button class="nav-btn" data-target="users" id="nav-users-btn">
                         <i class="fa-solid fa-user-gear"></i> Usuarios
                     </button>
-                    <button class="nav-btn" id="btn-global-locations">
+                    <button class="nav-btn" id="btn-global-locations" data-target="locations">
                         <i class="fa-solid fa-location-dot"></i> Ubicaciones
                     </button>
                 </div>
@@ -1412,9 +1412,9 @@
 
                     <div class="tabs"
                         style="display: flex; gap: 1rem; border-bottom: 2px solid var(--border-color); margin-bottom: 1rem; padding-bottom: 0.5rem;">
-                        <button class="btn-text alert-tab-btn active" data-tab="tab-pending-month"
+                        <button class="btn-text alert-tab-btn active" data-tab="tab-pending-month" data-module="ventas" data-target="contracts-reminder"
                             style="font-weight: bold; border-bottom: 2px solid var(--primary-color);">Contratos y Facturación</button>
-                        <button class="btn-text alert-tab-btn" data-tab="tab-operational-expenses">Gastos Operacionales</button>
+                        <button class="btn-text alert-tab-btn" data-tab="tab-operational-expenses" data-module="finanzas" data-target="operational-expenses">Gastos Operacionales</button>
                     </div>
 
                     <div id="tab-pending-month" class="alert-tab-content" style="display: block;">
@@ -2111,7 +2111,7 @@
     <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/plugins/monthSelect/index.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="storage.js?v=2"></script>
-    <script src="app.js?v=30"></script>
+    <script src="app.js?v=31"></script>
 </body>
 
 </html>

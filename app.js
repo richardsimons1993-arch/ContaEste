@@ -697,6 +697,7 @@ const UI = {
                 const target = e.currentTarget.dataset.target;
                 console.log("Botón de navegación pulsado. Destino:", target);
                 if (target) {
+                    if (target === 'locations') return; // Ubicaciones abre un modal
                     this.switchView(target);
                 } else {
                     console.error("El botón no tiene data-target:", btn);
@@ -1595,6 +1596,13 @@ const UI = {
                            state.currentUser.role === ROLES.ADMIN;
         if (isAdminUser) return true;
 
+        // Vistas públicas para cualquier usuario autenticado (sin módulo asociado)
+        if (!mId) {
+            const publicViews = ['mobile-dashboard', 'alerts'];
+            if (target && publicViews.includes(target)) return true;
+            return false;
+        }
+
         const userModules = state.currentUser.modules || {};
         
         // 1. Caso Sistema Antiguo (Array)
@@ -1610,7 +1618,7 @@ const UI = {
         if (!target || target === mId) return true;
 
         // Si el target es una vista principal del módulo, no chequeamos sub-permisos (redundante)
-        const mainViews = ['finanzas', 'proyectos', 'ventas', 'cotizaciones', 'inventario', 'usuarios', 'notas', 'crm-leads', 'crm-emails', 'crm-smtp-config'];
+        const mainViews = ['finanzas', 'proyectos', 'ventas', 'cotizaciones', 'inventario', 'usuarios', 'notas'];
         if (mainViews.includes(target)) return true;
 
         // Checar permiso específico del submodulo
@@ -1631,8 +1639,8 @@ const UI = {
             }
         });
 
-        // 2. Mostrar/Ocultar Botones específicos (Sidebar, Home móvil, Menú inferior, Alertas)
-        document.querySelectorAll('.nav-btn, .mobile-card-large, #contracts-reminder-btn').forEach(el => {
+        // 2. Mostrar/Ocultar Botones específicos (Sidebar, Home móvil, Menú inferior, Alertas, Pestañas de Alertas)
+        document.querySelectorAll('.nav-btn, .mobile-card-large, #contracts-reminder-btn, .alert-tab-btn').forEach(el => {
             const target = el.dataset.target;
             const mId = el.dataset.module || el.closest('.nav-section')?.dataset.module;
 
@@ -1769,6 +1777,40 @@ const UI = {
 
         if (viewName === 'dashboard') this.renderDashboard();
         if (viewName === 'transactions') this.renderTransactionsList();
+        if (viewName === 'alerts') {
+            // Decidir qué pestaña mostrar por defecto basado en los accesos del usuario
+            const hasVentas = this.hasAccess('ventas', 'contracts-reminder');
+            const hasFinanzas = this.hasAccess('finanzas', 'operational-expenses');
+            
+            let defaultTab = '';
+            if (hasVentas) {
+                defaultTab = 'tab-pending-month';
+            } else if (hasFinanzas) {
+                defaultTab = 'tab-operational-expenses';
+            }
+
+            // Ocultar todos los contenidos de pestaña primero
+            document.querySelectorAll('.alert-tab-content').forEach(c => c.style.display = 'none');
+            // Desactivar todos los botones de pestaña
+            document.querySelectorAll('.alert-tab-btn').forEach(b => {
+                b.classList.remove('active');
+                b.style.fontWeight = 'normal';
+                b.style.borderBottom = 'none';
+            });
+
+            if (defaultTab) {
+                const activeBtn = document.querySelector(`.alert-tab-btn[data-tab="${defaultTab}"]`);
+                const activeContent = document.getElementById(defaultTab);
+                if (activeBtn) {
+                    activeBtn.classList.add('active');
+                    activeBtn.style.fontWeight = 'bold';
+                    activeBtn.style.borderBottom = '2px solid var(--primary-color)';
+                }
+                if (activeContent) {
+                    activeContent.style.display = 'block';
+                }
+            }
+        }
         if (viewName === 'concepts') this.renderConcepts();
         if (viewName === 'clients') this.renderClients();
         if (viewName === 'debts') this.renderDebts();
@@ -3639,6 +3681,10 @@ const UI = {
 
     async handleUserSubmit(e) {
         e.preventDefault();
+        if (!this.hasAccess('usuarios', 'users')) {
+            this.showToast('Acceso denegado para modificar usuarios', 'error');
+            return;
+        }
         const formData = new FormData(e.target);
         const id = document.getElementById('edit-user-id').value;
         const username = formData.get('username').toLowerCase();
@@ -3724,6 +3770,10 @@ const UI = {
     },
 
     editUser(id) {
+        if (!this.hasAccess('usuarios', 'users')) {
+            this.showToast('Acceso denegado para editar usuarios', 'error');
+            return;
+        }
         const user = state.users.find(u => u.id === id);
         if (!user) return;
 
@@ -3748,6 +3798,10 @@ const UI = {
     },
 
     async deleteUser(id) {
+        if (!this.hasAccess('usuarios', 'users')) {
+            this.showToast('Acceso denegado para eliminar usuarios', 'error');
+            return;
+        }
         const user = state.users.find(u => u.id === id);
         if (!user || user.username === 'administrador') return; // No borrar admin principal
 
@@ -5345,6 +5399,10 @@ const UI = {
     },
 
     openLocationManager() {
+        if (!this.hasAccess('usuarios', 'locations')) {
+            this.showToast('Acceso denegado a la gestión de ubicaciones', 'error');
+            return;
+        }
         this.resetLocationForm();
         this.renderLocations();
         this.openModal('locations-modal');
@@ -5362,6 +5420,10 @@ const UI = {
 
     async handleLocationSubmit(e) {
         e.preventDefault();
+        if (!this.hasAccess('usuarios', 'locations')) {
+            this.showToast('Acceso denegado para modificar ubicaciones', 'error');
+            return;
+        }
         const form = e.target;
         const formData = new FormData(form);
         const id = formData.get('id');
@@ -5401,6 +5463,10 @@ const UI = {
     },
 
     editLocation(id) {
+        if (!this.hasAccess('usuarios', 'locations')) {
+            this.showToast('Acceso denegado para editar ubicaciones', 'error');
+            return;
+        }
         const loc = state.locations.find(l => l.id === id);
         if (!loc) return;
 
@@ -5415,6 +5481,10 @@ const UI = {
     },
 
     async deleteLocation(id) {
+        if (!this.hasAccess('usuarios', 'locations')) {
+            this.showToast('Acceso denegado para eliminar ubicaciones', 'error');
+            return;
+        }
         if (!confirm('¿Está seguro de eliminar esta ubicación?')) return;
         try {
             await window.StorageAPI.async.deleteAppLocation(id);
@@ -5638,24 +5708,25 @@ const UI = {
         // 3. Deudas pendientes (Removido del conteo por solicitud, pero mantiene la campana visible si existen)
         const debtsCount = state.debts ? state.debts.length : 0;
 
-        const totalAlerts = contractsCount + expensesCount;
-        const hasAnyAlert = totalAlerts > 0 || debtsCount > 0;
+        const hasVentasAccess = this.hasAccess('ventas', 'contracts-reminder');
+        const hasFinanzasAccess = this.hasAccess('finanzas', 'operational-expenses');
 
-        if (hasAnyAlert) {
-            const access = this.hasAccess('ventas', 'contracts-reminder');
-            if (access) {
-                reminderBtn.style.display = 'inline-block';
-                if (totalAlerts > 0) {
-                    pendingBadge.style.display = 'inline-block';
-                    pendingBadge.textContent = totalAlerts;
-                } else {
-                    pendingBadge.style.display = 'none';
-                }
-                // Actualizar tooltip para ser más descriptivo
-                reminderBtn.title = `${totalAlerts} alertas urgentes ${debtsCount > 0 ? `+ ${debtsCount} deudas` : ''}`;
+        let totalAlerts = 0;
+        if (hasVentasAccess) totalAlerts += contractsCount;
+        if (hasFinanzasAccess) totalAlerts += expensesCount;
+
+        const hasAnyAlert = totalAlerts > 0 || (hasVentasAccess && debtsCount > 0); // Las deudas corresponden a finanzas/deudas, pero mantenemos la lógica heredada
+
+        if (hasAnyAlert && (hasVentasAccess || hasFinanzasAccess)) {
+            reminderBtn.style.display = 'inline-block';
+            if (totalAlerts > 0) {
+                pendingBadge.style.display = 'inline-block';
+                pendingBadge.textContent = totalAlerts;
             } else {
-                reminderBtn.style.display = 'none';
+                pendingBadge.style.display = 'none';
             }
+            // Actualizar tooltip para ser más descriptivo
+            reminderBtn.title = `${totalAlerts} alertas urgentes ${debtsCount > 0 ? `+ ${debtsCount} deudas` : ''}`;
         } else {
             reminderBtn.style.display = 'none';
         }
