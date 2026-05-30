@@ -109,11 +109,15 @@ let poolPromise = null;
 
 function getDbPool() {
     if (!poolPromise) {
-        poolPromise = new sql.ConnectionPool(dbConfig)
-            .connect()
-            .then(pool => {
+        const pool = new sql.ConnectionPool(dbConfig);
+        pool.on('error', err => {
+            console.error('❌ Error en el pool de base de datos:', err);
+            poolPromise = null; // Reset pool promise on pool error so it reconnects on next request
+        });
+        poolPromise = pool.connect()
+            .then(connectedPool => {
                 console.log('✅ Conectado a SQL Server Express');
-                return pool;
+                return connectedPool;
             })
             .catch(err => {
                 console.error('❌ Error conectando a SQL Server: ', err);
