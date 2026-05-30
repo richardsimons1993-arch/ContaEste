@@ -2007,6 +2007,52 @@ app.post('/api/quotations', async (req, res) => {
                     INSERT (id, correlative, year, version, clientId, clientName, projectName, requirements, technicalConditions, commercialConditions, items1, itemsOptional, subtotal, iva, total, createdAt)
                     VALUES (@id, @correlative, @year, @version, @clientId, @clientName, @projectName, @requirements, @technicalConditions, @commercialConditions, @items1, @itemsOptional, @subtotal, @iva, @total, GETDATE());
             `);
+
+        // --- Sincronización Automática con Proyectos ---
+        try {
+            const projectId = 'PROJ-' + q.id;
+            const versionSuffix = (q.version && q.version > 1) ? ' v' + q.version : '';
+            const finalProjectName = (q.projectName || 'Proyecto sin nombre') + versionSuffix;
+            const projectStatus = 'Cotizado';
+
+            // Verificar si el proyecto ya existe
+            const projectCheck = await pool.request()
+                .input('id', sql.VarChar(50), projectId)
+                .query('SELECT id, status FROM Projects WHERE id = @id');
+
+            if (projectCheck.recordset.length === 0) {
+                // Si no existe, crear el proyecto automáticamente en estado 'Cotizado'
+                await pool.request()
+                    .input('id', sql.VarChar(50), projectId)
+                    .input('projectName', sql.VarChar(255), finalProjectName)
+                    .input('clientId', sql.VarChar(50), q.clientId)
+                    .input('status', sql.VarChar(50), projectStatus)
+                    .input('observations', sql.VarChar(sql.MAX), 'Creado automáticamente desde Cotización N° ' + q.id)
+                    .input('estimatedAmount', sql.Decimal(18, 2), q.total)
+                    .query(`
+                        INSERT INTO Projects (id, projectName, clientId, status, observations, estimatedAmount, visitDate) 
+                        VALUES (@id, @projectName, @clientId, @status, @observations, @estimatedAmount, GETDATE())
+                    `);
+            } else {
+                // Si ya existe, actualizamos solo si el estado actual sigue siendo 'Cotizado'
+                const currentStatus = projectCheck.recordset[0].status;
+                if (currentStatus === 'Cotizado') {
+                    await pool.request()
+                        .input('id', sql.VarChar(50), projectId)
+                        .input('projectName', sql.VarChar(255), finalProjectName)
+                        .input('estimatedAmount', sql.Decimal(18, 2), q.total)
+                        .query(`
+                            UPDATE Projects 
+                            SET projectName = @projectName, estimatedAmount = @estimatedAmount, visitDate = GETDATE() 
+                            WHERE id = @id
+                        `);
+                }
+            }
+        } catch (projErr) {
+            console.error('Error al sincronizar cotización con proyectos:', projErr);
+            // No bloqueamos la respuesta de la cotización si falla la creación del proyecto
+        }
+
         res.json({ success: true });
     } catch (err) {
         console.error(err);
