@@ -81,7 +81,10 @@ const Store = new Proxy(rawState, {
             'contracts': () => UI.renderContracts(),
             'pendingContracts': () => UI.checkPendingContracts(),
             'users': () => UI.renderUsers(),
-            'projects': () => UI.renderProjects(),
+            'projects': () => {
+                UI.renderProjects();
+                UI.renderDashboard();
+            },
             'availables': () => { 
                 UI.renderAvailables(); 
                 setTimeout(() => UI.renderDashboard(), 0); 
@@ -1847,6 +1850,14 @@ const UI = {
         let totalDebtors = 0;
         for (let d of state.debtors) totalDebtors += parseFloat(d.amount || 0);
 
+        let totalProjectsCotizados = 0;
+        const projects = state.projects || [];
+        for (let p of projects) {
+            if (p.status === 'Cotizado') {
+                totalProjectsCotizados += parseFloat(p.estimatedAmount || 0);
+            }
+        }
+
         const elBalance = document.getElementById('total-balance');
         const elIncome = document.getElementById('month-income');
         const elExpense = document.getElementById('month-expense');
@@ -1866,6 +1877,10 @@ const UI = {
         // Actualizar Total Deudores
         const elDebtors = document.getElementById('dashboard-total-debtors');
         if (elDebtors) elDebtors.textContent = formatCurrency(totalDebtors);
+
+        // Actualizar Total Proyectos Cotizados
+        const elProjectsCotizados = document.getElementById('dashboard-projects-cotizados-total');
+        if (elProjectsCotizados) elProjectsCotizados.textContent = formatCurrency(totalProjectsCotizados);
 
         // Actualizar Activo Circulante Total (Disponible + Deudores + Inventario)
         const totalCirculating = totalAvailableFunds + totalDebtors + totalInventoryValue;
@@ -4574,7 +4589,10 @@ const UI = {
 
         filtered.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
 
+        let totalEstimado = 0;
+
         filtered.forEach(p => {
+            totalEstimado += parseFloat(p.estimatedAmount || 0);
             const tr = document.createElement('tr');
             tr.id = `project-row-${p.id}`;
             const clientName = this.getClientName(p.clientId);
@@ -4636,6 +4654,20 @@ const UI = {
             `;
             tbody.appendChild(tr);
         });
+
+        const tfoot = document.getElementById('projects-list-footer');
+        if (tfoot) {
+            tfoot.innerHTML = `
+                <tr style="background-color: var(--card-bg); font-weight: bold; border-top: 2px solid var(--border-color);">
+                    <td colspan="2" style="text-align: right; padding: 1rem; font-weight: bold;">Total Estimado:</td>
+                    <td style="padding: 1rem; font-weight: bold; font-size: 1.05rem; color: var(--primary-color)">
+                        ${formatCurrency(totalEstimado)}
+                    </td>
+                    <td></td>
+                </tr>
+            `;
+        }
+
         this.applyPrivileges();
     },
 

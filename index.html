@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Contabilidad Premium</title>
     <link rel="icon" type="image/svg+xml" href="icono_old.svg">
-    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="style.css?v=2">
     <!-- Font Awesome para Iconos -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <!-- Fuentes de Google -->
@@ -391,6 +391,10 @@
                     <div class="stat-card total-circulating">
                         <h3>Activo Circulante Total</h3>
                         <p class="amount" id="dashboard-total-circulating">$0.00</p>
+                    </div>
+                    <div class="stat-card" style="cursor: pointer; transition: var(--transition);" onclick="UI.switchView('projects'); document.getElementById('project-filter-status').value = 'Cotizado'; UI.renderProjects();" title="Ver Proyectos Cotizados">
+                        <h3>Estimado Proyectos Cotizados</h3>
+                        <p class="amount" id="dashboard-projects-cotizados-total" style="color: var(--primary-color); font-weight: 700;">$0.00</p>
                     </div>
                 </div>
 
@@ -1140,6 +1144,9 @@
                             <tbody id="projects-list-body">
                                 <!-- Proyectos inyectados por JS -->
                             </tbody>
+                            <tfoot id="projects-list-footer">
+                                <!-- Total inyectado por JS -->
+                            </tfoot>
                         </table>
                     </div>
                 </div>
@@ -2108,7 +2115,7 @@
     <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/plugins/monthSelect/index.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="storage.js?v=2"></script>
-    <script src="app.js?v=28"></script>
+    <script src="app.js?v=29"></script>
 </body>
 
 </html>

@@ -1799,3 +1799,15 @@ body.dark-mode .perm-sub-list {
 #crm-email-editor img:hover {
     outline: 3px solid var(--primary-color);
 }
+
+.stat-card[onclick] {
+    cursor: pointer;
+    transition: var(--transition);
+}
+
+.stat-card[onclick]:hover {
+    transform: translateY(-2px);
+    border-color: var(--primary-color);
+    box-shadow: var(--shadow-lg);
+    background-color: var(--accent-glow);
+}
