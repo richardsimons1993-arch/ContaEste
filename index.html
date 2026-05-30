@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Contabilidad Premium</title>
     <link rel="icon" type="image/svg+xml" href="icono_old.svg">
-    <link rel="stylesheet" href="style.css?v=2">
+    <link rel="stylesheet" href="style.css?v=3">
     <!-- Font Awesome para Iconos -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <!-- Fuentes de Google -->
@@ -358,43 +358,39 @@
             <!-- VISTA INFORMES (React Container) -->
             <section id="reports" class="view-section scrollable">
                 <div id="reports-root"></div>
-            </section>
-
-            <!-- VISTA DASHBOARD -->
-
-            <section id="dashboard" class="view-section">
+            </section>            <section id="dashboard" class="view-section">
                 <div class="stats-grid">
-                    <div class="stat-card balance">
+                    <div class="stat-card balance" onclick="UI.switchView('debts');" title="Ver Deudas">
                         <h3>Deuda Total</h3>
                         <p class="amount" id="total-balance">$0.00</p>
                     </div>
-                    <div class="stat-card income">
+                    <div class="stat-card income" onclick="UI.switchView('transactions');" title="Ver Movimientos (Ingresos)">
                         <h3>Ingresos del Año</h3>
                         <p class="amount" id="month-income">$0.00</p>
                     </div>
-                    <div class="stat-card expense">
+                    <div class="stat-card expense" onclick="UI.switchView('transactions');" title="Ver Movimientos (Gastos)">
                         <h3>Gastos del Año</h3>
                         <p class="amount" id="month-expense">$0.00</p>
                     </div>
-                    <div class="stat-card">
+                    <div class="stat-card" onclick="UI.switchView('available-funds');" title="Ver Fondos Disponibles">
                         <h3>Activo Disponible</h3>
                         <p class="amount" id="dashboard-available-funds">$0.00</p>
                     </div>
-                    <div class="stat-card inventory">
+                    <div class="stat-card inventory" onclick="UI.switchView('inventory');" title="Ver Inventario">
                         <h3>Inventario</h3>
                         <p class="amount" id="dashboard-inventory-value">$0.00</p>
                     </div>
-                    <div class="stat-card">
+                    <div class="stat-card" onclick="UI.switchView('debtors');" title="Ver Deudores">
                         <h3>Deudores (Por Cobrar)</h3>
                         <p class="amount" id="dashboard-total-debtors">$0.00</p>
                     </div>
-                    <div class="stat-card total-circulating">
+                    <div class="stat-card total-circulating" title="Activo Circulante Total">
                         <h3>Activo Circulante Total</h3>
                         <p class="amount" id="dashboard-total-circulating">$0.00</p>
                     </div>
-                    <div class="stat-card" style="cursor: pointer; transition: var(--transition);" onclick="UI.switchView('projects'); document.getElementById('project-filter-status').value = 'Cotizado'; UI.renderProjects();" title="Ver Proyectos Cotizados">
+                    <div class="stat-card" onclick="UI.switchView('projects'); document.getElementById('project-filter-status').value = 'Cotizado'; UI.renderProjects();" title="Ver Proyectos Cotizados">
                         <h3>Estimado Proyectos Cotizados</h3>
-                        <p class="amount" id="dashboard-projects-cotizados-total" style="color: var(--primary-color); font-weight: 700;">$0.00</p>
+                        <p class="amount" id="dashboard-projects-cotizados-total">$0.00</p>
                     </div>
                 </div>
 
@@ -2115,7 +2111,7 @@
     <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/plugins/monthSelect/index.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="storage.js?v=2"></script>
-    <script src="app.js?v=29"></script>
+    <script src="app.js?v=30"></script>
 </body>
 
 </html>
