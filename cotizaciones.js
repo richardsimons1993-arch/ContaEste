@@ -6,7 +6,7 @@ const QuotationsApp = () => {
     const [projectName, setProjectName] = useState('');
     const [requirements, setRequirements] = useState('');
     const [techConditions, setTechConditions] = useState('');
-    const [commercialConditions, setCommercialConditions] = useState('• Cotización con validez de 10 días hábiles desde fecha de emisión de propuesta.\n• Se considera aprobada solicitud al recibir Orden de Compra por la totalidad de la propuesta comercial o al depositar el 50% del mismo.');
+    const [commercialConditions, setCommercialConditions] = useState('• La solicitud se considerará aprobada una vez recibida la Orden de Compra por el total de la propuesta comercial, o bien, al efectuarse el depósito del 50% de la misma.');
     
     // Items Principales
     const [items, setItems] = useState([{ id: Date.now(), desc: '', qty: 1, price: 0 }]);
@@ -509,7 +509,7 @@ const QuotationsApp = () => {
                             setProjectName('');
                             setRequirements('');
                             setTechConditions('');
-                            setCommercialConditions('• Cotización con validez de 10 días hábiles desde fecha de emisión de propuesta.\n• Se considera aprobada solicitud al recibir Orden de Compra por la totalidad de la propuesta comercial o al depositar el 50% del mismo.');
+                            setCommercialConditions('• La solicitud se considerará aprobada una vez recibida la Orden de Compra por el total de la propuesta comercial, o bien, al efectuarse el depósito del 50% de la misma.');
                             setItems([{ id: Date.now(), desc: '', qty: 1, price: 0 }]);
                             setOptionals([]);
                             setCurrentVersion(1);
@@ -707,7 +707,34 @@ const QuotationsApp = () => {
                                         className="tw-w-full tw-p-3 tw-bg-slate-50 tw-border tw-border-slate-300 tw-rounded-lg focus:tw-border-googleBlue focus:tw-ring-2 focus:tw-ring-blue-100 focus:tw-outline-none tw-transition-all tw-mb-6"
                                         rows="3"
                                         value={techConditions}
-                                        onChange={(e) => setTechConditions(e.target.value)}
+                                        onChange={(e) => {
+                                            let val = e.target.value;
+                                            if (val && !val.startsWith('-')) {
+                                                val = '- ' + val;
+                                            }
+                                            setTechConditions(val);
+                                        }}
+                                        onKeyDown={(e) => {
+                                            if (e.key === 'Enter') {
+                                                const textarea = e.target;
+                                                const val = textarea.value;
+                                                const cursor = textarea.selectionStart;
+                                                const beforeCursor = val.substring(0, cursor);
+                                                const afterCursor = val.substring(cursor);
+                                                const lastNewline = beforeCursor.lastIndexOf('\n');
+                                                const currentLine = beforeCursor.substring(lastNewline + 1);
+
+                                                if (currentLine.trim().endsWith('.')) {
+                                                    e.preventDefault();
+                                                    const newVal = beforeCursor + '\n- ' + afterCursor;
+                                                    setTechConditions(newVal);
+                                                    const newCursorPos = cursor + 3; // \n + - + espacio
+                                                    setTimeout(() => {
+                                                        textarea.selectionStart = textarea.selectionEnd = newCursorPos;
+                                                    }, 0);
+                                                }
+                                            }
+                                        }}
                                     ></textarea>
 
                                     <label className="tw-block tw-text-sm tw-font-bold tw-text-slate-700 tw-mb-2">Condiciones Comerciales</label>
