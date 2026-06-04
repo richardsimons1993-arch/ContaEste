@@ -1391,7 +1391,7 @@ body.dark-mode .bottom-nav .nav-btn.active {
 
     /* Estilos Premium Minimalistas para Inicio Móvil */
     #mobile-dashboard {
-        background: var(--bg-color);
+        background: var(--background);
         min-height: calc(100vh - 60px);
         width: 100%;
         position: relative;
@@ -1401,7 +1401,7 @@ body.dark-mode .bottom-nav .nav-btn.active {
     }
 
     .mobile-card-large {
-        background: #ffffff;
+        background: var(--card-bg);
         border-radius: 1.5rem;
         box-shadow: 0 8px 30px rgba(0, 0, 0, 0.05);
         transition: all 0.2s ease;
@@ -1413,12 +1413,12 @@ body.dark-mode .bottom-nav .nav-btn.active {
         justify-content: center;
         text-align: center;
         gap: 0.75rem;
-        border: 1.5px solid #f1f5f9;
+        border: 1.5px solid var(--border-color);
         min-height: 135px;
     }
 
     .mobile-card-small {
-        background: #ffffff;
+        background: var(--card-bg);
         border-radius: 1.5rem;
         box-shadow: 0 4px 15px rgba(0, 0, 0, 0.03);
         transition: all 0.2s ease;
@@ -1427,12 +1427,12 @@ body.dark-mode .bottom-nav .nav-btn.active {
         flex-direction: column;
         align-items: center;
         justify-content: center;
-        border: 1.5px solid #f1f5f9;
+        border: 1.5px solid var(--border-color);
     }
 
     .mobile-card-large:active, .mobile-card-small:active {
         transform: scale(0.96);
-        background: #f8fafc;
+        background: var(--accent-glow);
     }
 
     /* Logo en Cabecera (Alta Calidad) */
@@ -2029,4 +2029,134 @@ body.dark-mode .btn-secondary:hover {
 
 body.dark-mode .btn-secondary i {
     color: #ffffff !important;
+}
+
+/* ==========================================================================
+   Correcciones de Modo Oscuro para Versión Móvil
+   ========================================================================== */
+
+/* Fondo oscuro en mobile header */
+body.dark-mode .mobile-card-large,
+body.dark-mode .mobile-card-small {
+    background: var(--card-bg) !important;
+    border-color: var(--border-color) !important;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3) !important;
+}
+
+body.dark-mode .mobile-card-large:active,
+body.dark-mode .mobile-card-small:active {
+    background: rgba(255, 255, 255, 0.05) !important;
+}
+
+/* Texto de las tarjetas móviles en modo oscuro */
+body.dark-mode .mobile-card-large span,
+body.dark-mode .mobile-card-small span {
+    color: var(--text-main) !important;
+}
+
+/* Mobile header y top-bar en modo oscuro */
+body.dark-mode header.top-bar {
+    background-color: var(--sidebar-bg);
+    border-bottom: 1px solid var(--border-color);
+}
+
+/* Modal overlay en móvil - fondo de modal-card */
+body.dark-mode .modal-card {
+    background-color: var(--card-bg) !important;
+    border-color: var(--border-color) !important;
+    color: var(--text-main) !important;
+}
+
+/* Botones de acción en tablas móvil */
+body.dark-mode .btn-icon {
+    color: var(--text-muted) !important;
+    background: transparent !important;
+}
+
+body.dark-mode .btn-icon:hover {
+    background-color: rgba(255, 255, 255, 0.08) !important;
+    color: #ffffff !important;
+}
+
+body.dark-mode .btn-icon.text-danger:hover {
+    background-color: rgba(239, 68, 68, 0.15) !important;
+    color: var(--danger-color) !important;
+}
+
+/* Dropdown de usuario en modo oscuro móvil */
+body.dark-mode .user-dropdown {
+    background-color: var(--card-bg) !important;
+    border-color: var(--border-color) !important;
+    color: var(--text-main) !important;
+}
+
+body.dark-mode .user-dropdown .dropdown-item {
+    color: var(--text-main) !important;
+}
+
+body.dark-mode .user-dropdown .dropdown-item:hover {
+    background-color: rgba(255, 255, 255, 0.05) !important;
+    color: #ffffff !important;
+}
+
+/* Corregir textos Tailwind en mobile-dashboard modo oscuro */
+body.dark-mode #mobile-dashboard .tw-text-gray-900,
+body.dark-mode #mobile-dashboard .tw-text-slate-900,
+body.dark-mode #mobile-dashboard span {
+    color: var(--text-main) !important;
+}
+
+/* Card del formulario en modo oscuro */
+body.dark-mode .card {
+    background-color: var(--card-bg) !important;
+    border-color: var(--border-color) !important;
+    color: var(--text-main) !important;
+}
+
+body.dark-mode .card h2,
+body.dark-mode .card h3,
+body.dark-mode .card h4 {
+    color: var(--text-main) !important;
+}
+
+/* Nav btn activo en modo oscuro (sidebar móvil) */
+body.dark-mode .nav-btn.active {
+    background-color: var(--primary-color) !important;
+    color: #ffffff !important;
+}
+
+/* Tags / badges en modo oscuro */
+body.dark-mode .tag.income {
+    background-color: rgba(16, 185, 129, 0.2) !important;
+    color: #34d399 !important;
+}
+
+body.dark-mode .tag.expense {
+    background-color: rgba(239, 68, 68, 0.2) !important;
+    color: #f87171 !important;
+}
+
+body.dark-mode .tag.pending {
+    background-color: rgba(245, 158, 11, 0.2) !important;
+    color: #fbbf24 !important;
+}
+
+/* Stat cards en modo oscuro */
+body.dark-mode .stat-card {
+    background-color: var(--card-bg) !important;
+    border-color: var(--border-color) !important;
+}
+
+body.dark-mode .stat-card h3 {
+    color: var(--text-muted) !important;
+}
+
+/* Tabla en modo oscuro */
+body.dark-mode .data-table td {
+    color: var(--text-main) !important;
+    border-color: var(--border-color) !important;
+}
+
+body.dark-mode .table-responsive {
+    border-color: var(--border-color) !important;
 }
