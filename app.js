@@ -303,6 +303,16 @@ const parseAmount = (formattedValue) => {
 // Controlador de la Interfaz de Usuario (UI)
 const UI = {
     async init() {
+        // Detectar tipo de dispositivo (Móvil vs Desktop)
+        const isMobileDevice = /Mobi|Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+        if (isMobileDevice) {
+            document.body.classList.add('is-mobile-device');
+            document.body.classList.remove('is-desktop-device');
+        } else {
+            document.body.classList.add('is-desktop-device');
+            document.body.classList.remove('is-mobile-device');
+        }
+
         // Global Error Catcher
         window.addEventListener('error', (event) => {
             console.error('Error no capturado:', event.error);
@@ -385,13 +395,13 @@ const UI = {
                 this.applyPrivileges();
                 this.applyModuleAccess();
                 
-                // Determinar vista inicial (Mobile-First Dashboard vs Notas Desktop)
-                const isMobile = window.innerWidth <= 768;
-                if (isMobile) {
-                    console.log("Modo Móvil Detectado: Cambiando a Dashboard de Inicio...");
+                // Determinar vista inicial (Mobile-First Dashboard vs Notas Desktop) basado en el tipo de dispositivo real
+                const isMobileDevice = document.body.classList.contains('is-mobile-device');
+                if (isMobileDevice) {
+                    console.log("Dispositivo Móvil Detectado: Cambiando a Dashboard de Inicio móvil...");
                     this.switchView('mobile-dashboard');
                 } else {
-                    console.log("Modo Desktop Detectado: Cambiando a Notas...");
+                    console.log("Dispositivo Desktop Detectado: Cambiando a Notas...");
                     this.switchView('notas');
                 }
             }
@@ -1677,6 +1687,15 @@ const UI = {
         }
 
         return 'notas'; 
+    },
+
+    handleLogoClick() {
+        const isMobileDevice = document.body.classList.contains('is-mobile-device');
+        if (isMobileDevice) {
+            this.switchView('mobile-dashboard');
+        } else {
+            this.switchView('notas');
+        }
     },
 
     switchView(viewName) {
