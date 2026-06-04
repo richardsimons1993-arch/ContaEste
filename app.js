@@ -1766,7 +1766,7 @@ const UI = {
         }
         
         // Auto-close sidebar on mobile after navigation
-        if (window.innerWidth <= 992) {
+        if (window.innerWidth <= 768) {
             const sidebar = document.querySelector('.sidebar');
             const sidebarOverlay = document.getElementById('sidebar-overlay');
             if (sidebar && sidebarOverlay) {
