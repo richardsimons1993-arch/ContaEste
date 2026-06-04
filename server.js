@@ -1912,6 +1912,58 @@ async function cleanOldQuotations() {
     }
 }
 
+// Sincronizar cotizaciones existentes a la tabla de proyectos si no existen
+async function syncQuotationsToProjects() {
+    console.log('--- Iniciando Sincronización de Cotizaciones a Proyectos ---');
+    try {
+        const pool = await getDbPool();
+        const quotationsRes = await pool.request().query('SELECT * FROM Quotations');
+        const quotations = quotationsRes.recordset;
+
+        for (const q of quotations) {
+            const projectId = 'PROJ-' + q.id;
+            const versionSuffix = (q.version && q.version > 1) ? ' v' + q.version : '';
+            const finalProjectName = (q.projectName || 'Proyecto sin nombre') + versionSuffix;
+            const projectStatus = 'Cotizado';
+
+            // Verificar si el proyecto ya existe
+            const projectCheck = await pool.request()
+                .input('id', sql.VarChar(50), projectId)
+                .query('SELECT id, status FROM Projects WHERE id = @id');
+
+            if (projectCheck.recordset.length === 0) {
+                console.log(`Creando proyecto faltante ${projectId} para Cotización N° ${q.id}`);
+                // Si no existe, crear el proyecto automáticamente en estado 'Cotizado'
+                await pool.request()
+                    .input('id', sql.VarChar(50), projectId)
+                    .input('projectName', sql.VarChar(255), finalProjectName)
+                    .input('clientId', sql.VarChar(50), q.clientId)
+                    .input('status', sql.VarChar(50), projectStatus)
+                    .input('observations', sql.VarChar(sql.MAX), 'Creado automáticamente por sincronización de Cotización N° ' + q.id)
+                    .input('estimatedAmount', sql.Decimal(18, 2), q.total)
+                    .query(`
+                        INSERT INTO Projects (id, projectName, clientId, status, observations, estimatedAmount, visitDate) 
+                        VALUES (@id, @projectName, @clientId, @status, @observations, @estimatedAmount, GETDATE())
+                    `);
+
+                // Registrar en la bitácora de historial del proyecto
+                await pool.request()
+                    .input('projectId', sql.VarChar(50), projectId)
+                    .input('newStatus', sql.VarChar(50), projectStatus)
+                    .input('note', sql.VarChar(sql.MAX), 'Creado automáticamente por sincronización de Cotización N° ' + q.id + versionSuffix)
+                    .query(`
+                        INSERT INTO ProjectHistory (projectId, previousStatus, newStatus, note, changeDate) 
+                        VALUES (@projectId, NULL, @newStatus, @note, GETDATE())
+                    `);
+            }
+        }
+        console.log('✅ Sincronización de Cotizaciones a Proyectos completada.');
+    } catch (err) {
+        console.error('❌ Error en sincronización de Cotizaciones a Proyectos:', err.message);
+    }
+}
+
+
 app.get('/api/quotations', async (req, res) => {
     try {
         await cleanOldQuotations();
@@ -2429,6 +2481,7 @@ async function runMaintenanceTasks() {
         await migratePasswords();
         await deleteExpiredNotes();
         await cleanOldQuotations();
+        await syncQuotationsToProjects();
     } catch (mErr) {
         console.error('⚠️ Error en tareas de mantenimiento iniciales:', mErr.message);
     }
