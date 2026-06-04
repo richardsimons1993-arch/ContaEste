@@ -1773,6 +1773,8 @@ const UI = {
             'activity': 'Actividad',
             'available-funds': 'Disponible',
             'quotations': 'Cotizaciones',
+            'reports': 'Informes',
+            'operational-expenses': 'Gastos Operacionales',
             'crm-leads': 'Prospectos (CRM)',
             'crm-emails': 'CRM - Marketing',
             'crm-smtp-config': 'CRM - Configuración SMTP'
