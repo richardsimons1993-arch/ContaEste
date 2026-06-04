@@ -2056,8 +2056,8 @@ body.dark-mode .mobile-card-small span {
 
 /* Mobile header y top-bar en modo oscuro */
 body.dark-mode header.top-bar {
-    background-color: var(--sidebar-bg);
-    border-bottom: 1px solid var(--border-color);
+    background-color: transparent !important;
+    border-bottom: none !important;
 }
 
 /* Modal overlay en móvil - fondo de modal-card */
