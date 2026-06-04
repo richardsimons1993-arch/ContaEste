@@ -1819,3 +1819,171 @@ body.dark-mode .perm-sub-list {
     font-family: 'Outfit', sans-serif;
     color: var(--primary-color) !important;
 }
+
+/* ==========================================================================
+   Correcciones de Contraste y Modo Oscuro para Módulos React y CRM
+   ========================================================================== */
+
+/* Toggle de filtros en Movimientos */
+body.dark-mode .dropdown-toggle {
+    background-color: var(--card-bg) !important;
+    color: var(--text-main) !important;
+    border-color: var(--border-color) !important;
+}
+
+/* Editor de Email Masivo CRM */
+body.dark-mode .editor-toolbar {
+    background-color: var(--background) !important;
+    border-color: var(--border-color) !important;
+}
+
+body.dark-mode .editor-toolbar .toolbar-group {
+    border-color: var(--border-color) !important;
+}
+
+body.dark-mode .editor-toolbar select,
+body.dark-mode .editor-toolbar input[type="color"] {
+    background-color: var(--card-bg) !important;
+    color: var(--text-main) !important;
+    border-color: var(--border-color) !important;
+}
+
+body.dark-mode .btn-editor {
+    background-color: var(--card-bg) !important;
+    border-color: var(--border-color) !important;
+    color: var(--text-main) !important;
+}
+
+body.dark-mode .btn-editor:hover {
+    background-color: var(--accent-glow) !important;
+    border-color: var(--primary-color) !important;
+    color: var(--primary-color) !important;
+}
+
+body.dark-mode #crm-email-editor {
+    background-color: var(--card-bg) !important;
+    color: var(--text-main) !important;
+    border-color: var(--border-color) !important;
+}
+
+/* Sobreescritura de Tailwind para Modo Oscuro en React (Notas, Cotizaciones, Informes) */
+body.dark-mode .tw-bg-white {
+    background-color: var(--card-bg) !important;
+    color: var(--text-main) !important;
+}
+
+body.dark-mode .tw-bg-slate-50,
+body.dark-mode .tw-bg-slate-100,
+body.dark-mode .tw-bg-gray-50,
+body.dark-mode .tw-bg-gray-100,
+body.dark-mode .tw-bg-gray-50\/50,
+body.dark-mode .tw-bg-googleGray,
+body.dark-mode .tw-bg-slate-800\/20,
+body.dark-mode .tw-bg-slate-50\/50 {
+    background-color: var(--background) !important;
+}
+
+body.dark-mode .tw-bg-blue-50,
+body.dark-mode .tw-bg-teal-50 {
+    background-color: rgba(0, 204, 204, 0.12) !important;
+}
+
+body.dark-mode .tw-bg-slate-800 {
+    background-color: var(--background) !important;
+}
+
+/* Forzar color de texto y borde en inputs de React */
+body.dark-mode input,
+body.dark-mode select,
+body.dark-mode textarea {
+    background-color: var(--background) !important;
+    color: var(--text-main) !important;
+    border-color: var(--border-color) !important;
+}
+
+body.dark-mode input::placeholder,
+body.dark-mode textarea::placeholder {
+    color: var(--text-muted) !important;
+    opacity: 0.7 !important;
+}
+
+body.dark-mode .focus\:tw-border-googleBlue:focus {
+    border-color: var(--accent-color) !important;
+    outline: none !important;
+}
+
+/* Bordes en React */
+body.dark-mode .tw-border-slate-200,
+body.dark-mode .tw-border-slate-300,
+body.dark-mode .tw-border-gray-200,
+body.dark-mode .tw-border-gray-300,
+body.dark-mode .tw-border-slate-100,
+body.dark-mode .tw-border-slate-50 {
+    border-color: var(--border-color) !important;
+}
+
+/* Colores de texto en React */
+body.dark-mode .tw-text-gray-900,
+body.dark-mode .tw-text-slate-900,
+body.dark-mode .tw-text-slate-800,
+body.dark-mode .tw-text-slate-700,
+body.dark-mode .tw-text-slate-600,
+body.dark-mode .tw-text-gray-800,
+body.dark-mode .tw-text-gray-700,
+body.dark-mode .tw-text-gray-600 {
+    color: var(--text-main) !important;
+}
+
+body.dark-mode .tw-text-slate-500,
+body.dark-mode .tw-text-gray-500,
+body.dark-mode .tw-text-slate-400,
+body.dark-mode .tw-text-gray-400 {
+    color: var(--text-muted) !important;
+}
+
+/* Adaptación de colores de acento azul (googleBlue) a teal en modo oscuro */
+body.dark-mode .tw-text-googleBlue {
+    color: var(--accent-color) !important;
+}
+body.dark-mode .tw-text-googleBlue\/90 {
+    color: var(--accent-color) !important;
+}
+body.dark-mode .tw-border-googleBlue {
+    border-color: var(--accent-color) !important;
+}
+body.dark-mode .tw-bg-googleBlue {
+    background-color: var(--secondary-color) !important;
+}
+body.dark-mode .hover\:tw-bg-blue-700:hover,
+body.dark-mode .hover\:tw-bg-googleBlue:hover {
+    background-color: var(--primary-hover) !important;
+}
+body.dark-mode .hover\:tw-bg-blue-50:hover,
+body.dark-mode .hover\:tw-bg-gray-100:hover,
+body.dark-mode .hover\:tw-bg-slate-50:hover,
+body.dark-mode .hover\:tw-bg-gray-50:hover {
+    background-color: rgba(255, 255, 255, 0.05) !important;
+    color: var(--accent-color) !important;
+}
+
+/* Elementos adicionales en Cotizaciones y Reportes */
+body.dark-mode .tw-bg-indigo-100,
+body.dark-mode .tw-bg-teal-100 {
+    background-color: rgba(0, 204, 204, 0.15) !important;
+}
+body.dark-mode .tw-text-indigo-800,
+body.dark-mode .tw-text-teal-800 {
+    color: var(--accent-color) !important;
+}
+
+/* Corregir contraste de textos de inputs en general */
+body.dark-mode label {
+    color: var(--text-muted) !important;
+}
+
+body.dark-mode input:focus,
+body.dark-mode select:focus,
+body.dark-mode textarea:focus {
+    border-color: var(--accent-color) !important;
+    box-shadow: 0 0 0 3px rgba(0, 204, 204, 0.25) !important;
+}
