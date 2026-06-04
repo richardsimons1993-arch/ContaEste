@@ -611,6 +611,10 @@ textarea:focus {
     font-size: 0.95rem;
 }
 
+.data-table td.actions {
+    white-space: nowrap !important;
+}
+
 .data-table tr:hover {
     background-color: #f8fafc;
 }
