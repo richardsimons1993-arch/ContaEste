@@ -48,8 +48,9 @@ body.dark-mode {
 
 /* Asegurar visibilidad del logo en modo oscuro */
 body.dark-mode .logo-img,
-body.dark-mode .login-logo {
-    filter: drop-shadow(0 0 8px rgba(255, 255, 255, 0.1));
+body.dark-mode .login-logo,
+body.dark-mode .header-logo {
+    filter: invert(1) hue-rotate(180deg) brightness(1.1) contrast(1.1);
 }
 
 body.dark-mode input,
