@@ -2013,13 +2013,13 @@ body.dark-mode [style*="color:#004d4d"] {
 
 /* Override de botón secundario en modo oscuro */
 body.dark-mode .btn-secondary {
-    background-color: rgba(255, 255, 255, 0.08) !important;
+    background-color: var(--primary-color) !important;
     color: #ffffff !important;
-    border: 1px solid var(--border-color) !important;
+    border: none !important;
 }
 
 body.dark-mode .btn-secondary:hover {
-    background-color: rgba(255, 255, 255, 0.15) !important;
+    background-color: var(--primary-hover) !important;
     color: #ffffff !important;
 }
 
