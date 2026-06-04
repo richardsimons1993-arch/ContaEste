@@ -534,6 +534,7 @@ const ReportsApp = () => {
                                 clientName: clientName,
                                 year: currentYear,
                                 reportId: displayId + versionSuffix,
+                                projectName: projectName,
                                 pdfBase64: pdfBase64DataUri
                             });
                             

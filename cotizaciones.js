@@ -493,6 +493,7 @@ const QuotationsApp = () => {
                                 clientName: clientName,
                                 year: currentYear,
                                 quotationId: displayId + versionSuffix,
+                                projectName: projectName,
                                 pdfBase64: pdfBase64DataUri
                             });
                             

@@ -2150,11 +2150,12 @@ app.delete('/api/quotations/:id/:version', async (req, res) => {
 
 app.post('/api/quotations/save-pdf', async (req, res) => {
     try {
-        const { clientName, year, quotationId, pdfBase64 } = req.body;
+        const { clientName, year, quotationId, projectName, pdfBase64 } = req.body;
         
         // Limpiar base64 header si existe de manera robusta
         const base64Data = pdfBase64.includes('base64,') ? pdfBase64.split('base64,')[1] : pdfBase64;
-        const fileName = `Cotizacion_${quotationId}_${clientName.replace(/[^a-zA-Z0-9 -]/g, '')}.pdf`;
+        const safeProjectName = projectName ? `_${projectName.replace(/[^a-zA-Z0-9 -]/g, '_')}` : '';
+        const fileName = `Cotizacion_${quotationId}${safeProjectName}_${clientName.replace(/[^a-zA-Z0-9 -]/g, '')}.pdf`;
 
         const isWindows = process.platform === 'win32';
 
@@ -2341,11 +2342,12 @@ app.delete('/api/reports/:id/:version', async (req, res) => {
 
 app.post('/api/reports/save-pdf', async (req, res) => {
     try {
-        const { clientName, year, reportId, pdfBase64 } = req.body;
+        const { clientName, year, reportId, projectName, pdfBase64 } = req.body;
         
         // Limpiar base64 header
         const base64Data = pdfBase64.includes('base64,') ? pdfBase64.split('base64,')[1] : pdfBase64;
-        const fileName = `Informe_${reportId}_${clientName.replace(/[^a-zA-Z0-9 -]/g, '')}.pdf`;
+        const safeProjectName = projectName ? `_${projectName.replace(/[^a-zA-Z0-9 -]/g, '_')}` : '';
+        const fileName = `Informe_${reportId}${safeProjectName}_${clientName.replace(/[^a-zA-Z0-9 -]/g, '')}.pdf`;
 
         const isWindows = process.platform === 'win32';
 
