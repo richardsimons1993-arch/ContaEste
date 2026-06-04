@@ -1989,14 +1989,40 @@ body.dark-mode textarea:focus {
 }
 
 /* Forzar textos en modo oscuro a blanco en lugar de verde oscuro */
-body.dark-mode .amount {
+body.dark-mode .amount,
+body.dark-mode .modal-header h3,
+body.dark-mode .modal-header h1,
+body.dark-mode .modal-header h2,
+body.dark-mode .modal-header h4,
+body.dark-mode .modal-header h5,
+body.dark-mode .modal-header h6,
+body.dark-mode .text-primary,
+body.dark-mode .activity-action,
+body.dark-mode .nav-btn:hover,
+body.dark-mode .btn-icon:hover,
+body.dark-mode .dropdown-item:hover,
+body.dark-mode .btn-text:hover,
+body.dark-mode .btn-editor:hover,
+body.dark-mode .tw-text-\[\#004d4d\],
+body.dark-mode [style*="color: var(--primary-color)"],
+body.dark-mode [style*="color:var(--primary-color)"],
+body.dark-mode [style*="color: #004d4d"],
+body.dark-mode [style*="color:#004d4d"] {
     color: #ffffff !important;
 }
 
+/* Override de botón secundario en modo oscuro */
 body.dark-mode .btn-secondary {
+    background-color: rgba(255, 255, 255, 0.08) !important;
+    color: #ffffff !important;
+    border: 1px solid var(--border-color) !important;
+}
+
+body.dark-mode .btn-secondary:hover {
+    background-color: rgba(255, 255, 255, 0.15) !important;
     color: #ffffff !important;
 }
 
-body.dark-mode .modal-header h3 {
+body.dark-mode .btn-secondary i {
     color: #ffffff !important;
 }
