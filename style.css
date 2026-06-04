@@ -2160,3 +2160,13 @@ body.dark-mode .data-table td {
 body.dark-mode .table-responsive {
     border-color: var(--border-color) !important;
 }
+
+/* Caja de búsqueda en Notas (modo oscuro) */
+body.dark-mode .notas-search-container {
+    background-color: var(--background) !important;
+    border-color: var(--border-color) !important;
+}
+
+body.dark-mode .notas-search-input {
+    background-color: transparent !important;
+}

@@ -211,12 +211,12 @@ const KeepApp = () => {
                     </button>
 
                     {/* Search Bar */}
-                    <div className="tw-flex-1 tw-w-full tw-bg-white tw-rounded-xl tw-shadow-sm tw-flex tw-items-center tw-px-4 tw-py-2.5 tw-border tw-border-gray-200 focus-within:tw-shadow-md tw-transition-all">
+                    <div className="notas-search-container tw-flex-1 tw-w-full tw-bg-white tw-rounded-xl tw-shadow-sm tw-flex tw-items-center tw-px-4 tw-py-2.5 tw-border tw-border-gray-200 focus-within:tw-shadow-md tw-transition-all">
                         <i className="fa-solid fa-magnifying-glass tw-text-gray-400 tw-mr-3"></i>
                         <input 
                             type="text" 
                             placeholder="Buscar..." 
-                            className="tw-w-full tw-border-none focus:tw-ring-0 tw-text-gray-700 tw-bg-transparent tw-text-[16px]"
+                            className="notas-search-input tw-w-full tw-border-none focus:tw-ring-0 tw-text-gray-700 tw-bg-transparent tw-text-[16px]"
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
                         />
