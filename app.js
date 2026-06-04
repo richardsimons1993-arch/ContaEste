@@ -1895,7 +1895,7 @@ const UI = {
         let totalProjectsCotizados = 0;
         const projects = state.projects || [];
         for (let p of projects) {
-            if (p.status && p.status.trim().toLowerCase() === 'cotizado') {
+            if (p.status && p.status.trim().toLowerCase() !== 'finalizado') {
                 totalProjectsCotizados += parseFloat(p.estimatedAmount || 0);
             }
         }
