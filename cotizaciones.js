@@ -605,6 +605,14 @@ const QuotationsApp = () => {
         const addItemLocal = () => addItem(setList, list);
         const removeItemLocal = (id) => removeItem(setList, list, id);
 
+        const moveItem = (index, targetIndex) => {
+            if (targetIndex < 0 || targetIndex >= list.length) return;
+            const newList = [...list];
+            const [moved] = newList.splice(index, 1);
+            newList.splice(targetIndex, 0, moved);
+            setList(newList);
+        };
+
         return (
             <div className="tw-bg-white tw-rounded-lg tw-shadow-sm tw-border tw-border-slate-200 tw-p-4 tw-mb-6">
                 <div className="tw-flex tw-justify-between tw-items-center tw-mb-4">
@@ -618,6 +626,7 @@ const QuotationsApp = () => {
                     <table className="tw-w-full">
                         <thead>
                             <tr className="tw-text-[10px] tw-font-bold tw-text-slate-400 tw-uppercase tw-tracking-wider tw-border-b tw-border-slate-100">
+                                <th className="tw-w-8 tw-pb-2"></th>
                                 <th className="tw-text-left tw-pb-2 tw-w-20">Cant.</th>
                                 <th className="tw-text-left tw-pb-2">Descripción</th>
                                 <th className="tw-text-right tw-pb-2 tw-w-36">Precio Unit. (CLP)</th>
@@ -625,8 +634,28 @@ const QuotationsApp = () => {
                             </tr>
                         </thead>
                         <tbody>
-                            {list.map((item) => (
+                            {list.map((item, index) => (
                                 <tr key={item.id} className="tw-border-b tw-border-slate-50 last:tw-border-0">
+                                    <td className="tw-py-2 tw-pr-2 tw-align-middle">
+                                        <div className="tw-flex tw-flex-col tw-items-center tw-justify-center tw-gap-1">
+                                            <button 
+                                                disabled={index === 0}
+                                                onClick={() => moveItem(index, index - 1)}
+                                                className="tw-text-slate-400 hover:tw-text-slate-700 disabled:tw-text-slate-200 disabled:tw-cursor-not-allowed tw-transition-colors"
+                                                title="Subir"
+                                            >
+                                                <i className="fa-solid fa-chevron-up tw-text-[10px]"></i>
+                                            </button>
+                                            <button 
+                                                disabled={index === list.length - 1}
+                                                onClick={() => moveItem(index, index + 1)}
+                                                className="tw-text-slate-400 hover:tw-text-slate-700 disabled:tw-text-slate-200 disabled:tw-cursor-not-allowed tw-transition-colors"
+                                                title="Bajar"
+                                            >
+                                                <i className="fa-solid fa-chevron-down tw-text-[10px]"></i>
+                                            </button>
+                                        </div>
+                                    </td>
                                     <td className="tw-py-2 tw-pr-2">
                                         <input 
                                             type="text" 
