@@ -591,6 +591,28 @@ const QuotationsApp = () => {
         }
     };
 
+    const handleCopyFromHistory = async (q) => {
+        try {
+            // Cargar contenido de la cotización
+            setSelectedClient(''); // Limpiar el cliente para forzar selección y evitar confusiones
+            setProjectName(q.projectName || '');
+            setRequirements(q.requirements || '');
+            setTechConditions(q.technicalConditions || '');
+            setCommercialConditions(q.commercialConditions || '');
+            setItems(JSON.parse(q.items1 || '[]'));
+            setOptionals(JSON.parse(q.itemsOptional || '[]'));
+            
+            // Forzar a versión 1 y correlativo inicial temporal
+            setCurrentVersion(1);
+            setNextId(1);
+            
+            setActiveTab('generator');
+            alert(`Contenido de Cotización ${q.id} copiado. Seleccione un cliente para asignarle esta nueva cotización.`);
+        } catch (err) {
+            alert("Error al copiar la cotización.");
+        }
+    };
+
     const handleDeleteFromHistory = async (id, version) => {
         if (!confirm(`¿Está seguro de eliminar la versión ${version} de la cotización ${id}?`)) return;
         try {
@@ -938,6 +960,13 @@ const QuotationsApp = () => {
                                                                 title="Editar (Generar nueva versión)"
                                                             >
                                                                 <i className="fa-solid fa-pen-to-square"></i>
+                                                            </button>
+                                                            <button 
+                                                                onClick={() => handleCopyFromHistory(q)}
+                                                                className="tw-p-2 tw-text-emerald-600 hover:tw-bg-emerald-50 tw-rounded-lg tw-transition-colors"
+                                                                title="Copiar (Crear nueva cotización)"
+                                                            >
+                                                                <i className="fa-solid fa-copy"></i>
                                                             </button>
                                                             <button 
                                                                 onClick={() => handleDeleteFromHistory(q.id, q.version)}
