@@ -22,6 +22,8 @@ const QuotationsApp = () => {
     const [currency, setCurrency] = useState('CLP');
     const [exchangeRates, setExchangeRates] = useState({ uf: null, dolar: null });
     const [mode, setMode] = useState('new'); // 'new' | 'copy' | 'edit'
+    const [dialog, setDialog] = useState(null); // { type: 'alert'|'confirm'|'prompt', title, message, defaultValue, resolve }
+    const [lastExchangeRate, setLastExchangeRate] = useState(null);
     
     // Historial
     const [activeTab, setActiveTab] = useState('generator'); // 'generator' | 'history'
@@ -90,16 +92,7 @@ const QuotationsApp = () => {
             const year = new Date().getFullYear();
             setCurrentYear(year);
 
-            // Cargar tipos de cambio del día
-            try {
-                const rates = await window.StorageAPI.async.getExchangeRates();
-                if (rates) {
-                    setExchangeRates(rates);
-                    console.log("Tipos de cambio cargados:", rates);
-                }
-            } catch (rateErr) {
-                console.warn("No se pudieron obtener tipos de cambio:", rateErr);
-            }
+            // No cargamos tipos de cambio online de forma automática (removido por petición del usuario)
         } catch (error) {
             console.error("Error cargando datos:", error);
         }
@@ -151,6 +144,30 @@ const QuotationsApp = () => {
         setCurrentVersion(1);
         setCurrency('CLP');
         setMode('new');
+    };
+
+    const showCustomDialog = (config) => {
+        return new Promise((resolve) => {
+            setDialog({
+                ...config,
+                resolve: (val) => {
+                    setDialog(null);
+                    resolve(val);
+                }
+            });
+        });
+    };
+
+    const customAlert = (message, title = 'Notificación') => {
+        return showCustomDialog({ type: 'alert', title, message });
+    };
+
+    const customConfirm = (message, title = 'Confirmar') => {
+        return showCustomDialog({ type: 'confirm', title, message });
+    };
+
+    const customPrompt = (message, defaultValue = '', title = 'Ingresar Valor') => {
+        return showCustomDialog({ type: 'prompt', title, message, defaultValue });
     };
 
     const fetchHistory = async () => {
@@ -224,7 +241,7 @@ const QuotationsApp = () => {
         }
     };
 
-    const handleCurrencyChange = (newCurrency) => {
+    const handleCurrencyChange = async (newCurrency) => {
         if (newCurrency === currency) return;
 
         const hasPrices = items.some(i => Number(i.price) > 0) || optionals.some(i => Number(i.price) > 0);
@@ -234,28 +251,65 @@ const QuotationsApp = () => {
             return;
         }
 
-        const ufVal = exchangeRates.uf || 37700;
-        const usdVal = exchangeRates.dolar || 950;
-
         const msg = `Ha seleccionado cambiar la moneda a ${newCurrency}.\n\n` +
                     `¿Desea CONVERTIR los precios unitarios de los ítems actuales a la nueva moneda?\n` +
-                    `• Presione ACEPTAR para convertirlos automáticamente usando el tipo de cambio del día (1 USD = $${usdVal} CLP, 1 UF = $${ufVal} CLP).\n` +
+                    `• Presione ACEPTAR para convertirlos indicando el tipo de cambio manualmente.\n` +
                     `• Presione CANCELAR para mantener los valores actuales sin convertirlos.`;
 
-        if (confirm(msg)) {
+        if (await customConfirm(msg, 'Cambio de Moneda')) {
+            let rateUSD = 950;
+            let rateUF = 40000;
+            
+            if ((currency === 'CLP' && newCurrency === 'USD') || (currency === 'USD' && newCurrency === 'CLP')) {
+                const entered = await customPrompt('Ingrese la tasa de cambio: Valor de 1 USD en CLP (Ej: 950):', '950', 'Tipo de Cambio USD');
+                if (!entered || isNaN(parseFloat(entered)) || parseFloat(entered) <= 0) {
+                    await customAlert('Conversión cancelada: Debe ingresar una tasa de cambio válida.');
+                    setCurrency(newCurrency);
+                    return;
+                }
+                rateUSD = parseFloat(entered);
+                setLastExchangeRate(rateUSD);
+            } else if ((currency === 'CLP' && newCurrency === 'UF') || (currency === 'UF' && newCurrency === 'CLP')) {
+                const entered = await customPrompt('Ingrese la tasa de cambio: Valor de 1 UF en CLP (Ej: 40000):', '40000', 'Tipo de Cambio UF');
+                if (!entered || isNaN(parseFloat(entered)) || parseFloat(entered) <= 0) {
+                    await customAlert('Conversión cancelada: Debe ingresar una tasa de cambio válida.');
+                    setCurrency(newCurrency);
+                    return;
+                }
+                rateUF = parseFloat(entered);
+                setLastExchangeRate(rateUF);
+            } else if ((currency === 'USD' && newCurrency === 'UF') || (currency === 'UF' && newCurrency === 'USD')) {
+                const enteredUSD = await customPrompt('Ingrese la tasa de cambio: Valor de 1 USD en CLP (Ej: 950):', '950', 'Tipo de Cambio USD');
+                if (!enteredUSD || isNaN(parseFloat(enteredUSD)) || parseFloat(enteredUSD) <= 0) {
+                    await customAlert('Conversión cancelada: Debe ingresar tasas de cambio válidas.');
+                    setCurrency(newCurrency);
+                    return;
+                }
+                rateUSD = parseFloat(enteredUSD);
+                
+                const enteredUF = await customPrompt('Ingrese la tasa de cambio: Valor de 1 UF en CLP (Ej: 40000):', '40000', 'Tipo de Cambio UF');
+                if (!enteredUF || isNaN(parseFloat(enteredUF)) || parseFloat(enteredUF) <= 0) {
+                    await customAlert('Conversión cancelada: Debe ingresar tasas de cambio válidas.');
+                    setCurrency(newCurrency);
+                    return;
+                }
+                rateUF = parseFloat(enteredUF);
+                setLastExchangeRate(newCurrency === 'USD' ? rateUSD : rateUF);
+            }
+
             const convertPrice = (price) => {
                 let priceInClp = price;
                 if (currency === 'USD') {
-                    priceInClp = price * usdVal;
+                    priceInClp = price * rateUSD;
                 } else if (currency === 'UF') {
-                    priceInClp = price * ufVal;
+                    priceInClp = price * rateUF;
                 }
 
                 let targetPrice = priceInClp;
                 if (newCurrency === 'USD') {
-                    targetPrice = priceInClp / usdVal;
+                    targetPrice = priceInClp / rateUSD;
                 } else if (newCurrency === 'UF') {
-                    targetPrice = priceInClp / ufVal;
+                    targetPrice = priceInClp / rateUF;
                 }
 
                 if (newCurrency === 'CLP') {
@@ -544,7 +598,7 @@ const QuotationsApp = () => {
         });
     };
 
-    const handleDownloadFromHistory = (q) => {
+    const handleDownloadFromHistory = async (q) => {
         try {
             const docDefinition = buildDocDefinitionForHistory(q);
             const versionSuffix = q.version > 1 ? `_v${q.version}` : '';
@@ -553,7 +607,7 @@ const QuotationsApp = () => {
             pdfMake.createPdf(docDefinition).download(fileName);
         } catch (err) {
             console.error("Error al descargar cotización histórica:", err);
-            alert("Error al regenerar PDF de cotización.");
+            await customAlert("Error al regenerar PDF de cotización.");
         }
     };
 
@@ -588,8 +642,20 @@ const QuotationsApp = () => {
 
     const handleGenerate = async () => {
         if (!selectedClient) {
-            alert("Debe seleccionar un cliente.");
+            await customAlert("Debe seleccionar un cliente.", "Falta Información");
             return;
+        }
+
+        let exchangeRateToSave = null;
+        if (currency !== 'CLP') {
+            const defaultRate = lastExchangeRate ? String(lastExchangeRate) : (currency === 'USD' ? '950' : '40000');
+            const entered = await customPrompt(`Esta cotización está en ${currency}.\nPor favor, ingrese el tipo de cambio (Valor de 1 ${currency} en CLP) para registrar el proyecto en la base de datos en pesos chilenos:`, defaultRate, `Tipo de Cambio (${currency})`);
+            if (!entered || isNaN(parseFloat(entered)) || parseFloat(entered) <= 0) {
+                await customAlert("Debe ingresar un tipo de cambio válido para guardar la cotización.");
+                return;
+            }
+            exchangeRateToSave = parseFloat(entered);
+            setLastExchangeRate(exchangeRateToSave);
         }
         
         setIsGenerating(true);
@@ -635,7 +701,8 @@ const QuotationsApp = () => {
                                 subtotal: subtotalMains,
                                 iva: iva,
                                 total: total,
-                                currency: currency
+                                currency: currency,
+                                exchangeRate: exchangeRateToSave
                             };
                             
                             await window.StorageAPI.async.saveQuotation(qData);
@@ -671,7 +738,7 @@ const QuotationsApp = () => {
 
         } catch (error) {
             console.error(error);
-            alert("Error al generar PDF: " + (error.message || JSON.stringify(error)));
+            await customAlert("Error al generar PDF: " + (error.message || JSON.stringify(error)));
         } finally {
             setIsGenerating(false);
         }
@@ -699,9 +766,9 @@ const QuotationsApp = () => {
             setCurrentYear(q.year);
 
             setActiveTab('generator');
-            alert(`Editando Cotización ${q.id}. Se guardará como versión ${vData.nextVersion}.`);
+            await customAlert(`Editando Cotización ${q.id}. Se guardará como versión ${vData.nextVersion}.`, "Edición Iniciada");
         } catch (err) {
-            alert("Error al cargar para edición.");
+            await customAlert("Error al cargar para edición.");
         }
     };
 
@@ -723,19 +790,19 @@ const QuotationsApp = () => {
             setNextId(1);
             
             setActiveTab('generator');
-            alert(`Contenido de Cotización ${q.id} copiado. Seleccione un cliente para asignarle esta nueva cotización.`);
+            await customAlert(`Contenido de Cotización ${q.id} copiado. Seleccione un cliente para asignarle esta nueva cotización.`, "Copia Realizada");
         } catch (err) {
-            alert("Error al copiar la cotización.");
+            await customAlert("Error al copiar la cotización.");
         }
     };
 
     const handleDeleteFromHistory = async (id, version) => {
-        if (!confirm(`¿Está seguro de eliminar la versión ${version} de la cotización ${id}?`)) return;
+        if (!await customConfirm(`¿Está seguro de eliminar la versión ${version} de la cotización ${id}?`, "Eliminar Cotización")) return;
         try {
             await window.StorageAPI.async.deleteQuotation(id, version);
             fetchHistory();
         } catch (err) {
-            alert("Error al eliminar.");
+            await customAlert("Error al eliminar.");
         }
     };
 
@@ -863,8 +930,8 @@ const QuotationsApp = () => {
                                 
                                 {(currentVersion > 1 || selectedClient || projectName || items.some(i => i.price > 0 || i.desc) || optionals.length > 0 || currency !== 'CLP' || mode !== 'new') && (
                                     <button 
-                                        onClick={() => {
-                                            if (confirm("¿Está seguro de limpiar los datos actuales para comenzar una nueva cotización?")) {
+                                        onClick={async () => {
+                                            if (await customConfirm("¿Está seguro de limpiar los datos actuales para comenzar una nueva cotización?", "Nueva Cotización")) {
                                                 handleResetToNewQuotation();
                                             }
                                         }}
@@ -1145,6 +1212,54 @@ const QuotationsApp = () => {
                                 )}
                             </div>
                         )}
+                    </div>
+                </div>
+            )}
+
+            {dialog && (
+                <div className="tw-fixed tw-inset-0 tw-z-[9999] tw-flex tw-items-center tw-justify-center tw-bg-black/50 tw-backdrop-blur-sm">
+                    <div className="tw-bg-white tw-rounded-xl tw-shadow-2xl tw-border tw-border-slate-200 tw-p-6 tw-w-full tw-max-w-md tw-mx-4 tw-transform tw-transition-all animate-fade-in">
+                        <h3 className="tw-text-lg tw-font-bold tw-text-slate-800 tw-mb-2">{dialog.title}</h3>
+                        <p className="tw-text-sm tw-text-slate-600 tw-mb-6 tw-whitespace-pre-wrap">{dialog.message}</p>
+                        
+                        {dialog.type === 'prompt' && (
+                            <input 
+                                type="text" 
+                                id="custom-dialog-prompt-input"
+                                defaultValue={dialog.defaultValue}
+                                className="tw-w-full tw-p-3 tw-bg-slate-50 tw-border tw-border-slate-300 tw-rounded-lg focus:tw-border-googleBlue focus:tw-ring-2 focus:tw-ring-blue-100 focus:tw-outline-none tw-transition-all tw-mb-6 tw-text-sm"
+                                autoFocus
+                                onKeyDown={(e) => {
+                                    if (e.key === 'Enter') {
+                                        dialog.resolve(e.target.value);
+                                    }
+                                }}
+                            />
+                        )}
+                        
+                        <div className="tw-flex tw-justify-end tw-gap-3">
+                            {(dialog.type === 'confirm' || dialog.type === 'prompt') && (
+                                <button 
+                                    onClick={() => dialog.resolve(dialog.type === 'prompt' ? null : false)}
+                                    className="tw-px-4 tw-py-2 tw-bg-slate-100 tw-text-slate-700 tw-rounded-lg tw-text-sm tw-font-bold hover:tw-bg-slate-200 tw-transition-all"
+                                >
+                                    Cancelar
+                                </button>
+                            )}
+                            <button 
+                                onClick={() => {
+                                    if (dialog.type === 'prompt') {
+                                        const inputVal = document.getElementById('custom-dialog-prompt-input')?.value;
+                                        dialog.resolve(inputVal);
+                                    } else {
+                                        dialog.resolve(true);
+                                    }
+                                }}
+                                className="tw-px-4 tw-py-2 tw-bg-googleBlue tw-text-white tw-rounded-lg tw-text-sm tw-font-bold hover:tw-bg-blue-700 tw-transition-all tw-shadow-sm"
+                            >
+                                Aceptar
+                            </button>
+                        </div>
                     </div>
                 </div>
             )}

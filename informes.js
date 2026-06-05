@@ -28,6 +28,7 @@ const ReportsApp = () => {
     const [previewUrl, setPreviewUrl] = useState(null);
     const [logoData, setLogoData] = useState({ svg: null, base64: null });
     const [isGenerating, setIsGenerating] = useState(false);
+    const [dialog, setDialog] = useState(null); // { type: 'alert'|'confirm', title, message, resolve }
     const previewTimeoutRef = useRef(null);
 
     // Cargar datos iniciales
@@ -159,6 +160,26 @@ const ReportsApp = () => {
         if (activePrefix.length < 3) activePrefix = activePrefix.padEnd(3, 'X');
     }
     const displayId = selectedClient ? `INF-${activePrefix}-${currentYear}-${String(nextId).padStart(2, '0')}` : '(Seleccione Cliente)';
+
+    const showCustomDialog = (config) => {
+        return new Promise((resolve) => {
+            setDialog({
+                ...config,
+                resolve: (val) => {
+                    setDialog(null);
+                    resolve(val);
+                }
+            });
+        });
+    };
+
+    const customAlert = (message, title = 'Notificación') => {
+        return showCustomDialog({ type: 'alert', title, message });
+    };
+
+    const customConfirm = (message, title = 'Confirmar') => {
+        return showCustomDialog({ type: 'confirm', title, message });
+    };
 
     // Manejar tabla de materiales
     const handleMaterialChange = (id, field, value) => {
@@ -479,7 +500,7 @@ const ReportsApp = () => {
     // Guardar informe final y subir a OneDrive
     const handleGenerate = async () => {
         if (!selectedClient) {
-            alert("Debe seleccionar un cliente.");
+            await customAlert("Debe seleccionar un cliente.", "Falta Información");
             return;
         }
         
@@ -552,7 +573,7 @@ const ReportsApp = () => {
                              setImages([]);
                              setCurrentVersion(1);
 
-                             alert("Informe generado, descargado y guardado en tu OneDrive con éxito.");
+                             await customAlert("Informe generado, descargado y guardado en tu OneDrive con éxito.", "Éxito");
                              resolve();
                         } catch (saveErr) {
                             reject(saveErr);
@@ -565,7 +586,7 @@ const ReportsApp = () => {
 
         } catch (error) {
             console.error("Fallo al generar el PDF del informe:", error);
-            alert("Error al generar PDF: " + (error.message || JSON.stringify(error)));
+            await customAlert("Error al generar PDF: " + (error.message || JSON.stringify(error)));
         } finally {
             setIsGenerating(false);
         }
@@ -590,21 +611,21 @@ const ReportsApp = () => {
             setCurrentYear(r.year);
 
             setActiveTab('generator');
-            alert(`Editando Informe ${r.id}. Se guardará como versión ${vData.nextVersion}.`);
+            await customAlert(`Editando Informe ${r.id}. Se guardará como versión ${vData.nextVersion}.`, "Edición Iniciada");
         } catch (err) {
             console.error(err);
-            alert("Error al cargar informe para edición.");
+            await customAlert("Error al cargar informe para edición.");
         }
     };
 
     // Eliminar informe de la BD
     const handleDeleteFromHistory = async (id, version) => {
-        if (!confirm(`¿Está seguro de eliminar la versión ${version} del informe ${id}?`)) return;
+        if (!await customConfirm(`¿Está seguro de eliminar la versión ${version} del informe ${id}?`, "Eliminar Informe")) return;
         try {
             await window.StorageAPI.async.deleteReport(id, version);
             fetchHistory();
         } catch (err) {
-            alert("Error al eliminar.");
+            await customAlert("Error al eliminar.");
         }
     };
 
@@ -948,6 +969,32 @@ const ReportsApp = () => {
                                 )}
                             </div>
                         )}
+                    </div>
+                </div>
+            )}
+
+            {dialog && (
+                <div className="tw-fixed tw-inset-0 tw-z-[9999] tw-flex tw-items-center tw-justify-center tw-bg-black/50 tw-backdrop-blur-sm">
+                    <div className="tw-bg-white tw-rounded-xl tw-shadow-2xl tw-border tw-border-slate-200 tw-p-6 tw-w-full tw-max-w-md tw-mx-4 tw-transform tw-transition-all animate-fade-in">
+                        <h3 className="tw-text-lg tw-font-bold tw-text-slate-800 tw-mb-2">{dialog.title}</h3>
+                        <p className="tw-text-sm tw-text-slate-600 tw-mb-6 tw-whitespace-pre-wrap">{dialog.message}</p>
+                        
+                        <div className="tw-flex tw-justify-end tw-gap-3">
+                            {dialog.type === 'confirm' && (
+                                <button 
+                                    onClick={() => dialog.resolve(false)}
+                                    className="tw-px-4 tw-py-2 tw-bg-slate-100 tw-text-slate-700 tw-rounded-lg tw-text-sm tw-font-bold hover:tw-bg-slate-200 tw-transition-all"
+                                >
+                                    Cancelar
+                                </button>
+                            )}
+                            <button 
+                                onClick={() => dialog.resolve(true)}
+                                className="tw-px-4 tw-py-2 tw-bg-teal-600 tw-text-white tw-rounded-lg tw-text-sm tw-font-bold hover:tw-bg-teal-700 tw-transition-all tw-shadow-sm"
+                            >
+                                Aceptar
+                            </button>
+                        </div>
                     </div>
                 </div>
             )}

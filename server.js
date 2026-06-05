@@ -198,46 +198,14 @@ setInterval(() => {
 
 // Fetch UF from mindicador.cl
 async function fetchUF() {
-    const now = Date.now();
-    // Cache por 1 hora (3600000 ms)
-    if (cachedUF.valor && (now - cachedUF.timestamp < 3600000)) {
-        return cachedUF.valor;
-    }
-
-    try {
-        console.log('Fetching UF from external API...');
-        const response = await axios.get('https://mindicador.cl/api/uf', { timeout: 15000 });
-        if (response.data && response.data.serie && response.data.serie.length > 0) {
-            cachedUF.valor = response.data.serie[0].valor;
-            cachedUF.timestamp = now;
-            return cachedUF.valor;
-        }
-    } catch (error) {
-        console.error('Error fetching UF:', error.message);
-    }
-    return cachedUF.valor; // Fallback al cache si falla la API
+    // Retornar valor estático fallback para evitar llamadas online
+    return 37800;
 }
 
 // Fetch Dolar from mindicador.cl
 async function fetchDolar() {
-    const now = Date.now();
-    // Cache por 1 hora (3600000 ms)
-    if (cachedDolar.valor && (now - cachedDolar.timestamp < 3600000)) {
-        return cachedDolar.valor;
-    }
-
-    try {
-        console.log('Fetching Dolar from external API...');
-        const response = await axios.get('https://mindicador.cl/api/dolar', { timeout: 15000 });
-        if (response.data && response.data.serie && response.data.serie.length > 0) {
-            cachedDolar.valor = response.data.serie[0].valor;
-            cachedDolar.timestamp = now;
-            return cachedDolar.valor;
-        }
-    } catch (error) {
-        console.error('Error fetching Dolar:', error.message);
-    }
-    return cachedDolar.valor; // Fallback al cache si falla la API
+    // Retornar valor estático fallback para evitar llamadas online
+    return 950;
 }
 
 // Rutas Genéricas
@@ -2125,13 +2093,13 @@ app.post('/api/quotations', async (req, res) => {
             let estimatedAmountClp = q.total;
             let conversionNote = '';
             if (q.currency === 'USD') {
-                const rateUSD = await fetchDolar();
+                const rateUSD = q.exchangeRate || await fetchDolar();
                 if (rateUSD) {
                     estimatedAmountClp = q.total * rateUSD;
                     conversionNote = ` (${q.total} USD a tasa de $${rateUSD} CLP)`;
                 }
             } else if (q.currency === 'UF') {
-                const rateUF = await fetchUF();
+                const rateUF = q.exchangeRate || await fetchUF();
                 if (rateUF) {
                     estimatedAmountClp = q.total * rateUF;
                     conversionNote = ` (${q.total} UF a tasa de $${rateUF} CLP)`;
