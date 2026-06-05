@@ -134,6 +134,12 @@ let cachedUF = {
     timestamp: 0
 };
 
+// Dolar Cache
+let cachedDolar = {
+    valor: null,
+    timestamp: 0
+};
+
 // Rate Limiter en memoria para el endpoint de login
 // Previene ataques de fuerza bruta sin necesidad de dependencias externas
 const loginAttempts = new Map();
@@ -210,6 +216,28 @@ async function fetchUF() {
         console.error('Error fetching UF:', error.message);
     }
     return cachedUF.valor; // Fallback al cache si falla la API
+}
+
+// Fetch Dolar from mindicador.cl
+async function fetchDolar() {
+    const now = Date.now();
+    // Cache por 1 hora (3600000 ms)
+    if (cachedDolar.valor && (now - cachedDolar.timestamp < 3600000)) {
+        return cachedDolar.valor;
+    }
+
+    try {
+        console.log('Fetching Dolar from external API...');
+        const response = await axios.get('https://mindicador.cl/api/dolar', { timeout: 15000 });
+        if (response.data && response.data.serie && response.data.serie.length > 0) {
+            cachedDolar.valor = response.data.serie[0].valor;
+            cachedDolar.timestamp = now;
+            return cachedDolar.valor;
+        }
+    } catch (error) {
+        console.error('Error fetching Dolar:', error.message);
+    }
+    return cachedDolar.valor; // Fallback al cache si falla la API
 }
 
 // Rutas Genéricas
@@ -1534,6 +1562,12 @@ app.get('/api/uf', async (req, res) => {
     else res.status(500).json({ error: "No se pudo obtener el valor de la UF" });
 });
 
+app.get('/api/exchange-rates', async (req, res) => {
+    const uf = await fetchUF();
+    const dolar = await fetchDolar();
+    res.json({ uf: uf || 37700, dolar: dolar || 950 });
+});
+
 app.get('/api/contracts/pending', async (req, res) => {
     try {
         const pool = await getDbPool();
@@ -2044,6 +2078,7 @@ app.post('/api/quotations', async (req, res) => {
             .input('subtotal', sql.Decimal(18,2), q.subtotal)
             .input('iva', sql.Decimal(18,2), q.iva)
             .input('total', sql.Decimal(18,2), q.total)
+            .input('currency', sql.VarChar(10), q.currency || 'CLP')
             .query(`
                 MERGE Quotations AS target
                 USING (SELECT @id AS id, @version AS version) AS source
@@ -2054,10 +2089,11 @@ app.post('/api/quotations', async (req, res) => {
                         clientName = @clientName, projectName = @projectName,
                         requirements = @requirements, technicalConditions = @technicalConditions,
                         commercialConditions = @commercialConditions, items1 = @items1,
-                        itemsOptional = @itemsOptional, subtotal = @subtotal, iva = @iva, total = @total
+                        itemsOptional = @itemsOptional, subtotal = @subtotal, iva = @iva, total = @total,
+                        currency = @currency
                 WHEN NOT MATCHED THEN
-                    INSERT (id, correlative, year, version, clientId, clientName, projectName, requirements, technicalConditions, commercialConditions, items1, itemsOptional, subtotal, iva, total, createdAt)
-                    VALUES (@id, @correlative, @year, @version, @clientId, @clientName, @projectName, @requirements, @technicalConditions, @commercialConditions, @items1, @itemsOptional, @subtotal, @iva, @total, GETDATE());
+                    INSERT (id, correlative, year, version, clientId, clientName, projectName, requirements, technicalConditions, commercialConditions, items1, itemsOptional, subtotal, iva, total, currency, createdAt)
+                    VALUES (@id, @correlative, @year, @version, @clientId, @clientName, @projectName, @requirements, @technicalConditions, @commercialConditions, @items1, @itemsOptional, @subtotal, @iva, @total, @currency, GETDATE());
             `);
 
         // --- Sincronización Automática con Proyectos ---

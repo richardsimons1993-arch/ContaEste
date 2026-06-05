@@ -303,6 +303,7 @@ const Storage = {
         invoiceContract: (id) => asyncRequest('POST', `/contracts/${id}/invoice`),
 
         getUF: () => asyncRequest('GET', '/uf'),
+        getExchangeRates: () => asyncRequest('GET', '/exchange-rates'),
         saveLog: (log) => {
             const entry = { ...log, id: Date.now().toString(), timestamp: new Date().toISOString() };
             return asyncRequest('POST', '/logs', entry);

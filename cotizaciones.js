@@ -18,6 +18,10 @@ const QuotationsApp = () => {
     const [currentVersion, setCurrentVersion] = useState(1);
     const [isGenerating, setIsGenerating] = useState(false);
     
+    // Moneda y tipo de cambio
+    const [currency, setCurrency] = useState('CLP');
+    const [exchangeRates, setExchangeRates] = useState({ uf: null, dolar: null });
+    
     // Historial
     const [activeTab, setActiveTab] = useState('generator'); // 'generator' | 'history'
     const [history, setHistory] = useState([]);
@@ -84,6 +88,17 @@ const QuotationsApp = () => {
             }
             const year = new Date().getFullYear();
             setCurrentYear(year);
+
+            // Cargar tipos de cambio del día
+            try {
+                const rates = await window.StorageAPI.async.getExchangeRates();
+                if (rates) {
+                    setExchangeRates(rates);
+                    console.log("Tipos de cambio cargados:", rates);
+                }
+            } catch (rateErr) {
+                console.warn("No se pudieron obtener tipos de cambio:", rateErr);
+            }
         } catch (error) {
             console.error("Error cargando datos:", error);
         }
@@ -137,23 +152,97 @@ const QuotationsApp = () => {
     }, [activeTab]);
 
     // Cálculos
-    const formatMoney = (val) => new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP' }).format(val);
+    const formatMoney = (val, selectedCurr = 'CLP') => {
+        if (selectedCurr === 'USD') {
+            return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(val);
+        } else if (selectedCurr === 'UF') {
+            const formatted = new Intl.NumberFormat('es-CL', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(val);
+            return `UF ${formatted}`;
+        } else {
+            return new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(val);
+        }
+    };
     
     const subtotalItems = items.reduce((acc, curr) => acc + (Number(curr.qty) * Number(curr.price)), 0);
     const subtotalOptionals = optionals.reduce((acc, curr) => acc + (Number(curr.qty) * Number(curr.price)), 0);
     
-    // Formateo de entrada de números con puntos de miles
-    const formatInputNumber = (val) => {
+    // Formateo de entrada de números
+    const formatInputNumber = (val, isPrice = false) => {
         if (val === undefined || val === null || val === '') return '';
-        const numStr = String(val).replace(/\D/g, ''); // Solo dígitos
-        if (numStr === '') return '';
-        return new Intl.NumberFormat('es-CL').format(parseInt(numStr, 10));
+        if (currency === 'CLP' || !isPrice) {
+            const numStr = String(val).replace(/\D/g, ''); // Solo dígitos
+            if (numStr === '') return '';
+            return new Intl.NumberFormat('es-CL').format(parseInt(numStr, 10));
+        } else {
+            return String(val);
+        }
     };
 
-    const parseInputNumber = (str) => {
+    const parseInputNumber = (str, isPrice = false) => {
         if (!str) return 0;
-        const num = parseInt(String(str).replace(/\D/g, ''), 10);
-        return isNaN(num) ? 0 : num;
+        if (currency === 'CLP' || !isPrice) {
+            const num = parseInt(String(str).replace(/\D/g, ''), 10);
+            return isNaN(num) ? 0 : num;
+        } else {
+            let cleanStr = String(str).replace(/[^0-9.,-]/g, '');
+            const lastDot = cleanStr.lastIndexOf('.');
+            const lastComma = cleanStr.lastIndexOf(',');
+            if (lastDot > lastComma) {
+                cleanStr = cleanStr.replace(/,/g, '');
+            } else if (lastComma > lastDot) {
+                cleanStr = cleanStr.replace(/\./g, '').replace(',', '.');
+            }
+            const num = parseFloat(cleanStr);
+            return isNaN(num) ? 0 : num;
+        }
+    };
+
+    const handleCurrencyChange = (newCurrency) => {
+        if (newCurrency === currency) return;
+
+        const hasPrices = items.some(i => Number(i.price) > 0) || optionals.some(i => Number(i.price) > 0);
+
+        if (!hasPrices) {
+            setCurrency(newCurrency);
+            return;
+        }
+
+        const ufVal = exchangeRates.uf || 37700;
+        const usdVal = exchangeRates.dolar || 950;
+
+        const msg = `Ha seleccionado cambiar la moneda a ${newCurrency}.\n\n` +
+                    `¿Desea CONVERTIR los precios unitarios de los ítems actuales a la nueva moneda?\n` +
+                    `• Presione ACEPTAR para convertirlos automáticamente usando el tipo de cambio del día (1 USD = $${usdVal} CLP, 1 UF = $${ufVal} CLP).\n` +
+                    `• Presione CANCELAR para mantener los valores actuales sin convertirlos.`;
+
+        if (confirm(msg)) {
+            const convertPrice = (price) => {
+                let priceInClp = price;
+                if (currency === 'USD') {
+                    priceInClp = price * usdVal;
+                } else if (currency === 'UF') {
+                    priceInClp = price * ufVal;
+                }
+
+                let targetPrice = priceInClp;
+                if (newCurrency === 'USD') {
+                    targetPrice = priceInClp / usdVal;
+                } else if (newCurrency === 'UF') {
+                    targetPrice = priceInClp / ufVal;
+                }
+
+                if (newCurrency === 'CLP') {
+                    return Math.round(targetPrice);
+                } else {
+                    return Math.round(targetPrice * 100) / 100;
+                }
+            };
+
+            setItems(prev => prev.map(item => ({ ...item, price: convertPrice(item.price) })));
+            setOptionals(prev => prev.map(item => ({ ...item, price: convertPrice(item.price) })));
+        }
+
+        setCurrency(newCurrency);
     };
     const subtotalMains = subtotalItems; 
     // Nota: Generalmente el IVA y Total se calculan solo sobre lo principal, u opcional, 
@@ -188,6 +277,7 @@ const QuotationsApp = () => {
     const buildDocDefinitionForHistory = (q) => {
         const itemsList = typeof q.items1 === 'string' ? JSON.parse(q.items1 || '[]') : (q.items1 || []);
         const optionalsList = typeof q.itemsOptional === 'string' ? JSON.parse(q.itemsOptional || '[]') : (q.itemsOptional || []);
+        const selectedCurr = q.currency || 'CLP';
 
         let sectionCounter = 1;
         const nReq = (q.requirements && q.requirements.trim()) ? sectionCounter++ : null;
@@ -293,8 +383,8 @@ const QuotationsApp = () => {
             tableBody.push([
                 { text: item.qty.toString(), alignment: 'center' },
                 item.desc || '-',
-                { text: formatMoney(item.price), alignment: 'right' },
-                { text: formatMoney(item.qty * item.price), alignment: 'right', bold: true }
+                { text: formatMoney(item.price, selectedCurr), alignment: 'right' },
+                { text: formatMoney(item.qty * item.price, selectedCurr), alignment: 'right', bold: true }
             ]);
         });
 
@@ -317,9 +407,9 @@ const QuotationsApp = () => {
                         table: {
                             widths: ['*', 80],
                             body: [
-                                [ { text: 'Subtotal NETO:', color: '#64748b', fontSize: 9 }, { text: formatMoney(q.subtotal), alignment: 'right', fontSize: 9 } ],
-                                [ { text: 'IVA (19%):', color: '#64748b', fontSize: 9 }, { text: formatMoney(q.iva), alignment: 'right', fontSize: 9 } ],
-                                [ { text: 'TOTAL:', color: '#0f766e', bold: true, fontSize: 11 }, { text: formatMoney(q.total), alignment: 'right', bold: true, fontSize: 11, color: '#0f172a' } ]
+                                [ { text: 'Subtotal NETO:', color: '#64748b', fontSize: 9 }, { text: formatMoney(q.subtotal, selectedCurr), alignment: 'right', fontSize: 9 } ],
+                                [ { text: 'IVA (19%):', color: '#64748b', fontSize: 9 }, { text: formatMoney(q.iva, selectedCurr), alignment: 'right', fontSize: 9 } ],
+                                [ { text: 'TOTAL:', color: '#0f766e', bold: true, fontSize: 11 }, { text: formatMoney(q.total, selectedCurr), alignment: 'right', bold: true, fontSize: 11, color: '#0f172a' } ]
                             ]
                         },
                         layout: 'noBorders'
@@ -349,8 +439,8 @@ const QuotationsApp = () => {
                 optTableBody.push([
                     { text: item.qty.toString(), alignment: 'center' },
                     item.desc || '-',
-                    { text: formatMoney(item.price), alignment: 'right' },
-                    { text: formatMoney(item.qty * item.price), alignment: 'right', bold: true }
+                    { text: formatMoney(item.price, selectedCurr), alignment: 'right' },
+                    { text: formatMoney(item.qty * item.price, selectedCurr), alignment: 'right', bold: true }
                 ]);
             });
 
@@ -422,6 +512,7 @@ const QuotationsApp = () => {
             subtotal: subtotalMains,
             iva: iva,
             total: total,
+            currency: currency,
             createdAt: new Date().toISOString()
         });
     };
@@ -466,7 +557,7 @@ const QuotationsApp = () => {
         return () => {
             if (previewTimeoutRef.current) clearTimeout(previewTimeoutRef.current);
         };
-    }, [selectedClient, projectName, requirements, techConditions, commercialConditions, items, optionals, activeTab, logoData]);
+    }, [selectedClient, projectName, requirements, techConditions, commercialConditions, items, optionals, activeTab, logoData, currency]);
 
     const handleGenerate = async () => {
         if (!selectedClient) {
@@ -516,7 +607,8 @@ const QuotationsApp = () => {
                                 itemsOptional: optionals,
                                 subtotal: subtotalMains,
                                 iva: iva,
-                                total: total
+                                total: total,
+                                currency: currency
                             };
                             
                             await window.StorageAPI.async.saveQuotation(qData);
@@ -546,6 +638,7 @@ const QuotationsApp = () => {
                             setItems([{ id: Date.now(), desc: '', qty: 1, price: 0 }]);
                             setOptionals([]);
                             setCurrentVersion(1);
+                            setCurrency('CLP');
 
                             resolve();
                         } catch (saveErr) {
@@ -575,6 +668,7 @@ const QuotationsApp = () => {
             setCommercialConditions(q.commercialConditions || '');
             setItems(JSON.parse(q.items1 || '[]'));
             setOptionals(JSON.parse(q.itemsOptional || '[]'));
+            setCurrency(q.currency || 'CLP');
             
             // Calcular siguiente versión para este ID exacto
             const vData = await window.StorageAPI.async.getQuotationNextVersion(q.id);
@@ -601,6 +695,7 @@ const QuotationsApp = () => {
             setCommercialConditions(q.commercialConditions || '');
             setItems(JSON.parse(q.items1 || '[]'));
             setOptionals(JSON.parse(q.itemsOptional || '[]'));
+            setCurrency(q.currency || 'CLP');
             
             // Forzar a versión 1 y correlativo inicial temporal
             setCurrentVersion(1);
@@ -651,7 +746,7 @@ const QuotationsApp = () => {
                                 <th className="tw-w-8 tw-pb-2"></th>
                                 <th className="tw-text-left tw-pb-2 tw-w-20">Cant.</th>
                                 <th className="tw-text-left tw-pb-2">Descripción</th>
-                                <th className="tw-text-right tw-pb-2 tw-w-36">Precio Unit. (CLP)</th>
+                                <th className="tw-text-right tw-pb-2 tw-w-36">Precio Unit. ({currency})</th>
                                 <th className="tw-w-10"></th>
                             </tr>
                         </thead>
@@ -682,8 +777,8 @@ const QuotationsApp = () => {
                                         <input 
                                             type="text" 
                                             className="tw-w-full tw-p-2 tw-border tw-border-slate-300 tw-rounded tw-text-sm tw-text-center"
-                                            value={formatInputNumber(item.qty)}
-                                            onChange={(e) => handleItemChange(setList, list, item.id, 'qty', parseInputNumber(e.target.value))}
+                                            value={formatInputNumber(item.qty, false)}
+                                            onChange={(e) => handleItemChange(setList, list, item.id, 'qty', parseInputNumber(e.target.value, false))}
                                         />
                                     </td>
                                     <td className="tw-py-2">
@@ -699,8 +794,8 @@ const QuotationsApp = () => {
                                         <input 
                                             type="text" 
                                             className="tw-w-full tw-p-2 tw-border tw-border-slate-300 tw-rounded tw-text-sm tw-text-right"
-                                            value={formatInputNumber(item.price)}
-                                            onChange={(e) => handleItemChange(setList, list, item.id, 'price', parseInputNumber(e.target.value))}
+                                            value={formatInputNumber(item.price, true)}
+                                            onChange={(e) => handleItemChange(setList, list, item.id, 'price', parseInputNumber(e.target.value, true))}
                                         />
                                     </td>
                                     <td className="tw-py-2 tw-text-center">
@@ -830,6 +925,33 @@ const QuotationsApp = () => {
                                     ></textarea>
                                 </div>
 
+                                {/* Selector de Moneda */}
+                                <div className="tw-bg-white tw-p-6 tw-rounded-xl tw-shadow-sm tw-border tw-border-slate-200">
+                                    <label className="tw-block tw-text-sm tw-font-bold tw-text-slate-700 tw-mb-3">Moneda de la Cotización</label>
+                                    <div className="tw-grid tw-grid-cols-3 tw-gap-3">
+                                        {[
+                                            { id: 'CLP', label: 'Pesos (CLP)', icon: 'fa-solid fa-money-bill-1-wave', desc: 'Símbolo: $' },
+                                            { id: 'USD', label: 'Dólares (USD)', icon: 'fa-solid fa-dollar-sign', desc: 'Símbolo: US$' },
+                                            { id: 'UF', label: 'Unidad de Fomento (UF)', icon: 'fa-solid fa-chart-line', desc: 'Símbolo: UF' }
+                                        ].map((curr) => (
+                                            <button
+                                                key={curr.id}
+                                                type="button"
+                                                onClick={() => handleCurrencyChange(curr.id)}
+                                                className={`tw-flex tw-flex-col tw-items-center tw-justify-center tw-p-4 tw-rounded-xl tw-border tw-transition-all tw-duration-200 ${
+                                                    currency === curr.id
+                                                        ? 'tw-border-googleBlue tw-bg-blue-50/50 tw-text-googleBlue tw-ring-2 tw-ring-blue-100 tw-font-bold'
+                                                        : 'tw-border-slate-200 tw-bg-slate-50 tw-text-slate-600 hover:tw-bg-slate-100 hover:tw-border-slate-300'
+                                                }`}
+                                            >
+                                                <i className={`${curr.icon} tw-text-xl tw-mb-2`}></i>
+                                                <span className="tw-text-sm">{curr.label}</span>
+                                                <span className="tw-text-[10px] tw-text-slate-400 tw-mt-1">{curr.desc}</span>
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+
                                 {/* Tablas */}
                                 {renderTableInput(items, setItems, "Propuesta Económica (Principal)")}
                                 {renderTableInput(optionals, setOptionals, "Items Opcionales / Adicionales")}
@@ -944,7 +1066,7 @@ const QuotationsApp = () => {
                                                     <td className="tw-px-6 tw-py-4 tw-text-slate-500">
                                                         {q.createdAt ? (new Date(q.createdAt).toLocaleDateString('es-CL')) : '---'}
                                                     </td>
-                                                    <td className="tw-px-6 tw-py-4 tw-font-semibold tw-text-[#004d4d]">{formatMoney(q.total || 0)}</td>
+                                                    <td className="tw-px-6 tw-py-4 tw-font-semibold tw-text-[#004d4d]">{formatMoney(q.total || 0, q.currency)}</td>
                                                     <td className="tw-px-6 tw-py-4 tw-text-right">
                                                         <div className="tw-flex tw-justify-end tw-gap-2">
                                                             <button 
