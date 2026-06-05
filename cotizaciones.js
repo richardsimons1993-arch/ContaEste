@@ -21,6 +21,7 @@ const QuotationsApp = () => {
     // Moneda y tipo de cambio
     const [currency, setCurrency] = useState('CLP');
     const [exchangeRates, setExchangeRates] = useState({ uf: null, dolar: null });
+    const [mode, setMode] = useState('new'); // 'new' | 'copy' | 'edit'
     
     // Historial
     const [activeTab, setActiveTab] = useState('generator'); // 'generator' | 'history'
@@ -106,10 +107,17 @@ const QuotationsApp = () => {
 
     useEffect(() => {
         if (!selectedClient) {
-            setNextId(1);
-            setCurrentVersion(1);
+            if (mode === 'new') {
+                setNextId(1);
+                setCurrentVersion(1);
+            }
             return;
         }
+
+        if (mode === 'edit') {
+            return;
+        }
+
         const fetchNextIdVal = async () => {
             try {
                 const activeClient = clients.find(c => c.id === selectedClient);
@@ -121,12 +129,29 @@ const QuotationsApp = () => {
                 const idData = await window.StorageAPI.async.getNextQuotationId(prefix, currentYear);
                 setNextId(idData.nextId);
                 setCurrentVersion(1); // Default para nuevas
+
+                if (mode === 'new') {
+                    setCurrency('CLP');
+                }
             } catch (err) {
                 console.warn("Error correlativo:", err);
             }
         };
         fetchNextIdVal();
-    }, [selectedClient, currentYear]);
+    }, [selectedClient, currentYear, mode]);
+
+    const handleResetToNewQuotation = () => {
+        setSelectedClient('');
+        setProjectName('');
+        setRequirements('');
+        setTechConditions('');
+        setCommercialConditions('• La solicitud se considerará aprobada una vez recibida la Orden de Compra por el total de la propuesta comercial, o bien, al efectuarse el depósito del 50% de la misma.');
+        setItems([{ id: Date.now(), desc: '', qty: 1, price: 0 }]);
+        setOptionals([]);
+        setCurrentVersion(1);
+        setCurrency('CLP');
+        setMode('new');
+    };
 
     const fetchHistory = async () => {
         setHistoryLoading(true);
@@ -632,15 +657,7 @@ const QuotationsApp = () => {
                             }
 
                             // Limpiar formulario tras generar cotización
-                            setSelectedClient('');
-                            setProjectName('');
-                            setRequirements('');
-                            setTechConditions('');
-                            setCommercialConditions('• La solicitud se considerará aprobada una vez recibida la Orden de Compra por el total de la propuesta comercial, o bien, al efectuarse el depósito del 50% de la misma.');
-                            setItems([{ id: Date.now(), desc: '', qty: 1, price: 0 }]);
-                            setOptionals([]);
-                            setCurrentVersion(1);
-                            setCurrency('CLP');
+                            handleResetToNewQuotation();
 
                             resolve();
                         } catch (saveErr) {
@@ -663,6 +680,7 @@ const QuotationsApp = () => {
     const handleEditFromHistory = async (q) => {
         try {
             // Cargar datos
+            setMode('edit');
             setSelectedClient(q.clientId);
             setProjectName(q.projectName || '');
             setRequirements(q.requirements || '');
@@ -690,6 +708,7 @@ const QuotationsApp = () => {
     const handleCopyFromHistory = async (q) => {
         try {
             // Cargar contenido de la cotización
+            setMode('copy');
             setSelectedClient(''); // Limpiar el cliente para forzar selección y evitar confusiones
             setProjectName(q.projectName || '');
             setRequirements(q.requirements || '');
@@ -842,19 +861,11 @@ const QuotationsApp = () => {
                                     <i className="fa-solid fa-clock-rotate-left tw-mr-2"></i>VER HISTORIAL DE COTIZACIONES
                                 </button>
                                 
-                                {(currentVersion > 1 || selectedClient || projectName || items.some(i => i.price > 0 || i.desc)) && (
+                                {(currentVersion > 1 || selectedClient || projectName || items.some(i => i.price > 0 || i.desc) || optionals.length > 0 || currency !== 'CLP' || mode !== 'new') && (
                                     <button 
                                         onClick={() => {
                                             if (confirm("¿Está seguro de limpiar los datos actuales para comenzar una nueva cotización?")) {
-                                                setSelectedClient('');
-                                                setProjectName('');
-                                                setRequirements('');
-                                                setTechConditions('');
-                                                setCommercialConditions('• La solicitud se considerará aprobada una vez recibida la Orden de Compra por el total de la propuesta comercial, o bien, al efectuarse el depósito del 50% de la misma.');
-                                                setItems([{ id: Date.now(), desc: '', qty: 1, price: 0 }]);
-                                                setOptionals([]);
-                                                setCurrentVersion(1);
-                                                setCurrency('CLP');
+                                                handleResetToNewQuotation();
                                             }
                                         }}
                                         className="tw-bg-white tw-border tw-border-red-300 tw-text-red-600 tw-px-4 tw-py-2 tw-rounded-lg tw-text-xs tw-font-bold hover:tw-bg-red-50 hover:tw-text-red-700 tw-transition-all tw-flex tw-items-center tw-shadow-sm"
