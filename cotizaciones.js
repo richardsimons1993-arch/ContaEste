@@ -154,12 +154,14 @@ const QuotationsApp = () => {
     // Cálculos
     const formatMoney = (val, selectedCurr = 'CLP') => {
         if (selectedCurr === 'USD') {
-            return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(val);
+            const formatted = new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(val);
+            return `USD ${formatted}`;
         } else if (selectedCurr === 'UF') {
             const formatted = new Intl.NumberFormat('es-CL', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(val);
             return `UF ${formatted}`;
         } else {
-            return new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(val);
+            const formatted = new Intl.NumberFormat('es-CL', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(val);
+            return `CLP ${formatted}`;
         }
     };
     
