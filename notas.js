@@ -184,7 +184,7 @@ const KeepApp = () => {
   };
 
   return (
-    <div className="tw-flex tw-min-h-[calc(100vh-100px)] tw-bg-googleGray tw-font-sans tw-relative tw-overflow-hidden">
+    <div className="tw-flex tw-min-h-[calc(100vh-100px)] tw-bg-googleGray tw-font-sans tw-relative tw-overflow-hidden tw-rounded-xl tw-border tw-border-gray-200 tw-shadow-sm">
       
       {/* Sidebar / Drawer */}
       <Sidebar 
