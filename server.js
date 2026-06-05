@@ -196,16 +196,51 @@ setInterval(() => {
 }, 30 * 60 * 1000);
 
 
+// Memoria caché para tipos de cambio (duración de 1 hora)
+let ratesCache = {
+    uf: { value: null, timestamp: 0 },
+    dolar: { value: null, timestamp: 0 }
+};
+const CACHE_DURATION_MS = 60 * 60 * 1000;
+
 // Fetch UF from mindicador.cl
 async function fetchUF() {
-    // Retornar valor estático fallback para evitar llamadas online
-    return 37800;
+    const now = Date.now();
+    if (ratesCache.uf.value && (now - ratesCache.uf.timestamp < CACHE_DURATION_MS)) {
+        return ratesCache.uf.value;
+    }
+    try {
+        const response = await axios.get('https://mindicador.cl/api/uf', { timeout: 5000 });
+        if (response.data && response.data.serie && response.data.serie.length > 0) {
+            const val = response.data.serie[0].valor;
+            ratesCache.uf = { value: val, timestamp: now };
+            console.log(`[API] UF obtenida de mindicador.cl: ${val}`);
+            return val;
+        }
+    } catch (error) {
+        console.error('Error fetching UF from mindicador.cl:', error.message);
+    }
+    return ratesCache.uf.value || 37800; // Retornar fallback
 }
 
 // Fetch Dolar from mindicador.cl
 async function fetchDolar() {
-    // Retornar valor estático fallback para evitar llamadas online
-    return 950;
+    const now = Date.now();
+    if (ratesCache.dolar.value && (now - ratesCache.dolar.timestamp < CACHE_DURATION_MS)) {
+        return ratesCache.dolar.value;
+    }
+    try {
+        const response = await axios.get('https://mindicador.cl/api/dolar', { timeout: 5000 });
+        if (response.data && response.data.serie && response.data.serie.length > 0) {
+            const val = response.data.serie[0].valor;
+            ratesCache.dolar = { value: val, timestamp: now };
+            console.log(`[API] Dolar obtenido de mindicador.cl: ${val}`);
+            return val;
+        }
+    } catch (error) {
+        console.error('Error fetching Dolar from mindicador.cl:', error.message);
+    }
+    return ratesCache.dolar.value || 950; // Retornar fallback
 }
 
 // Rutas Genéricas

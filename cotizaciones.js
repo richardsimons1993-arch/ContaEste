@@ -20,7 +20,6 @@ const QuotationsApp = () => {
     
     // Moneda y tipo de cambio
     const [currency, setCurrency] = useState('CLP');
-    const [exchangeRates, setExchangeRates] = useState({ uf: null, dolar: null });
     const [mode, setMode] = useState('new'); // 'new' | 'copy' | 'edit'
     const [dialog, setDialog] = useState(null); // { type: 'alert'|'confirm'|'prompt', title, message, defaultValue, resolve }
     const [lastExchangeRate, setLastExchangeRate] = useState(null);
@@ -241,88 +240,7 @@ const QuotationsApp = () => {
         }
     };
 
-    const handleCurrencyChange = async (newCurrency) => {
-        if (newCurrency === currency) return;
-
-        const hasPrices = items.some(i => Number(i.price) > 0) || optionals.some(i => Number(i.price) > 0);
-
-        if (!hasPrices) {
-            setCurrency(newCurrency);
-            return;
-        }
-
-        const msg = `Ha seleccionado cambiar la moneda a ${newCurrency}.\n\n` +
-                    `¿Desea CONVERTIR los precios unitarios de los ítems actuales a la nueva moneda?\n` +
-                    `• Presione ACEPTAR para convertirlos indicando el tipo de cambio manualmente.\n` +
-                    `• Presione CANCELAR para mantener los valores actuales sin convertirlos.`;
-
-        if (await customConfirm(msg, 'Cambio de Moneda')) {
-            let rateUSD = 950;
-            let rateUF = 40000;
-            
-            if ((currency === 'CLP' && newCurrency === 'USD') || (currency === 'USD' && newCurrency === 'CLP')) {
-                const entered = await customPrompt('Ingrese la tasa de cambio: Valor de 1 USD en CLP (Ej: 950):', '950', 'Tipo de Cambio USD');
-                if (!entered || isNaN(parseFloat(entered)) || parseFloat(entered) <= 0) {
-                    await customAlert('Conversión cancelada: Debe ingresar una tasa de cambio válida.');
-                    setCurrency(newCurrency);
-                    return;
-                }
-                rateUSD = parseFloat(entered);
-                setLastExchangeRate(rateUSD);
-            } else if ((currency === 'CLP' && newCurrency === 'UF') || (currency === 'UF' && newCurrency === 'CLP')) {
-                const entered = await customPrompt('Ingrese la tasa de cambio: Valor de 1 UF en CLP (Ej: 40000):', '40000', 'Tipo de Cambio UF');
-                if (!entered || isNaN(parseFloat(entered)) || parseFloat(entered) <= 0) {
-                    await customAlert('Conversión cancelada: Debe ingresar una tasa de cambio válida.');
-                    setCurrency(newCurrency);
-                    return;
-                }
-                rateUF = parseFloat(entered);
-                setLastExchangeRate(rateUF);
-            } else if ((currency === 'USD' && newCurrency === 'UF') || (currency === 'UF' && newCurrency === 'USD')) {
-                const enteredUSD = await customPrompt('Ingrese la tasa de cambio: Valor de 1 USD en CLP (Ej: 950):', '950', 'Tipo de Cambio USD');
-                if (!enteredUSD || isNaN(parseFloat(enteredUSD)) || parseFloat(enteredUSD) <= 0) {
-                    await customAlert('Conversión cancelada: Debe ingresar tasas de cambio válidas.');
-                    setCurrency(newCurrency);
-                    return;
-                }
-                rateUSD = parseFloat(enteredUSD);
-                
-                const enteredUF = await customPrompt('Ingrese la tasa de cambio: Valor de 1 UF en CLP (Ej: 40000):', '40000', 'Tipo de Cambio UF');
-                if (!enteredUF || isNaN(parseFloat(enteredUF)) || parseFloat(enteredUF) <= 0) {
-                    await customAlert('Conversión cancelada: Debe ingresar tasas de cambio válidas.');
-                    setCurrency(newCurrency);
-                    return;
-                }
-                rateUF = parseFloat(enteredUF);
-                setLastExchangeRate(newCurrency === 'USD' ? rateUSD : rateUF);
-            }
-
-            const convertPrice = (price) => {
-                let priceInClp = price;
-                if (currency === 'USD') {
-                    priceInClp = price * rateUSD;
-                } else if (currency === 'UF') {
-                    priceInClp = price * rateUF;
-                }
-
-                let targetPrice = priceInClp;
-                if (newCurrency === 'USD') {
-                    targetPrice = priceInClp / rateUSD;
-                } else if (newCurrency === 'UF') {
-                    targetPrice = priceInClp / rateUF;
-                }
-
-                if (newCurrency === 'CLP') {
-                    return Math.round(targetPrice);
-                } else {
-                    return Math.round(targetPrice * 100) / 100;
-                }
-            };
-
-            setItems(prev => prev.map(item => ({ ...item, price: convertPrice(item.price) })));
-            setOptionals(prev => prev.map(item => ({ ...item, price: convertPrice(item.price) })));
-        }
-
+    const handleCurrencyChange = (newCurrency) => {
         setCurrency(newCurrency);
     };
     const subtotalMains = subtotalItems; 
@@ -928,17 +846,17 @@ const QuotationsApp = () => {
                                     <i className="fa-solid fa-clock-rotate-left tw-mr-2"></i>VER HISTORIAL DE COTIZACIONES
                                 </button>
                                 
-                                {(currentVersion > 1 || selectedClient || projectName || items.some(i => i.price > 0 || i.desc) || optionals.length > 0 || currency !== 'CLP' || mode !== 'new') && (
+                                {(selectedClient || projectName || requirements || techConditions || (items.length > 1 || items[0]?.price > 0 || items[0]?.desc) || optionals.length > 0 || currency !== 'CLP' || mode !== 'new') && (
                                     <button 
                                         onClick={async () => {
-                                            if (await customConfirm("¿Está seguro de limpiar los datos actuales para comenzar una nueva cotización?", "Nueva Cotización")) {
+                                            if (await customConfirm("¿Está seguro de limpiar todos los campos del formulario?", "Limpiar Formulario")) {
                                                 handleResetToNewQuotation();
                                             }
                                         }}
                                         className="tw-bg-white tw-border tw-border-red-300 tw-text-red-600 tw-px-4 tw-py-2 tw-rounded-lg tw-text-xs tw-font-bold hover:tw-bg-red-50 hover:tw-text-red-700 tw-transition-all tw-flex tw-items-center tw-shadow-sm"
-                                        title="Limpiar formulario y crear cotización en CLP"
+                                        title="Limpiar todos los campos del formulario"
                                     >
-                                        <i className="fa-solid fa-plus tw-mr-2"></i>NUEVA COTIZACIÓN (CLP)
+                                        <i className="fa-solid fa-eraser tw-mr-2"></i>LIMPIAR FORMULARIO
                                     </button>
                                 )}
                             </div>
