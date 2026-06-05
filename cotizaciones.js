@@ -834,13 +834,35 @@ const QuotationsApp = () => {
                                     )}
                                 </div>
                             </div>
-                            <div className="tw-mt-4">
+                            <div className="tw-mt-4 tw-flex tw-gap-3">
                                 <button 
                                     onClick={() => setActiveTab('history')}
                                     className="tw-bg-white tw-border tw-border-slate-300 tw-text-googleBlue tw-px-4 tw-py-2 tw-rounded-lg tw-text-xs tw-font-bold hover:tw-bg-slate-50 hover:tw-text-blue-700 tw-transition-all tw-flex tw-items-center tw-shadow-sm"
                                 >
                                     <i className="fa-solid fa-clock-rotate-left tw-mr-2"></i>VER HISTORIAL DE COTIZACIONES
                                 </button>
+                                
+                                {(currentVersion > 1 || selectedClient || projectName || items.some(i => i.price > 0 || i.desc)) && (
+                                    <button 
+                                        onClick={() => {
+                                            if (confirm("¿Está seguro de limpiar los datos actuales para comenzar una nueva cotización?")) {
+                                                setSelectedClient('');
+                                                setProjectName('');
+                                                setRequirements('');
+                                                setTechConditions('');
+                                                setCommercialConditions('• La solicitud se considerará aprobada una vez recibida la Orden de Compra por el total de la propuesta comercial, o bien, al efectuarse el depósito del 50% de la misma.');
+                                                setItems([{ id: Date.now(), desc: '', qty: 1, price: 0 }]);
+                                                setOptionals([]);
+                                                setCurrentVersion(1);
+                                                setCurrency('CLP');
+                                            }
+                                        }}
+                                        className="tw-bg-white tw-border tw-border-red-300 tw-text-red-600 tw-px-4 tw-py-2 tw-rounded-lg tw-text-xs tw-font-bold hover:tw-bg-red-50 hover:tw-text-red-700 tw-transition-all tw-flex tw-items-center tw-shadow-sm"
+                                        title="Limpiar formulario y crear cotización en CLP"
+                                    >
+                                        <i className="fa-solid fa-plus tw-mr-2"></i>NUEVA COTIZACIÓN (CLP)
+                                    </button>
+                                )}
                             </div>
                         </div>
 
