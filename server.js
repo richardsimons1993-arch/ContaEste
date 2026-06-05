@@ -1965,6 +1965,24 @@ async function syncQuotationsToProjects() {
                 .input('id', sql.VarChar(50), projectId)
                 .query('SELECT id, status FROM Projects WHERE id = @id');
 
+            // Convertir el monto estimado a Pesos Chilenos (CLP) para guardarlo en la tabla de proyectos
+            let estimatedAmountClp = q.total;
+            let conversionNote = '';
+            if (q.currency === 'USD') {
+                const rateUSD = await fetchDolar();
+                if (rateUSD) {
+                    estimatedAmountClp = q.total * rateUSD;
+                    conversionNote = ` (${q.total} USD a tasa de $${rateUSD} CLP)`;
+                }
+            } else if (q.currency === 'UF') {
+                const rateUF = await fetchUF();
+                if (rateUF) {
+                    estimatedAmountClp = q.total * rateUF;
+                    conversionNote = ` (${q.total} UF a tasa de $${rateUF} CLP)`;
+                }
+            }
+            estimatedAmountClp = Math.round(estimatedAmountClp);
+
             if (projectCheck.recordset.length === 0) {
                 console.log(`Creando proyecto faltante ${projectId} para Cotización N° ${q.id}`);
                 // Si no existe, crear el proyecto automáticamente en estado 'Cotizado'
@@ -1973,8 +1991,8 @@ async function syncQuotationsToProjects() {
                     .input('projectName', sql.VarChar(255), finalProjectName)
                     .input('clientId', sql.VarChar(50), q.clientId)
                     .input('status', sql.VarChar(50), projectStatus)
-                    .input('observations', sql.VarChar(sql.MAX), 'Creado automáticamente por sincronización de Cotización N° ' + q.id)
-                    .input('estimatedAmount', sql.Decimal(18, 2), q.total)
+                    .input('observations', sql.VarChar(sql.MAX), 'Creado automáticamente por sincronización de Cotización N° ' + q.id + conversionNote)
+                    .input('estimatedAmount', sql.Decimal(18, 2), estimatedAmountClp)
                     .query(`
                         INSERT INTO Projects (id, projectName, clientId, status, observations, estimatedAmount, visitDate) 
                         VALUES (@id, @projectName, @clientId, @status, @observations, @estimatedAmount, GETDATE())
@@ -1984,7 +2002,7 @@ async function syncQuotationsToProjects() {
                 await pool.request()
                     .input('projectId', sql.VarChar(50), projectId)
                     .input('newStatus', sql.VarChar(50), projectStatus)
-                    .input('note', sql.VarChar(sql.MAX), 'Creado automáticamente por sincronización de Cotización N° ' + q.id + versionSuffix)
+                    .input('note', sql.VarChar(sql.MAX), 'Creado automáticamente por sincronización de Cotización N° ' + q.id + versionSuffix + conversionNote)
                     .query(`
                         INSERT INTO ProjectHistory (projectId, previousStatus, newStatus, note, changeDate) 
                         VALUES (@projectId, NULL, @newStatus, @note, GETDATE())
@@ -2103,6 +2121,25 @@ app.post('/api/quotations', async (req, res) => {
             const finalProjectName = (q.projectName || 'Proyecto sin nombre') + versionSuffix;
             const projectStatus = 'Cotizado';
 
+            // Convertir el monto estimado a Pesos Chilenos (CLP) para guardarlo en la tabla de proyectos
+            let estimatedAmountClp = q.total;
+            let conversionNote = '';
+            if (q.currency === 'USD') {
+                const rateUSD = await fetchDolar();
+                if (rateUSD) {
+                    estimatedAmountClp = q.total * rateUSD;
+                    conversionNote = ` (${q.total} USD a tasa de $${rateUSD} CLP)`;
+                }
+            } else if (q.currency === 'UF') {
+                const rateUF = await fetchUF();
+                if (rateUF) {
+                    estimatedAmountClp = q.total * rateUF;
+                    conversionNote = ` (${q.total} UF a tasa de $${rateUF} CLP)`;
+                }
+            }
+            // Redondear a CLP entero
+            estimatedAmountClp = Math.round(estimatedAmountClp);
+
             // Verificar si el proyecto ya existe
             const projectCheck = await pool.request()
                 .input('id', sql.VarChar(50), projectId)
@@ -2115,8 +2152,8 @@ app.post('/api/quotations', async (req, res) => {
                     .input('projectName', sql.VarChar(255), finalProjectName)
                     .input('clientId', sql.VarChar(50), q.clientId)
                     .input('status', sql.VarChar(50), projectStatus)
-                    .input('observations', sql.VarChar(sql.MAX), 'Creado automáticamente desde Cotización N° ' + q.id)
-                    .input('estimatedAmount', sql.Decimal(18, 2), q.total)
+                    .input('observations', sql.VarChar(sql.MAX), 'Creado automáticamente desde Cotización N° ' + q.id + conversionNote)
+                    .input('estimatedAmount', sql.Decimal(18, 2), estimatedAmountClp)
                     .query(`
                         INSERT INTO Projects (id, projectName, clientId, status, observations, estimatedAmount, visitDate) 
                         VALUES (@id, @projectName, @clientId, @status, @observations, @estimatedAmount, GETDATE())
@@ -2126,7 +2163,7 @@ app.post('/api/quotations', async (req, res) => {
                 await pool.request()
                     .input('projectId', sql.VarChar(50), projectId)
                     .input('newStatus', sql.VarChar(50), projectStatus)
-                    .input('note', sql.VarChar(sql.MAX), 'Creado automáticamente desde Cotización N° ' + q.id + versionSuffix)
+                    .input('note', sql.VarChar(sql.MAX), 'Creado automáticamente desde Cotización N° ' + q.id + versionSuffix + conversionNote)
                     .query(`
                         INSERT INTO ProjectHistory (projectId, previousStatus, newStatus, note, changeDate) 
                         VALUES (@projectId, NULL, @newStatus, @note, GETDATE())
@@ -2139,7 +2176,7 @@ app.post('/api/quotations', async (req, res) => {
                     .input('id', sql.VarChar(50), projectId)
                     .input('projectName', sql.VarChar(255), finalProjectName)
                     .input('status', sql.VarChar(50), projectStatus)
-                    .input('estimatedAmount', sql.Decimal(18, 2), q.total)
+                    .input('estimatedAmount', sql.Decimal(18, 2), estimatedAmountClp)
                     .query(`
                         UPDATE Projects 
                         SET projectName = @projectName, estimatedAmount = @estimatedAmount, status = @status, visitDate = GETDATE() 
@@ -2152,7 +2189,7 @@ app.post('/api/quotations', async (req, res) => {
                         .input('projectId', sql.VarChar(50), projectId)
                         .input('previousStatus', sql.VarChar(50), currentStatus)
                         .input('newStatus', sql.VarChar(50), projectStatus)
-                        .input('note', sql.VarChar(sql.MAX), 'Actualizado automáticamente a Cotizado desde Cotización N° ' + q.id + versionSuffix)
+                        .input('note', sql.VarChar(sql.MAX), 'Actualizado automáticamente a Cotizado desde Cotización N° ' + q.id + versionSuffix + conversionNote)
                         .query(`
                             INSERT INTO ProjectHistory (projectId, previousStatus, newStatus, note, changeDate) 
                             VALUES (@projectId, @previousStatus, @newStatus, @note, GETDATE())
