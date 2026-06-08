@@ -334,11 +334,11 @@ const ReportsApp = () => {
 
         // 1. Datos Generales
         addSectionHeader('1. DATOS GENERALES DEL PROYECTO');
-        content.push({ text: generalData || 'No se ingresaron datos generales.', margin: [8, 0, 0, 12] });
+        content.push({ text: generalData || 'No se ingresaron datos generales.', margin: [8, 0, 0, 12], alignment: 'justify' });
 
         // 2. Alcance del Proyecto
         addSectionHeader('2. ALCANCE DEL PROYECTO');
-        content.push({ text: scope || 'No se ingresó alcance del proyecto.', margin: [8, 0, 0, 12] });
+        content.push({ text: scope || 'No se ingresó alcance del proyecto.', margin: [8, 0, 0, 12], alignment: 'justify' });
 
         // 3. Materiales Utilizados
         const materialsStackElements = [];
@@ -389,7 +389,7 @@ const ReportsApp = () => {
 
         // 4. Resultados del Proyecto (Texto + Imágenes)
         addSectionHeader('4. RESULTADOS DEL PROYECTO');
-        content.push({ text: results || 'No se ingresaron resultados.', margin: [8, 0, 0, 12] });
+        content.push({ text: results || 'No se ingresaron resultados.', margin: [8, 0, 0, 12], alignment: 'justify' });
 
         // Procesar y adjuntar imágenes
         if (images && images.length > 0) {
@@ -397,52 +397,47 @@ const ReportsApp = () => {
             // Si estamos previsualizando, cargamos marcadores de posición rápidos para no congelar la UI
             if (isForPreview) {
                 images.forEach((_, idx) => {
-                    imageObjects.push({ text: `[Imagen adjunta ${idx + 1}]`, alignment: 'center', color: '#0f766e', italics: true, margin: [0, 10, 0, 10] });
+                    imageObjects.push({
+                        table: {
+                            widths: ['*'],
+                            body: [
+                                [{ text: `[Registro Fotográfico - Imagen ${idx + 1}]`, alignment: 'center', margin: [0, 75, 0, 75], color: '#64748b', italics: true }]
+                            ]
+                        },
+                        layout: {
+                            hLineWidth: () => 1,
+                            vLineWidth: () => 1,
+                            hLineColor: () => '#cbd5e1',
+                            vLineColor: () => '#cbd5e1',
+                            fillColor: () => '#f8fafc'
+                        },
+                        margin: [40, 10, 40, 10]
+                    });
                 });
             } else {
                 // Para el PDF final definitivo, convertimos las imágenes reales a Base64
                 for (let imgUrl of images) {
                     const b64 = await convertImageUrlToBase64(imgUrl);
                     if (b64) {
-                        imageObjects.push({ image: b64, fit: [235, 180], alignment: 'center' });
+                        imageObjects.push({ image: b64, fit: [380, 260], alignment: 'center', margin: [0, 10, 0, 10] });
                     }
                 }
             }
 
-            // Alinear las fotos en una cuadrícula simétrica de 2 columnas
-            const imageRows = [];
-            for (let i = 0; i < imageObjects.length; i += 2) {
-                if (i + 1 < imageObjects.length) {
-                    imageRows.push({
-                        columns: [
-                            imageObjects[i],
-                            imageObjects[i + 1]
-                        ],
-                        margin: [0, 8, 0, 8]
-                    });
-                } else {
-                    // Si queda una sola imagen suelta, la centramos sola
-                    imageRows.push({
-                        stack: [imageObjects[i]],
-                        margin: [0, 8, 0, 8],
-                        alignment: 'center'
-                    });
+            content.push({ text: 'Registro Fotográfico:', bold: true, fontSize: 9, margin: [8, 15, 0, 10], color: '#475569' });
+
+            for (let i = 0; i < imageObjects.length; i++) {
+                content.push(imageObjects[i]);
+                if (i % 2 === 1 && i < imageObjects.length - 1) {
+                    content.push({ text: '', pageBreak: 'after' });
                 }
             }
-
-            content.push({
-                unbreakable: true,
-                stack: [
-                    { text: 'Registro Fotográfico:', bold: true, fontSize: 9, margin: [8, 5, 0, 5], color: '#475569' },
-                    ...imageRows
-                ]
-            });
         }
 
         // 5. Conclusiones y Recomendaciones
         const conclusionsBlock = [];
         conclusionsBlock.push(buildSectionHeaderInline('5. CONCLUSIONES Y RECOMENDACIONES'));
-        conclusionsBlock.push({ text: conclusions || 'Sin conclusiones o recomendaciones.', margin: [8, 0, 0, 15] });
+        conclusionsBlock.push({ text: conclusions || 'Sin conclusiones o recomendaciones.', margin: [8, 0, 0, 15], alignment: 'justify' });
 
         // Firma final
         conclusionsBlock.push(
@@ -692,7 +687,7 @@ const ReportsApp = () => {
                                     <div>
                                         <label className="tw-block tw-text-sm tw-font-bold tw-text-slate-700 tw-mb-2">1. Datos Generales del Proyecto</label>
                                         <textarea 
-                                            className="tw-w-full tw-p-3 tw-bg-slate-50 tw-border tw-border-slate-300 tw-rounded-lg focus:tw-border-googleBlue focus:tw-ring-2 focus:tw-ring-blue-100 focus:tw-outline-none tw-transition-all"
+                                            className="tw-w-full tw-p-3 tw-bg-slate-50 tw-border tw-border-slate-300 tw-rounded-lg focus:tw-border-googleBlue focus:tw-ring-2 focus:tw-ring-blue-100 focus:tw-outline-none tw-transition-all tw-text-justify"
                                             rows="3"
                                             placeholder="Resumen ejecutivo y datos generales del sitio..."
                                             value={generalData}
@@ -704,7 +699,7 @@ const ReportsApp = () => {
                                     <div>
                                         <label className="tw-block tw-text-sm tw-font-bold tw-text-slate-700 tw-mb-2">2. Alcance del Proyecto</label>
                                         <textarea 
-                                            className="tw-w-full tw-p-3 tw-bg-slate-50 tw-border tw-border-slate-300 tw-rounded-lg focus:tw-border-googleBlue focus:tw-ring-2 focus:tw-ring-blue-100 focus:tw-outline-none tw-transition-all"
+                                            className="tw-w-full tw-p-3 tw-bg-slate-50 tw-border tw-border-slate-300 tw-rounded-lg focus:tw-border-googleBlue focus:tw-ring-2 focus:tw-ring-blue-100 focus:tw-outline-none tw-transition-all tw-text-justify"
                                             rows="3"
                                             placeholder="Detalle de las tareas y límites del proyecto realizado..."
                                             value={scope}
@@ -769,7 +764,7 @@ const ReportsApp = () => {
                                     <div>
                                         <label className="tw-block tw-text-sm tw-font-bold tw-text-slate-700 tw-mb-2">4. Resultados del Proyecto</label>
                                         <textarea 
-                                            className="tw-w-full tw-p-3 tw-bg-slate-50 tw-border tw-border-slate-300 tw-rounded-lg focus:tw-border-googleBlue focus:tw-ring-2 focus:tw-ring-blue-100 focus:tw-outline-none tw-transition-all"
+                                            className="tw-w-full tw-p-3 tw-bg-slate-50 tw-border tw-border-slate-300 tw-rounded-lg focus:tw-border-googleBlue focus:tw-ring-2 focus:tw-ring-blue-100 focus:tw-outline-none tw-transition-all tw-text-justify"
                                             rows="3"
                                             placeholder="Detalle de mediciones, conclusiones técnicas de finalización..."
                                             value={results}
@@ -823,7 +818,7 @@ const ReportsApp = () => {
                                 <div className="tw-bg-white tw-p-6 tw-rounded-xl tw-shadow-sm tw-border tw-border-slate-200">
                                     <label className="tw-block tw-text-sm tw-font-bold tw-text-slate-700 tw-mb-2">5. Conclusiones y Recomendaciones</label>
                                     <textarea 
-                                        className="tw-w-full tw-p-3 tw-bg-slate-50 tw-border tw-border-slate-300 tw-rounded-lg focus:tw-border-googleBlue focus:tw-ring-2 focus:tw-ring-blue-100 focus:tw-outline-none tw-transition-all"
+                                        className="tw-w-full tw-p-3 tw-bg-slate-50 tw-border tw-border-slate-300 tw-rounded-lg focus:tw-border-googleBlue focus:tw-ring-2 focus:tw-ring-blue-100 focus:tw-outline-none tw-transition-all tw-text-justify"
                                         rows="4"
                                         placeholder="Comentarios finales, recomendaciones preventivas, etc..."
                                         value={conclusions}
