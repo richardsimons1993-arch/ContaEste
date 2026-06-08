@@ -356,7 +356,7 @@ const QuotationsApp = () => {
         if (q.requirements && q.requirements.trim()) {
             content.push(
                 buildSectionHeader(`${nReq}. REQUERIMIENTO`),
-                { text: q.requirements, margin: [10, 0, 0, 15] }
+                { text: q.requirements, margin: [10, 0, 0, 15], alignment: 'justify' }
             );
         }
 
@@ -364,7 +364,7 @@ const QuotationsApp = () => {
         if (q.technicalConditions && q.technicalConditions.trim()) {
             content.push(
                 buildSectionHeader(`${nTech}. CONSIDERACIONES TÉCNICAS Y ESTÁNDARES`),
-                { text: q.technicalConditions, margin: [10, 0, 0, 15] }
+                { text: q.technicalConditions, margin: [10, 0, 0, 15], alignment: 'justify' }
             );
         }
 
@@ -463,7 +463,7 @@ const QuotationsApp = () => {
         if (q.commercialConditions && q.commercialConditions.trim()) {
             commercialBlock.push(
                 buildSectionHeader(`${nCom}. CONDICIONES COMERCIALES`),
-                { text: q.commercialConditions, margin: [10, 0, 0, 20] }
+                { text: q.commercialConditions, margin: [10, 0, 0, 20], alignment: 'justify' }
             );
         }
 
@@ -894,7 +894,7 @@ const QuotationsApp = () => {
                                 <div className="tw-bg-white tw-p-6 tw-rounded-xl tw-shadow-sm tw-border tw-border-slate-200">
                                     <label className="tw-block tw-text-sm tw-font-bold tw-text-slate-700 tw-mb-2">Requerimiento de Proyecto</label>
                                     <textarea 
-                                        className="tw-w-full tw-p-3 tw-bg-slate-50 tw-border tw-border-slate-300 tw-rounded-lg focus:tw-border-googleBlue focus:tw-ring-2 focus:tw-ring-blue-100 focus:tw-outline-none tw-transition-all tw-mb-6"
+                                        className="tw-w-full tw-p-3 tw-bg-slate-50 tw-border tw-border-slate-300 tw-rounded-lg focus:tw-border-googleBlue focus:tw-ring-2 focus:tw-ring-blue-100 focus:tw-outline-none tw-transition-all tw-mb-6 tw-text-justify"
                                         rows="3"
                                         placeholder="Ej: Suministro e instalación de puntos de red..."
                                         value={requirements}
@@ -903,7 +903,7 @@ const QuotationsApp = () => {
 
                                     <label className="tw-block tw-text-sm tw-font-bold tw-text-slate-700 tw-mb-2">Consideraciones Técnicas (Estándares)</label>
                                     <textarea 
-                                        className="tw-w-full tw-p-3 tw-bg-slate-50 tw-border tw-border-slate-300 tw-rounded-lg focus:tw-border-googleBlue focus:tw-ring-2 focus:tw-ring-blue-100 focus:tw-outline-none tw-transition-all tw-mb-6"
+                                        className="tw-w-full tw-p-3 tw-bg-slate-50 tw-border tw-border-slate-300 tw-rounded-lg focus:tw-border-googleBlue focus:tw-ring-2 focus:tw-ring-blue-100 focus:tw-outline-none tw-transition-all tw-mb-6 tw-text-justify"
                                         rows="3"
                                         value={techConditions}
                                         onChange={(e) => {
@@ -938,7 +938,7 @@ const QuotationsApp = () => {
 
                                     <label className="tw-block tw-text-sm tw-font-bold tw-text-slate-700 tw-mb-2">Condiciones Comerciales</label>
                                     <textarea 
-                                        className="tw-w-full tw-p-3 tw-bg-slate-50 tw-border tw-border-slate-300 tw-rounded-lg focus:tw-border-googleBlue focus:tw-ring-2 focus:tw-ring-blue-100 focus:tw-outline-none tw-transition-all"
+                                        className="tw-w-full tw-p-3 tw-bg-slate-50 tw-border tw-border-slate-300 tw-rounded-lg focus:tw-border-googleBlue focus:tw-ring-2 focus:tw-ring-blue-100 focus:tw-outline-none tw-transition-all tw-text-justify"
                                         rows="4"
                                         value={commercialConditions}
                                         onChange={(e) => setCommercialConditions(e.target.value)}
