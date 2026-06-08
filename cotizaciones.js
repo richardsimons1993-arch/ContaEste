@@ -469,19 +469,19 @@ const QuotationsApp = () => {
 
         commercialBlock.push(
             { canvas: [{ type: 'line', x1: 0, y1: 0, x2: 531.9, y2: 0, lineWidth: 2, lineColor: '#1e293b' }], margin: [0, 10, 0, 10] },
-            { text: 'DATOS DE TRANSFERENCIA', fontSize: 11, bold: true, color: '#1e293b', margin: [0, 0, 0, 5] },
+            { text: 'DATOS DE TRANSFERENCIA', fontSize: 12, bold: true, color: '#1e293b', margin: [0, 0, 0, 5] },
             { canvas: [{ type: 'line', x1: 0, y1: 0, x2: 531.9, y2: 0, lineWidth: 0.5, lineColor: '#cbd5e1' }], margin: [0, 5, 0, 10] },
             {
                 columns: [
                     {
                         width: '*',
                         stack: [
-                            { text: 'Titular: SIMONS SPA', fontSize: 9.5, color: '#475569' },
-                            { text: 'RUT: 77.475.581-0', fontSize: 9.5, color: '#475569' },
-                            { text: 'Banco: Banco de Chile', fontSize: 9.5, color: '#475569' },
-                            { text: 'Tipo de Cuenta: Cuenta Corriente', fontSize: 9.5, color: '#475569' },
-                            { text: 'Número de cuenta: 1483514107', fontSize: 9.5, color: '#475569' },
-                            { text: 'Mail: pagos@simons.cl', fontSize: 9.5, color: '#475569' }
+                            { text: 'Titular: SIMONS SPA', fontSize: 10.5, color: '#475569' },
+                            { text: 'RUT: 77.475.581-0', fontSize: 10.5, color: '#475569' },
+                            { text: 'Banco: Banco de Chile', fontSize: 10.5, color: '#475569' },
+                            { text: 'Tipo de Cuenta: Cuenta Corriente', fontSize: 10.5, color: '#475569' },
+                            { text: 'Número de cuenta: 1483514107', fontSize: 10.5, color: '#475569' },
+                            { text: 'Mail: pagos@simons.cl', fontSize: 10.5, color: '#475569' }
                         ]
                     }
                 ]
