@@ -321,13 +321,13 @@ const QuotationsApp = () => {
                 { canvas: [{ type: 'line', x1: 0, y1: 0, x2: 531.9, y2: 0, lineWidth: 2, lineColor: '#1e293b' }], margin: [0, 0, 0, 20] }
             ],
             defaultStyle: {
-                fontSize: 10,
+                fontSize: 11.5,
                 color: '#334155'
             },
             styles: {
                 tableHeader: {
                     bold: true,
-                    fontSize: 10,
+                    fontSize: 11.5,
                     color: 'white',
                     fillColor: '#0f766e',
                     alignment: 'center',
@@ -344,7 +344,7 @@ const QuotationsApp = () => {
                 body: [
                     [
                         { text: '', fillColor: '#0f766e', border: [false, false, false, false] },
-                        { text: title, fillColor: '#f8fafc', border: [false, false, false, false], margin: [5, 4, 0, 4], color: '#1e293b', bold: true, fontSize: 10 }
+                        { text: title, fillColor: '#f8fafc', border: [false, false, false, false], margin: [5, 4, 0, 4], color: '#1e293b', bold: true, fontSize: 13 }
                     ]
                 ]
             },
@@ -404,11 +404,11 @@ const QuotationsApp = () => {
                     {
                         width: 200,
                         table: {
-                            widths: ['*', 80],
+                            widths: ['*', 100],
                             body: [
-                                [ { text: 'Subtotal NETO:', color: '#64748b', fontSize: 9 }, { text: formatMoney(q.subtotal, selectedCurr), alignment: 'right', fontSize: 9 } ],
-                                [ { text: 'IVA (19%):', color: '#64748b', fontSize: 9 }, { text: formatMoney(q.iva, selectedCurr), alignment: 'right', fontSize: 9 } ],
-                                [ { text: 'TOTAL:', color: '#0f766e', bold: true, fontSize: 11 }, { text: formatMoney(q.total, selectedCurr), alignment: 'right', bold: true, fontSize: 11, color: '#0f172a' } ]
+                                [ { text: 'Subtotal NETO:', color: '#64748b', fontSize: 10.5 }, { text: formatMoney(q.subtotal, selectedCurr), alignment: 'right', fontSize: 10.5 } ],
+                                [ { text: 'IVA (19%):', color: '#64748b', fontSize: 10.5 }, { text: formatMoney(q.iva, selectedCurr), alignment: 'right', fontSize: 10.5 } ],
+                                [ { text: 'TOTAL:', color: '#0f766e', bold: true, fontSize: 13.5 }, { text: formatMoney(q.total, selectedCurr), alignment: 'right', bold: true, fontSize: 13.5, color: '#0f172a' } ]
                             ]
                         },
                         layout: 'noBorders'
@@ -469,19 +469,19 @@ const QuotationsApp = () => {
 
         commercialBlock.push(
             { canvas: [{ type: 'line', x1: 0, y1: 0, x2: 531.9, y2: 0, lineWidth: 2, lineColor: '#1e293b' }], margin: [0, 10, 0, 10] },
-            { text: 'DATOS DE TRANSFERENCIA', fontSize: 9, bold: true, color: '#1e293b', margin: [0, 0, 0, 5] },
+            { text: 'DATOS DE TRANSFERENCIA', fontSize: 11, bold: true, color: '#1e293b', margin: [0, 0, 0, 5] },
             { canvas: [{ type: 'line', x1: 0, y1: 0, x2: 531.9, y2: 0, lineWidth: 0.5, lineColor: '#cbd5e1' }], margin: [0, 5, 0, 10] },
             {
                 columns: [
                     {
                         width: '*',
                         stack: [
-                            { text: 'Titular: SIMONS SPA', fontSize: 8, color: '#475569' },
-                            { text: 'RUT: 77.475.581-0', fontSize: 8, color: '#475569' },
-                            { text: 'Banco: Banco de Chile', fontSize: 8, color: '#475569' },
-                            { text: 'Tipo de Cuenta: Cuenta Corriente', fontSize: 8, color: '#475569' },
-                            { text: 'Número de cuenta: 1483514107', fontSize: 8, color: '#475569' },
-                            { text: 'Mail: pagos@simons.cl', fontSize: 8, color: '#475569' }
+                            { text: 'Titular: SIMONS SPA', fontSize: 9.5, color: '#475569' },
+                            { text: 'RUT: 77.475.581-0', fontSize: 9.5, color: '#475569' },
+                            { text: 'Banco: Banco de Chile', fontSize: 9.5, color: '#475569' },
+                            { text: 'Tipo de Cuenta: Cuenta Corriente', fontSize: 9.5, color: '#475569' },
+                            { text: 'Número de cuenta: 1483514107', fontSize: 9.5, color: '#475569' },
+                            { text: 'Mail: pagos@simons.cl', fontSize: 9.5, color: '#475569' }
                         ]
                     }
                 ]
@@ -739,7 +739,7 @@ const QuotationsApp = () => {
         return (
             <div className="tw-bg-white tw-rounded-lg tw-shadow-sm tw-border tw-border-slate-200 tw-p-4 tw-mb-6">
                 <div className="tw-flex tw-justify-between tw-items-center tw-mb-4">
-                    <h3 className="tw-font-semibold tw-text-slate-800">{title}</h3>
+                    <h3 className="tw-text-base tw-font-bold tw-text-slate-800">{title}</h3>
                     <button onClick={addItemLocal} className="tw-text-sm tw-text-googleBlue hover:tw-underline tw-font-medium">
                         + Añadir Fila
                     </button>
@@ -748,7 +748,7 @@ const QuotationsApp = () => {
                 <div className="tw-overflow-x-auto">
                     <table className="tw-w-full">
                         <thead>
-                            <tr className="tw-text-[10px] tw-font-bold tw-text-slate-400 tw-uppercase tw-tracking-wider tw-border-b tw-border-slate-100">
+                            <tr className="tw-text-xs tw-font-bold tw-text-slate-400 tw-uppercase tw-tracking-wider tw-border-b tw-border-slate-100">
                                 <th className="tw-w-8 tw-pb-2"></th>
                                 <th className="tw-text-left tw-pb-2 tw-w-20">Cant.</th>
                                 <th className="tw-text-left tw-pb-2">Descripción</th>
@@ -782,7 +782,7 @@ const QuotationsApp = () => {
                                     <td className="tw-py-2 tw-pr-2">
                                         <input 
                                             type="text" 
-                                            className="tw-w-full tw-p-2 tw-border tw-border-slate-300 tw-rounded tw-text-sm tw-text-center"
+                                            className="tw-w-full tw-p-2 tw-border tw-border-slate-300 tw-rounded tw-text-base tw-text-center"
                                             value={formatInputNumber(item.qty, false)}
                                             onChange={(e) => handleItemChange(setList, list, item.id, 'qty', parseInputNumber(e.target.value, false))}
                                         />
@@ -791,7 +791,7 @@ const QuotationsApp = () => {
                                         <input 
                                             type="text" 
                                             placeholder="Detalle..."
-                                            className="tw-w-full tw-p-2 tw-border tw-border-slate-300 tw-rounded tw-text-sm"
+                                            className="tw-w-full tw-p-2 tw-border tw-border-slate-300 tw-rounded tw-text-base"
                                             value={item.desc}
                                             onChange={(e) => handleItemChange(setList, list, item.id, 'desc', e.target.value)}
                                         />
@@ -799,7 +799,7 @@ const QuotationsApp = () => {
                                     <td className="tw-py-2 tw-pl-2">
                                         <input 
                                             type="text" 
-                                            className="tw-w-full tw-p-2 tw-border tw-border-slate-300 tw-rounded tw-text-sm tw-text-right"
+                                            className="tw-w-full tw-p-2 tw-border tw-border-slate-300 tw-rounded tw-text-base tw-text-right"
                                             value={formatInputNumber(item.price, true)}
                                             onChange={(e) => handleItemChange(setList, list, item.id, 'price', parseInputNumber(e.target.value, true))}
                                         />
@@ -813,7 +813,7 @@ const QuotationsApp = () => {
                             ))}
                         </tbody>
                     </table>
-                    {list.length === 0 && <div className="tw-text-sm tw-text-slate-500 tw-italic tw-mt-2">Sin ítems.</div>}
+                    {list.length === 0 && <div className="tw-text-base tw-text-slate-500 tw-italic tw-mt-2">Sin ítems.</div>}
                 </div>
             </div>
         );
@@ -892,18 +892,18 @@ const QuotationsApp = () => {
 
                                 {/* Textos */}
                                 <div className="tw-bg-white tw-p-6 tw-rounded-xl tw-shadow-sm tw-border tw-border-slate-200">
-                                    <label className="tw-block tw-text-sm tw-font-bold tw-text-slate-700 tw-mb-2">Requerimiento de Proyecto</label>
+                                    <label className="tw-block tw-text-base tw-font-bold tw-text-slate-700 tw-mb-2">Requerimiento de Proyecto</label>
                                     <textarea 
-                                        className="tw-w-full tw-p-3 tw-bg-slate-50 tw-border tw-border-slate-300 tw-rounded-lg focus:tw-border-googleBlue focus:tw-ring-2 focus:tw-ring-blue-100 focus:tw-outline-none tw-transition-all tw-mb-6 tw-text-justify"
+                                        className="tw-w-full tw-p-3 tw-bg-slate-50 tw-border tw-border-slate-300 tw-rounded-lg focus:tw-border-googleBlue focus:tw-ring-2 focus:tw-ring-blue-100 focus:tw-outline-none tw-transition-all tw-mb-6 tw-text-justify tw-text-base"
                                         rows="3"
                                         placeholder="Ej: Suministro e instalación de puntos de red..."
                                         value={requirements}
                                         onChange={(e) => setRequirements(e.target.value)}
                                     ></textarea>
 
-                                    <label className="tw-block tw-text-sm tw-font-bold tw-text-slate-700 tw-mb-2">Consideraciones Técnicas (Estándares)</label>
+                                    <label className="tw-block tw-text-base tw-font-bold tw-text-slate-700 tw-mb-2">Consideraciones Técnicas (Estándares)</label>
                                     <textarea 
-                                        className="tw-w-full tw-p-3 tw-bg-slate-50 tw-border tw-border-slate-300 tw-rounded-lg focus:tw-border-googleBlue focus:tw-ring-2 focus:tw-ring-blue-100 focus:tw-outline-none tw-transition-all tw-mb-6 tw-text-justify"
+                                        className="tw-w-full tw-p-3 tw-bg-slate-50 tw-border tw-border-slate-300 tw-rounded-lg focus:tw-border-googleBlue focus:tw-ring-2 focus:tw-ring-blue-100 focus:tw-outline-none tw-transition-all tw-mb-6 tw-text-justify tw-text-base"
                                         rows="3"
                                         value={techConditions}
                                         onChange={(e) => {
@@ -936,9 +936,9 @@ const QuotationsApp = () => {
                                         }}
                                     ></textarea>
 
-                                    <label className="tw-block tw-text-sm tw-font-bold tw-text-slate-700 tw-mb-2">Condiciones Comerciales</label>
+                                    <label className="tw-block tw-text-base tw-font-bold tw-text-slate-700 tw-mb-2">Condiciones Comerciales</label>
                                     <textarea 
-                                        className="tw-w-full tw-p-3 tw-bg-slate-50 tw-border tw-border-slate-300 tw-rounded-lg focus:tw-border-googleBlue focus:tw-ring-2 focus:tw-ring-blue-100 focus:tw-outline-none tw-transition-all tw-text-justify"
+                                        className="tw-w-full tw-p-3 tw-bg-slate-50 tw-border tw-border-slate-300 tw-rounded-lg focus:tw-border-googleBlue focus:tw-ring-2 focus:tw-ring-blue-100 focus:tw-outline-none tw-transition-all tw-text-justify tw-text-base"
                                         rows="4"
                                         value={commercialConditions}
                                         onChange={(e) => setCommercialConditions(e.target.value)}
