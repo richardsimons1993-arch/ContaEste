@@ -1,8 +1,15 @@
-const sql = require('mssql/msnodesqlv8');
-const fs = require('fs');
+const sql = require('mssql');
 
 const config = {
-    connectionString: 'Driver={ODBC Driver 18 for SQL Server};Server=localhost\\SIMONS;Database=ContabilidadDB;UID=sa;PWD=S0p0rt3!!2025;Encrypt=yes;TrustServerCertificate=yes;'
+    user: 'sa',
+    password: 'S0p0rt3!!2025',
+    server: 'localhost',
+    database: 'ContabilidadDB',
+    options: {
+        encrypt: false,
+        trustServerCertificate: true
+    }
+};Server=localhost\\SIMONS;Database=ContabilidadDB;UID=sa;PWD=S0p0rt3!!2025;Encrypt=yes;TrustServerCertificate=yes;'
 };
 
 async function runMigration() {

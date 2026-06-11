@@ -2205,14 +2205,19 @@ const UI = {
         // Obtener Transacciones Filtradas
         const displayedTransactions = this.getFilteredTransactions();
 
-        // Ordenar: primero por fecha desc, y luego por orden de registro desc (ID)
+        // Ordenar: primero por fecha de la transacción (desc) y luego por orden de registro (ID desc) para el mismo día
         const sorted = [...displayedTransactions].sort((a, b) => {
             const dateA = new Date(a.date);
             const dateB = new Date(b.date);
             if (dateB - dateA !== 0) return dateB - dateA;
-            
-            // Si son de la misma fecha, el más reciente registrado va arriba.
-            // Los IDs de transacciones empiezan por 'T' seguido del timestamp.
+
+            const cleanA = String(a.id).replace(/\D/g, '');
+            const cleanB = String(b.id).replace(/\D/g, '');
+            const numA = parseInt(cleanA) || 0;
+            const numB = parseInt(cleanB) || 0;
+            if (numB !== numA) {
+                return numB - numA;
+            }
             return String(b.id).localeCompare(String(a.id));
         });
 
@@ -2236,7 +2241,7 @@ const UI = {
             }
 
             row.innerHTML = `
-                <td>${formatDate(t.date)}</td>
+                <td style="white-space: nowrap;">${formatDate(t.date)}</td>
                 <td><span class="tag ${t.type}">${t.type === 'income' ? 'Ingreso' : 'Egreso'}</span></td>
                 <td>${conceptName}</td>
                 <td>${titularName}</td>
@@ -2281,7 +2286,8 @@ const UI = {
         // --- Conceptos en el Formulario ---
         if (conceptSelect) {
             conceptSelect.innerHTML = '<option value="">Seleccionar Concepto</option>';
-            state.concepts.forEach(c => {
+            const sortedConcepts = [...state.concepts].sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' }));
+            sortedConcepts.forEach(c => {
                 const option = document.createElement('option');
                 option.value = c.id;
                 option.textContent = `${c.name} (${c.type === 'income' ? '+' : '-'})`;
@@ -2294,7 +2300,12 @@ const UI = {
         if (clientSelect) {
             clientSelect.innerHTML = '<option value="">Seleccionar Cliente</option>';
             if (contractClientSelect) contractClientSelect.innerHTML = '<option value="">Seleccionar Cliente</option>';
-            state.clients.forEach(c => {
+            const sortedClients = [...state.clients].sort((a, b) => {
+                const nameA = this.getClientName(a.id);
+                const nameB = this.getClientName(b.id);
+                return nameA.localeCompare(nameB, 'es', { sensitivity: 'base' });
+            });
+            sortedClients.forEach(c => {
                 const option = document.createElement('option');
                 option.value = c.id;
                 option.textContent = this.getClientName(c.id);
@@ -2311,8 +2322,14 @@ const UI = {
         this.updateTransactionPersonDropdown();
  
         // 2. Desplegables de Filtros Personalizados
-        this.renderCustomDropdownOptions('concept', state.concepts, 'name');
-        this.renderCustomDropdownOptions('client', state.clients, 'nombreFantasia');
+        const sortedConceptsForFilter = [...state.concepts].sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' }));
+        const sortedClientsForFilter = [...state.clients].sort((a, b) => {
+            const nameA = this.getClientName(a.id);
+            const nameB = this.getClientName(b.id);
+            return nameA.localeCompare(nameB, 'es', { sensitivity: 'base' });
+        });
+        this.renderCustomDropdownOptions('concept', sortedConceptsForFilter, 'name');
+        this.renderCustomDropdownOptions('client', sortedClientsForFilter, 'nombreFantasia');
     },
 
     updateTransactionPersonDropdown() {
@@ -2352,7 +2369,12 @@ const UI = {
                 : '<option value="">Seleccionar Cliente</option>';
 
             const list = isSupplierConcept ? (state.suppliers || []) : (state.clients || []);
-            list.forEach(item => {
+            const sortedList = [...list].sort((a, b) => {
+                const nameA = isSupplierConcept ? (a.razonSocial || a.name || '') : this.getClientName(a.id);
+                const nameB = isSupplierConcept ? (b.razonSocial || b.name || '') : this.getClientName(b.id);
+                return nameA.localeCompare(nameB, 'es', { sensitivity: 'base' });
+            });
+            sortedList.forEach(item => {
                 const option = document.createElement('option');
                 option.value = item.id;
                 // Usar razónSocial/name para proveedores, o el helper para clientes
@@ -2455,7 +2477,7 @@ const UI = {
             label.htmlFor = `cb-${type}-${item.id}`;
             label.style.flex = '1';
             label.style.cursor = 'pointer';
-            label.textContent = item[displayField] || item.razonSocial || item.name || 'Sin Nombre';
+            label.textContent = type === 'client' ? this.getClientName(item.id) : (item[displayField] || item.razonSocial || item.name || 'Sin Nombre');
 
             div.appendChild(checkbox);
             div.appendChild(label);
@@ -2484,7 +2506,13 @@ const UI = {
         const tbody = document.getElementById('concepts-list-body');
         if (!tbody) return;
         tbody.innerHTML = '';
-        state.concepts.forEach(c => {
+        const sortedConcepts = [...state.concepts].sort((a, b) => {
+            const nameA = a.name || '';
+            const nameB = b.name || '';
+            return nameA.localeCompare(nameB, 'es', { sensitivity: 'base' });
+        });
+
+        sortedConcepts.forEach(c => {
             const tr = document.createElement('tr');
             tr.innerHTML = `
                 <td>${c.name}</td>
@@ -2527,7 +2555,13 @@ const UI = {
         if (!tbody) return;
         tbody.innerHTML = '';
 
-        state.clients.forEach(c => {
+        const sortedClients = [...state.clients].sort((a, b) => {
+            const nameA = this.getClientName(a.id);
+            const nameB = this.getClientName(b.id);
+            return nameA.localeCompare(nameB, 'es', { sensitivity: 'base' });
+        });
+
+        sortedClients.forEach(c => {
             const tr = document.createElement('tr');
             tr.innerHTML = `
                 <td>${c.razonSocial || '---'}</td>
@@ -2664,7 +2698,15 @@ const UI = {
         
         let totalAmount = 0;
 
-        state.debts.forEach(d => {
+        const sortedDebts = [...state.debts].sort((a, b) => {
+            const supplierA = state.suppliers.find(s => s.id === a.supplierId);
+            const supplierB = state.suppliers.find(s => s.id === b.supplierId);
+            const nameA = supplierA ? supplierA.name : (a.titular || a.creditor || '');
+            const nameB = supplierB ? supplierB.name : (b.titular || b.creditor || '');
+            return nameA.localeCompare(nameB, 'es', { sensitivity: 'base' });
+        });
+
+        sortedDebts.forEach(d => {
             totalAmount += Number(d.amount) || 0;
             const tr = document.createElement('tr');
             // Mapear IDs a nombres para mostrar
@@ -2833,7 +2875,8 @@ const UI = {
         const sel = document.getElementById('debt-supplier-select');
         if (!sel) return;
         sel.innerHTML = '<option value="">Seleccionar Proveedor</option>';
-        state.suppliers.forEach(s => {
+        const sortedSuppliers = [...state.suppliers].sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' }));
+        sortedSuppliers.forEach(s => {
             const opt = document.createElement('option');
             opt.value = s.id;
             opt.textContent = s.name;
@@ -2845,7 +2888,8 @@ const UI = {
         const sel = document.getElementById('debt-concept-select');
         if (!sel) return;
         sel.innerHTML = '<option value="">Seleccionar Concepto</option>';
-        state.concepts.forEach(c => {
+        const sortedConcepts = [...state.concepts].sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' }));
+        sortedConcepts.forEach(c => {
             const opt = document.createElement('option');
             opt.value = c.id;
             opt.textContent = c.name;
@@ -2860,7 +2904,13 @@ const UI = {
         if (!tbody) return;
         tbody.innerHTML = '';
 
-        state.suppliers.forEach(s => {
+        const sortedSuppliers = [...state.suppliers].sort((a, b) => {
+            const nameA = a.name || '';
+            const nameB = b.name || '';
+            return nameA.localeCompare(nameB, 'es', { sensitivity: 'base' });
+        });
+
+        sortedSuppliers.forEach(s => {
             const tr = document.createElement('tr');
             tr.innerHTML = `
                 <td>${s.name}</td>
@@ -2981,7 +3031,19 @@ const UI = {
         
         let totalAmount = 0;
 
-        state.debtors.forEach(d => {
+        const sortedDebtors = [...state.debtors].sort((a, b) => {
+            let nameA = a.titular || '';
+            const clientA = state.clients.find(c => c.name === a.titular || c.razonSocial === a.titular || c.nombreFantasia === a.titular);
+            if (clientA) nameA = this.getClientName(clientA.id);
+
+            let nameB = b.titular || '';
+            const clientB = state.clients.find(c => c.name === b.titular || c.razonSocial === b.titular || c.nombreFantasia === b.titular);
+            if (clientB) nameB = this.getClientName(clientB.id);
+
+            return nameA.localeCompare(nameB, 'es', { sensitivity: 'base' });
+        });
+
+        sortedDebtors.forEach(d => {
             totalAmount += Number(d.amount) || 0;
             const tr = document.createElement('tr');
             
@@ -3098,7 +3160,12 @@ const UI = {
         const sel = document.getElementById('debtor-client-select');
         if (!sel) return;
         sel.innerHTML = '<option value="">Seleccionar Cliente</option>';
-        state.clients.forEach(c => {
+        const sortedClients = [...state.clients].sort((a, b) => {
+            const nameA = this.getClientName(a.id);
+            const nameB = this.getClientName(b.id);
+            return nameA.localeCompare(nameB, 'es', { sensitivity: 'base' });
+        });
+        sortedClients.forEach(c => {
             const fantasyName = this.getClientName(c.id);
             const opt = document.createElement('option');
             opt.value = c.id; // Changed to c.id
@@ -3679,7 +3746,13 @@ const UI = {
         if (!tbody) return;
         tbody.innerHTML = '';
 
-        state.users.forEach(u => {
+        const sortedUsers = [...state.users].sort((a, b) => {
+            const nameA = a.name || '';
+            const nameB = b.name || '';
+            return nameA.localeCompare(nameB, 'es', { sensitivity: 'base' });
+        });
+
+        sortedUsers.forEach(u => {
             const tr = document.createElement('tr');
             // Formateo legible de permisos para la tabla
             let permSummary = '';
@@ -4310,7 +4383,13 @@ const UI = {
         if (!tbody) return;
         tbody.innerHTML = '';
 
-        state.contracts.forEach(c => {
+        const sortedContracts = [...state.contracts].sort((a, b) => {
+            const nameA = this.getClientName(a.clientId) || '';
+            const nameB = this.getClientName(b.clientId) || '';
+            return nameA.localeCompare(nameB, 'es', { sensitivity: 'base' });
+        });
+
+        sortedContracts.forEach(c => {
             const tr = document.createElement('tr');
             const amountText = c.currency?.toUpperCase() === 'UF' ? `${c.amount} UF` : formatCurrency(c.amount);
             tr.innerHTML = `
@@ -5217,7 +5296,12 @@ const UI = {
         const sel = document.getElementById('project-client');
         if (!sel) return;
         sel.innerHTML = '<option value="">Seleccionar Cliente</option>';
-        state.clients.forEach(c => {
+        const sortedClients = [...state.clients].sort((a, b) => {
+            const nameA = this.getClientName(a.id);
+            const nameB = this.getClientName(b.id);
+            return nameA.localeCompare(nameB, 'es', { sensitivity: 'base' });
+        });
+        sortedClients.forEach(c => {
             const opt = document.createElement('option');
             opt.value = c.id;
             opt.textContent = this.getClientName(c.id);
@@ -5374,7 +5458,13 @@ const UI = {
         if (!tbody) return;
         tbody.innerHTML = '';
 
-        state.locations.forEach(l => {
+        const sortedLocations = [...state.locations].sort((a, b) => {
+            const nameA = a.name || '';
+            const nameB = b.name || '';
+            return nameA.localeCompare(nameB, 'es', { sensitivity: 'base' });
+        });
+
+        sortedLocations.forEach(l => {
             console.log(`Rendering location: ${l.name}, type: ${l.type}`);
             const tr = document.createElement('tr');
             const typeLabel = l.type === 'finance' ? 'Disponible' : 'Inventario';
@@ -5403,7 +5493,10 @@ const UI = {
         if (inventorySelect) {
             const currentVal = inventorySelect.value;
             inventorySelect.innerHTML = '<option value="">Seleccionar Ubicación</option>';
-            state.locations.filter(l => l.type !== 'finance').forEach(l => {
+            const sortedInvLocations = state.locations
+                .filter(l => l.type !== 'finance')
+                .sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' }));
+            sortedInvLocations.forEach(l => {
                 const opt = document.createElement('option');
                 opt.value = l.name;
                 opt.textContent = l.name;
@@ -5415,7 +5508,10 @@ const UI = {
         if (availableSelect) {
             const currentVal = availableSelect.value;
             availableSelect.innerHTML = '<option value="">Seleccionar Ubicación</option>';
-            state.locations.filter(l => l.type === 'finance').forEach(l => {
+            const sortedFinLocations = state.locations
+                .filter(l => l.type === 'finance')
+                .sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' }));
+            sortedFinLocations.forEach(l => {
                 const opt = document.createElement('option');
                 opt.value = l.name;
                 opt.textContent = l.name;
@@ -5542,7 +5638,13 @@ const UI = {
         tbody.innerHTML = '';
 
         let total = 0;
-        state.availables.forEach(a => {
+        const sortedAvailables = [...state.availables].sort((a, b) => {
+            const nameA = a.location || '';
+            const nameB = b.location || '';
+            return nameA.localeCompare(nameB, 'es', { sensitivity: 'base' });
+        });
+
+        sortedAvailables.forEach(a => {
             total += parseFloat(a.amount || 0);
             const row = document.createElement('tr');
             
@@ -5591,7 +5693,13 @@ const UI = {
         if (!tbody) return;
         tbody.innerHTML = '';
 
-        state.operationalExpenses.forEach(e => {
+        const sortedExpenses = [...state.operationalExpenses].sort((a, b) => {
+            const nameA = a.name || '';
+            const nameB = b.name || '';
+            return nameA.localeCompare(nameB, 'es', { sensitivity: 'base' });
+        });
+
+        sortedExpenses.forEach(e => {
             const row = document.createElement('tr');
             
             const lastPayment = e.lastPaymentDate ? formatDate(e.lastPaymentDate) : 'Nunca';
@@ -6007,9 +6115,15 @@ const UI = {
             filtered = filtered.filter(i => i.product.toLowerCase().includes(searchText));
         }
 
+        const sortedFiltered = [...filtered].sort((a, b) => {
+            const nameA = a.product || '';
+            const nameB = b.product || '';
+            return nameA.localeCompare(nameB, 'es', { sensitivity: 'base' });
+        });
+
         let totalInventoryValue = 0;
 
-        filtered.forEach(i => {
+        sortedFiltered.forEach(i => {
             const tr = document.createElement('tr');
             const total = (i.quantity || 0) * (i.unitPrice || 0);
             totalInventoryValue += total;
@@ -6330,8 +6444,12 @@ const UI = {
         // Guardar para exportación
         this._lastFilteredCRMLeads = filtered;
 
-        // Ordenar por fecha desc
-        const sorted = [...filtered].sort((a, b) => new Date(b.fecha_registro) - new Date(a.fecha_registro));
+        // Ordenar alfabéticamente por nombre de la empresa
+        const sorted = [...filtered].sort((a, b) => {
+            const nameA = a.nombre_empresa || '';
+            const nameB = b.nombre_empresa || '';
+            return nameA.localeCompare(nameB, 'es', { sensitivity: 'base' });
+        });
 
         sorted.forEach(l => {
             const row = document.createElement('tr');

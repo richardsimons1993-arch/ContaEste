@@ -307,11 +307,11 @@ const QuotationsApp = () => {
                             ].filter(Boolean)
                         },
                         {
-                            width: 200,
+                            width: 220,
                             stack: [
                                 (logoData.svg ? { svg: logoData.svg, width: 120, alignment: 'right', margin: [0, -10, 0, 10] } : (logoData.base64 ? { image: logoData.base64, width: 120, alignment: 'right', margin: [0, -10, 0, 10] } : null)),
-                                { text: 'Simons SPA - Soluciones Tecnológicas', fontSize: 8, color: '#64748b', alignment: 'right' },
-                                { text: `Fecha: ${q.createdAt ? new Date(q.createdAt).toLocaleDateString('es-CL') : new Date().toLocaleDateString('es-CL')}`, fontSize: 8, color: '#64748b', alignment: 'right' }
+                                { text: 'Simons SPA - Soluciones Tecnológicas', fontSize: 10, color: '#64748b', alignment: 'right' },
+                                { text: `Fecha: ${q.createdAt ? new Date(q.createdAt).toLocaleDateString('es-CL') : new Date().toLocaleDateString('es-CL')}`, fontSize: 10, color: '#64748b', alignment: 'right' }
                             ].filter(Boolean)
                         }
                     ],
@@ -874,7 +874,13 @@ const QuotationsApp = () => {
                                         onChange={(e) => setSelectedClient(e.target.value)}
                                     >
                                         <option value="">-- Seleccionar Cliente --</option>
-                                        {clients.map(c => <option key={c.id} value={c.id}>{c.nombreFantasia || c.razonSocial}</option>)}
+                                        {[...clients]
+                                            .sort((a, b) => {
+                                                const nameA = a.nombreFantasia || a.razonSocial || '';
+                                                const nameB = b.nombreFantasia || b.razonSocial || '';
+                                                return nameA.localeCompare(nameB, 'es', { sensitivity: 'base' });
+                                            })
+                                            .map(c => <option key={c.id} value={c.id}>{c.nombreFantasia || c.razonSocial}</option>)}
                                     </select>
                                 </div>
 
@@ -1053,7 +1059,7 @@ const QuotationsApp = () => {
                                 <p className="tw-mt-4 tw-text-slate-500">Cargando historial...</p>
                             </div>
                         ) : (
-                            <div className="tw-bg-white tw-rounded-xl tw-shadow-sm tw-border tw-border-slate-200 tw-overflow-hidden">
+                            <div className="tw-bg-white tw-rounded-xl tw-shadow-sm tw-border tw-border-slate-200 tw-overflow-x-auto">
                                 <table className="tw-w-full tw-text-sm tw-text-left">
                                     <thead className="tw-bg-slate-50 tw-text-slate-600 tw-font-bold tw-border-b tw-border-slate-200">
                                         <tr>
@@ -1077,16 +1083,16 @@ const QuotationsApp = () => {
                                             })
                                             .map(q => (
                                                 <tr key={`${q.id}-${q.version}`} className="hover:tw-bg-slate-50 tw-transition-colors">
-                                                    <td className="tw-px-6 tw-py-4 tw-font-bold tw-text-slate-700">{q.id}</td>
+                                                    <td className="tw-px-6 tw-py-4 tw-font-bold tw-text-slate-700 tw-whitespace-nowrap">{q.id}</td>
                                                     <td className="tw-px-6 tw-py-4">
                                                         <span className="tw-px-2 tw-py-0.5 tw-bg-slate-100 tw-text-slate-600 tw-rounded tw-text-xs tw-font-bold">v{q.version}</span>
                                                     </td>
-                                                    <td className="tw-px-6 tw-py-4 tw-text-slate-600">{q.clientName}</td>
+                                                    <td className="tw-px-6 tw-py-4 tw-text-slate-600 tw-whitespace-nowrap">{q.clientName}</td>
                                                     <td className="tw-px-6 tw-py-4 tw-text-slate-600 tw-max-w-xs tw-truncate">{q.projectName || '---'}</td>
-                                                    <td className="tw-px-6 tw-py-4 tw-text-slate-500">
+                                                    <td className="tw-px-6 tw-py-4 tw-text-slate-500 tw-whitespace-nowrap">
                                                         {q.createdAt ? (new Date(q.createdAt).toLocaleDateString('es-CL')) : '---'}
                                                     </td>
-                                                    <td className="tw-px-6 tw-py-4 tw-font-semibold tw-text-[#004d4d]">{formatMoney(q.total || 0, q.currency)}</td>
+                                                    <td className="tw-px-6 tw-py-4 tw-font-semibold tw-text-[#004d4d] tw-whitespace-nowrap">{formatMoney(q.total || 0, q.currency)}</td>
                                                     <td className="tw-px-6 tw-py-4 tw-text-right">
                                                         <div className="tw-flex tw-justify-end tw-gap-2">
                                                             <button 

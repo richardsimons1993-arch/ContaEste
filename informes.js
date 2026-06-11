@@ -271,19 +271,19 @@ const ReportsApp = () => {
                         {
                             width: '*',
                             stack: [
-                                { text: 'INFORME TÉCNICO DE PROYECTO', fontSize: 16, bold: true, color: '#0f172a', margin: [0, 0, 0, 5] },
-                                { text: `N° ${formattedId}`, fontSize: 11, bold: true, color: '#0f766e', margin: [0, 0, 0, 5] },
+                                { text: 'INFORME TÉCNICO DE PROYECTO', fontSize: 20, bold: true, color: '#0f172a', margin: [0, 0, 0, 5] },
+                                { text: `N° ${formattedId}`, fontSize: 12, bold: true, color: '#0f766e', margin: [0, 0, 0, 5] },
                                 (currentVersion > 1 ? { text: `VERSIÓN ${currentVersion}`, fontSize: 9, bold: true, color: '#94a3b8', margin: [0, 0, 0, 5] } : null),
-                                { text: `Proyecto: ${projectName || '---'}`, fontSize: 10, bold: true, color: '#1e293b' },
-                                { text: `Cliente: ${clientName}`, fontSize: 10, color: '#475569', margin: [0, 2, 0, 0] }
+                                { text: `Proyecto: ${projectName || '---'}`, fontSize: 11, bold: true, color: '#1e293b' },
+                                { text: `Cliente: ${clientName}`, fontSize: 11, bold: true, color: '#1e293b', margin: [0, 2, 0, 0] }
                             ].filter(Boolean)
                         },
                         {
-                            width: 150,
+                            width: 220,
                             stack: [
-                                (logoData.svg ? { svg: logoData.svg, width: 100, alignment: 'right', margin: [0, -10, 0, 10] } : (logoData.base64 ? { image: logoData.base64, width: 100, alignment: 'right', margin: [0, -10, 0, 10] } : null)),
-                                { text: 'Simons SPA - Soluciones Tecnológicas', fontSize: 8, color: '#64748b', alignment: 'right' },
-                                { text: `Fecha: ${new Date().toLocaleDateString('es-CL')}`, fontSize: 8, color: '#64748b', alignment: 'right' }
+                                (logoData.svg ? { svg: logoData.svg, width: 120, alignment: 'right', margin: [0, -10, 0, 10] } : (logoData.base64 ? { image: logoData.base64, width: 120, alignment: 'right', margin: [0, -10, 0, 10] } : null)),
+                                { text: 'Simons SPA - Soluciones Tecnológicas', fontSize: 10, color: '#64748b', alignment: 'right' },
+                                { text: `Fecha: ${new Date().toLocaleDateString('es-CL')}`, fontSize: 10, color: '#64748b', alignment: 'right' }
                             ].filter(Boolean)
                         }
                     ],
@@ -292,20 +292,20 @@ const ReportsApp = () => {
                 { canvas: [{ type: 'line', x1: 0, y1: 0, x2: 531.9, y2: 0, lineWidth: 2, lineColor: '#1e293b' }], margin: [0, 0, 0, 15] }
             ],
             defaultStyle: {
-                fontSize: 10,
+                fontSize: 11.5,
                 color: '#334155',
                 lineHeight: 1.3
             },
             styles: {
                 sectionHeader: {
                     bold: true,
-                    fontSize: 11,
+                    fontSize: 13,
                     color: '#0f766e',
                     margin: [0, 15, 0, 5]
                 },
                 tableHeader: {
                     bold: true,
-                    fontSize: 9,
+                    fontSize: 11.5,
                     color: 'white',
                     fillColor: '#0f766e',
                     alignment: 'center',
@@ -323,7 +323,7 @@ const ReportsApp = () => {
                     body: [
                         [
                             { text: '', fillColor: '#0f766e', border: [false, false, false, false] },
-                            { text: title, fillColor: '#f8fafc', border: [false, false, false, false], margin: [5, 4, 0, 4], color: '#1e293b', bold: true, fontSize: 10 }
+                            { text: title, fillColor: '#f8fafc', border: [false, false, false, false], margin: [5, 4, 0, 4], color: '#1e293b', bold: true, fontSize: 13 }
                         ]
                     ]
                 },
@@ -348,7 +348,7 @@ const ReportsApp = () => {
                 body: [
                     [
                         { text: '', fillColor: '#0f766e', border: [false, false, false, false] },
-                        { text: '3. MATERIALES UTILIZADOS', fillColor: '#f8fafc', border: [false, false, false, false], margin: [5, 4, 0, 4], color: '#1e293b', bold: true, fontSize: 10 }
+                        { text: '3. MATERIALES UTILIZADOS', fillColor: '#f8fafc', border: [false, false, false, false], margin: [5, 4, 0, 4], color: '#1e293b', bold: true, fontSize: 13 }
                     ]
                 ]
             },
@@ -365,8 +365,8 @@ const ReportsApp = () => {
             ];
             materials.forEach(m => {
                 tableBody.push([
-                    m.desc || '-',
-                    m.notes || '-'
+                    { text: m.desc || '-', fontSize: 10 },
+                    { text: m.notes || '-', fontSize: 10 }
                 ]);
             });
             materialsStackElements.push({
@@ -379,7 +379,7 @@ const ReportsApp = () => {
                 margin: [8, 0, 0, 12]
             });
         } else {
-            materialsStackElements.push({ text: 'No se listaron materiales.', margin: [8, 0, 0, 12], italics: true });
+            materialsStackElements.push({ text: 'No se listaron materiales.', margin: [8, 0, 0, 12], italics: true, fontSize: 10 });
         }
 
         content.push({
@@ -401,7 +401,7 @@ const ReportsApp = () => {
                         table: {
                             widths: ['*'],
                             body: [
-                                [{ text: `[Registro Fotográfico - Imagen ${idx + 1}]`, alignment: 'center', margin: [0, 75, 0, 75], color: '#64748b', italics: true }]
+                                [{ text: `[Registro Fotográfico - Imagen ${idx + 1}]`, alignment: 'center', margin: [0, 70, 0, 70], color: '#64748b', italics: true }]
                             ]
                         },
                         layout: {
@@ -419,18 +419,46 @@ const ReportsApp = () => {
                 for (let imgUrl of images) {
                     const b64 = await convertImageUrlToBase64(imgUrl);
                     if (b64) {
-                        imageObjects.push({ image: b64, fit: [380, 260], alignment: 'center', margin: [0, 10, 0, 10] });
+                        imageObjects.push({
+                            table: {
+                                widths: ['*'],
+                                body: [
+                                    [{ image: b64, fit: [380, 250], alignment: 'center', border: [false, false, false, false] }]
+                                ]
+                            },
+                            layout: 'noBorders',
+                            margin: [0, 10, 0, 10]
+                        });
                     }
                 }
             }
 
-            content.push({ text: 'Registro Fotográfico:', bold: true, fontSize: 9, margin: [8, 15, 0, 10], color: '#475569' });
-
-            for (let i = 0; i < imageObjects.length; i++) {
-                content.push(imageObjects[i]);
-                if (i % 2 === 1 && i < imageObjects.length - 1) {
-                    content.push({ text: '', pageBreak: 'after' });
+            // Agrupar fotos en páginas de hasta 2 imágenes, cada una con su respectivo título y espaciado
+            for (let i = 0; i < imageObjects.length; i += 2) {
+                const pageContent = [];
+                
+                // Título de registro fotográfico para esta página de fotos
+                pageContent.push({ text: 'Registro Fotográfico:', bold: true, fontSize: 11, margin: [8, 15, 0, 10], color: '#475569' });
+                pageContent.push({ text: '\n' }); // Separación de un enter
+                
+                // Primera imagen de la página
+                pageContent.push(imageObjects[i]);
+                
+                // Segunda imagen de la página (si existe)
+                if (i + 1 < imageObjects.length) {
+                    pageContent.push({ text: '\n' }); // Enter de separación entre las 2 imágenes
+                    pageContent.push(imageObjects[i + 1]);
                 }
+                
+                // Salto de página antes de las siguientes páginas de fotos
+                if (i > 0) {
+                    content.push({ text: '', pageBreak: 'before' });
+                }
+                
+                content.push({
+                    unbreakable: true,
+                    stack: pageContent
+                });
             }
         }
 
@@ -444,18 +472,24 @@ const ReportsApp = () => {
             { canvas: [{ type: 'line', x1: 0, y1: 0, x2: 531.9, y2: 0, lineWidth: 1.5, lineColor: '#1e293b' }], margin: [0, 15, 0, 15] },
             {
                 stack: [
-                    { text: 'ELABORADO POR:', fontSize: 8, bold: true, color: '#64748b', margin: [0, 0, 0, 2] },
-                    { text: 'Departamento de Proyectos', fontSize: 9, bold: true, color: '#1e293b' },
-                    { text: 'Simons SPA - Soluciones Tecnológicas', fontSize: 8, color: '#475569' }
+                    { text: 'ELABORADO POR:', fontSize: 10, bold: true, color: '#64748b', margin: [0, 0, 0, 2] },
+                    { text: 'Departamento de Tecnología', fontSize: 10, bold: true, color: '#1e293b' },
+                    { text: 'Simons SPA - Soluciones Tecnológicas', fontSize: 10, color: '#475569' }
                 ],
                 margin: [0, 10, 0, 10]
             }
         );
 
-        content.push({
+        const conclusionsStack = {
             unbreakable: true,
             stack: conclusionsBlock
-        });
+        };
+
+        if (images && images.length > 0) {
+            conclusionsStack.pageBreak = 'before';
+        }
+
+        content.push(conclusionsStack);
 
         return docDefinition;
     };
@@ -466,7 +500,7 @@ const ReportsApp = () => {
             body: [
                 [
                     { text: '', fillColor: '#0f766e', border: [false, false, false, false] },
-                    { text: title, fillColor: '#f8fafc', border: [false, false, false, false], margin: [5, 4, 0, 4], color: '#1e293b', bold: true, fontSize: 10 }
+                    { text: title, fillColor: '#f8fafc', border: [false, false, false, false], margin: [5, 4, 0, 4], color: '#1e293b', bold: true, fontSize: 13 }
                 ]
             ]
         },
@@ -666,7 +700,13 @@ const ReportsApp = () => {
                                             onChange={(e) => setSelectedClient(e.target.value)}
                                         >
                                             <option value="">-- Seleccionar Cliente --</option>
-                                            {clients.map(c => <option key={c.id} value={c.id}>{c.nombreFantasia || c.razonSocial}</option>)}
+                                            {[...clients]
+                                                .sort((a, b) => {
+                                                    const nameA = a.nombreFantasia || a.razonSocial || '';
+                                                    const nameB = b.nombreFantasia || b.razonSocial || '';
+                                                    return nameA.localeCompare(nameB, 'es', { sensitivity: 'base' });
+                                                })
+                                                .map(c => <option key={c.id} value={c.id}>{c.nombreFantasia || c.razonSocial}</option>)}
                                         </select>
                                     </div>
                                     <div>
@@ -685,9 +725,9 @@ const ReportsApp = () => {
                                 <div className="tw-bg-white tw-p-6 tw-rounded-xl tw-shadow-sm tw-border tw-border-slate-200 tw-space-y-6">
                                     {/* 1. Datos Generales */}
                                     <div>
-                                        <label className="tw-block tw-text-sm tw-font-bold tw-text-slate-700 tw-mb-2">1. Datos Generales del Proyecto</label>
+                                        <label className="tw-block tw-text-base tw-font-bold tw-text-slate-700 tw-mb-2">1. Datos Generales del Proyecto</label>
                                         <textarea 
-                                            className="tw-w-full tw-p-3 tw-bg-slate-50 tw-border tw-border-slate-300 tw-rounded-lg focus:tw-border-googleBlue focus:tw-ring-2 focus:tw-ring-blue-100 focus:tw-outline-none tw-transition-all tw-text-justify"
+                                            className="tw-w-full tw-p-3 tw-bg-slate-50 tw-border tw-border-slate-300 tw-rounded-lg focus:tw-border-googleBlue focus:tw-ring-2 focus:tw-ring-blue-100 focus:tw-outline-none tw-transition-all tw-text-justify tw-text-base"
                                             rows="3"
                                             placeholder="Resumen ejecutivo y datos generales del sitio..."
                                             value={generalData}
@@ -697,9 +737,9 @@ const ReportsApp = () => {
 
                                     {/* 2. Alcance */}
                                     <div>
-                                        <label className="tw-block tw-text-sm tw-font-bold tw-text-slate-700 tw-mb-2">2. Alcance del Proyecto</label>
+                                        <label className="tw-block tw-text-base tw-font-bold tw-text-slate-700 tw-mb-2">2. Alcance del Proyecto</label>
                                         <textarea 
-                                            className="tw-w-full tw-p-3 tw-bg-slate-50 tw-border tw-border-slate-300 tw-rounded-lg focus:tw-border-googleBlue focus:tw-ring-2 focus:tw-ring-blue-100 focus:tw-outline-none tw-transition-all tw-text-justify"
+                                            className="tw-w-full tw-p-3 tw-bg-slate-50 tw-border tw-border-slate-300 tw-rounded-lg focus:tw-border-googleBlue focus:tw-ring-2 focus:tw-ring-blue-100 focus:tw-outline-none tw-transition-all tw-text-justify tw-text-base"
                                             rows="3"
                                             placeholder="Detalle de las tareas y límites del proyecto realizado..."
                                             value={scope}
@@ -711,7 +751,7 @@ const ReportsApp = () => {
                                 {/* 3. Materiales Utilizados */}
                                 <div className="tw-bg-white tw-rounded-xl tw-shadow-sm tw-border tw-border-slate-200 tw-p-6">
                                     <div className="tw-flex tw-justify-between tw-items-center tw-mb-4">
-                                        <h3 className="tw-text-sm tw-font-bold tw-text-slate-700">3. Materiales Utilizados</h3>
+                                        <h3 className="tw-text-base tw-font-bold tw-text-slate-700">3. Materiales Utilizados</h3>
                                         <button onClick={addMaterialRow} className="tw-text-sm tw-text-googleBlue hover:tw-underline tw-font-medium">
                                             + Añadir Fila
                                         </button>
@@ -719,7 +759,7 @@ const ReportsApp = () => {
                                     <div className="tw-overflow-x-auto">
                                         <table className="tw-w-full">
                                             <thead>
-                                                <tr className="tw-text-[10px] tw-font-bold tw-text-slate-400 tw-uppercase tw-tracking-wider tw-border-b tw-border-slate-100">
+                                                <tr className="tw-text-xs tw-font-bold tw-text-slate-400 tw-uppercase tw-tracking-wider tw-border-b tw-border-slate-100">
                                                     <th className="tw-text-left tw-pb-2">Descripción del Material</th>
                                                     <th className="tw-text-left tw-pb-2 tw-w-72">Notas / Detalles</th>
                                                     <th className="tw-w-10"></th>
@@ -732,7 +772,7 @@ const ReportsApp = () => {
                                                             <input 
                                                                 type="text" 
                                                                 placeholder="Material / Componente..."
-                                                                className="tw-w-full tw-p-2 tw-border tw-border-slate-300 tw-rounded tw-text-sm"
+                                                                className="tw-w-full tw-p-2 tw-border tw-border-slate-300 tw-rounded tw-text-base"
                                                                 value={m.desc}
                                                                 onChange={(e) => handleMaterialChange(m.id, 'desc', e.target.value)}
                                                             />
@@ -741,7 +781,7 @@ const ReportsApp = () => {
                                                             <input 
                                                                 type="text" 
                                                                 placeholder="Ej: Serial, Marca, Ubicación"
-                                                                className="tw-w-full tw-p-2 tw-border tw-border-slate-300 tw-rounded tw-text-sm"
+                                                                className="tw-w-full tw-p-2 tw-border tw-border-slate-300 tw-rounded tw-text-base"
                                                                 value={m.notes}
                                                                 onChange={(e) => handleMaterialChange(m.id, 'notes', e.target.value)}
                                                             />
@@ -755,16 +795,16 @@ const ReportsApp = () => {
                                                 ))}
                                             </tbody>
                                         </table>
-                                        {materials.length === 0 && <div className="tw-text-sm tw-text-slate-500 tw-italic tw-mt-2">Sin materiales registrados.</div>}
+                                        {materials.length === 0 && <div className="tw-text-base tw-text-slate-500 tw-italic tw-mt-2">Sin materiales registrados.</div>}
                                     </div>
                                 </div>
 
                                 {/* 4. Resultados del Proyecto y Fotos */}
                                 <div className="tw-bg-white tw-p-6 tw-rounded-xl tw-shadow-sm tw-border tw-border-slate-200 tw-space-y-6">
                                     <div>
-                                        <label className="tw-block tw-text-sm tw-font-bold tw-text-slate-700 tw-mb-2">4. Resultados del Proyecto</label>
+                                        <label className="tw-block tw-text-base tw-font-bold tw-text-slate-700 tw-mb-2">4. Resultados del Proyecto</label>
                                         <textarea 
-                                            className="tw-w-full tw-p-3 tw-bg-slate-50 tw-border tw-border-slate-300 tw-rounded-lg focus:tw-border-googleBlue focus:tw-ring-2 focus:tw-ring-blue-100 focus:tw-outline-none tw-transition-all tw-text-justify"
+                                            className="tw-w-full tw-p-3 tw-bg-slate-50 tw-border tw-border-slate-300 tw-rounded-lg focus:tw-border-googleBlue focus:tw-ring-2 focus:tw-ring-blue-100 focus:tw-outline-none tw-transition-all tw-text-justify tw-text-base"
                                             rows="3"
                                             placeholder="Detalle de mediciones, conclusiones técnicas de finalización..."
                                             value={results}
@@ -774,7 +814,7 @@ const ReportsApp = () => {
 
                                     {/* Subida de fotos */}
                                     <div>
-                                        <label className="tw-block tw-text-sm tw-font-bold tw-text-slate-700 tw-mb-2">Adjuntar Registro Fotográfico</label>
+                                        <label className="tw-block tw-text-base tw-font-bold tw-text-slate-700 tw-mb-2">Adjuntar Registro Fotográfico</label>
                                         <div className="tw-flex tw-items-center tw-justify-center tw-w-full">
                                             <label className="tw-flex tw-flex-col tw-items-center tw-justify-center tw-w-full tw-h-32 tw-border-2 tw-border-slate-300 tw-border-dashed tw-rounded-lg tw-cursor-pointer tw-bg-slate-50 hover:tw-bg-slate-100 tw-transition-all">
                                                 <div className="tw-flex tw-flex-col tw-items-center tw-justify-center tw-pt-5 tw-pb-6">
@@ -816,9 +856,9 @@ const ReportsApp = () => {
 
                                 {/* 5. Conclusiones y recomendaciones */}
                                 <div className="tw-bg-white tw-p-6 tw-rounded-xl tw-shadow-sm tw-border tw-border-slate-200">
-                                    <label className="tw-block tw-text-sm tw-font-bold tw-text-slate-700 tw-mb-2">5. Conclusiones y Recomendaciones</label>
+                                    <label className="tw-block tw-text-base tw-font-bold tw-text-slate-700 tw-mb-2">5. Conclusiones y Recomendaciones</label>
                                     <textarea 
-                                        className="tw-w-full tw-p-3 tw-bg-slate-50 tw-border tw-border-slate-300 tw-rounded-lg focus:tw-border-googleBlue focus:tw-ring-2 focus:tw-ring-blue-100 focus:tw-outline-none tw-transition-all tw-text-justify"
+                                        className="tw-w-full tw-p-3 tw-bg-slate-50 tw-border tw-border-slate-300 tw-rounded-lg focus:tw-border-googleBlue focus:tw-ring-2 focus:tw-ring-blue-100 focus:tw-outline-none tw-transition-all tw-text-justify tw-text-base"
                                         rows="4"
                                         placeholder="Comentarios finales, recomendaciones preventivas, etc..."
                                         value={conclusions}
@@ -903,7 +943,7 @@ const ReportsApp = () => {
                                 <p className="tw-mt-4 tw-text-slate-500">Cargando historial...</p>
                             </div>
                         ) : (
-                            <div className="tw-bg-white tw-rounded-xl tw-shadow-sm tw-border tw-border-slate-200 tw-overflow-hidden">
+                            <div className="tw-bg-white tw-rounded-xl tw-shadow-sm tw-border tw-border-slate-200 tw-overflow-x-auto">
                                 <table className="tw-w-full tw-text-sm tw-text-left">
                                     <thead className="tw-bg-slate-50 tw-text-slate-600 tw-font-bold tw-border-b tw-border-slate-200">
                                         <tr>
@@ -926,13 +966,13 @@ const ReportsApp = () => {
                                             })
                                             .map(r => (
                                                 <tr key={`${r.id}-${r.version}`} className="hover:tw-bg-slate-50 tw-transition-colors">
-                                                    <td className="tw-px-6 tw-py-4 tw-font-bold tw-text-slate-700">{r.id}</td>
+                                                    <td className="tw-px-6 tw-py-4 tw-font-bold tw-text-slate-700 tw-whitespace-nowrap">{r.id}</td>
                                                     <td className="tw-px-6 tw-py-4">
                                                         <span className="tw-px-2 tw-py-0.5 tw-bg-slate-100 tw-text-slate-600 tw-rounded tw-text-xs tw-font-bold">v{r.version}</span>
                                                     </td>
-                                                    <td className="tw-px-6 tw-py-4 tw-text-slate-600">{r.clientName}</td>
+                                                    <td className="tw-px-6 tw-py-4 tw-text-slate-600 tw-whitespace-nowrap">{r.clientName}</td>
                                                     <td className="tw-px-6 tw-py-4 tw-text-slate-600 tw-max-w-xs tw-truncate">{r.projectName || '---'}</td>
-                                                    <td className="tw-px-6 tw-py-4 tw-text-slate-500">
+                                                    <td className="tw-px-6 tw-py-4 tw-text-slate-500 tw-whitespace-nowrap">
                                                         {r.createdAt ? (new Date(r.createdAt).toLocaleDateString('es-CL')) : '---'}
                                                     </td>
                                                     <td className="tw-px-6 tw-py-4 tw-text-right">
