@@ -1182,8 +1182,8 @@ const UI = {
                 const sessionData = JSON.parse(savedSession);
                 console.log("Datos de sesión:", sessionData);
 
-                // Validar que la sesión no haya expirado por inactividad (30 min)
-                const TIMEOUT_MS = 30 * 60 * 1000;
+                // Validar que la sesión no haya expirado por inactividad (1 hora)
+                const TIMEOUT_MS = 60 * 60 * 1000;
                 const lastActivity = sessionData.lastActivity || 0;
                 if (Date.now() - lastActivity > TIMEOUT_MS) {
                     console.warn("Sesión expirada por inactividad");
@@ -1238,6 +1238,9 @@ const UI = {
                     }
                 }, 100);
                 sessionStorage.removeItem('logout_message');
+            } else {
+                // Si no hay mensaje de logout, es un acceso fresco. Redirigimos directo a SSO.
+                window.location.href = '/api/auth/signin';
             }
         }
     },
@@ -1306,8 +1309,8 @@ const UI = {
             localStorage.setItem('contabilidad_session', JSON.stringify(sessionData));
             this.recordActivity('Login', 'Sistema', `Usuario ${username} inició sesión`);
 
-            // Recargar la página completa para asegurar la última versión de los scripts y datos limpios
-            window.location.reload();
+            // Iniciar sesión sin recargar la página (transición asíncrona)
+            this.checkSession();
         } catch (err) {
             errorEl.textContent = 'Error de conexión con el servidor. Verifique que el servidor esté activo.';
             errorEl.style.display = 'block';
@@ -1394,8 +1397,8 @@ const UI = {
         const lastActivity = Math.max(storedActivity, memoryActivity);
         const elapsed = Date.now() - lastActivity;
 
-        const WARN_MS  = 28 * 60 * 1000; // 28 min → advertencia
-        const LIMIT_MS = 30 * 60 * 1000; // 30 min → cerrar sesión
+        const WARN_MS  = 58 * 60 * 1000; // 58 min → advertencia
+        const LIMIT_MS = 60 * 60 * 1000; // 60 min → cerrar sesión
 
         if (elapsed >= LIMIT_MS) {
             this.forceLogout();
@@ -1465,7 +1468,7 @@ const UI = {
         localStorage.removeItem('contabilidad_session');
         
         // Guardar mensaje de aviso temporal en sessionStorage
-        sessionStorage.setItem('logout_message', 'Su sesión fue cerrada automáticamente por 30 minutos de inactividad.');
+        sessionStorage.setItem('logout_message', 'Su sesión fue cerrada automáticamente por 1 hora de inactividad.');
 
         // Recargar la página completa
         window.location.reload();
@@ -3768,6 +3771,7 @@ const UI = {
             tr.innerHTML = `
                 <td>${u.name}</td>
                 <td>${u.username}</td>
+                <td>${u.email || '-'}</td>
                 <td><span class="tag ${u.role === 'administrador' ? 'income' : 'expense'}">${u.role}</span></td>
                 <td>${permSummary}</td>
                 <td>
@@ -3826,6 +3830,7 @@ const UI = {
             id: userId,
             name: formData.get('name'),
             username: username,
+            email: formData.get('email'),
             password: password || '', // Vacío = no cambiar en servidor
             role: formData.get('role'),
             modules: permissions // Ahora es un objeto
@@ -3880,6 +3885,8 @@ const UI = {
         document.getElementById('edit-user-id').value = user.id;
         document.getElementById('user-real-name').value = user.name;
         document.getElementById('user-username').value = user.username;
+        const emailField = document.getElementById('user-email');
+        if (emailField) emailField.value = user.email || '';
         // No pre-rellenar la contraseña (buena práctica de seguridad)
         const pwdField = document.getElementById('user-password');
         if (pwdField) {

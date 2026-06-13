@@ -1,3 +1,4 @@
+require("dotenv").config({ path: __dirname + "/.env" });
 const express = require('express');
 const cors = require('cors');
 const sql = require('mssql');
@@ -7,6 +8,9 @@ const fs = require('fs');
 const path = require('path');
 const nodemailer = require('nodemailer');
 const multer = require('multer');
+
+const msal = require('@azure/msal-node');
+const session = require('express-session');
 
 const BCRYPT_ROUNDS = 10;
 const UPLOADS_DIR = path.join(__dirname, 'uploads');
@@ -275,6 +279,10 @@ const deleteApi = async (req, res, table) => {
         res.status(500).json({ error: 'Error interno del servidor.' });
     }
 };
+
+// --- MÓDULO SOPORTE TI ---
+
+
 
 // --- ENDPOINTS PARA TRANSACTIONS ---
 app.get('/api/transactions', (req, res) => getApi(req, res, 'Transactions'));
@@ -947,7 +955,7 @@ app.post('/api/availables', async (req, res) => {
 app.get('/api/users', async (req, res) => {
     try {
         const pool = await getDbPool();
-        const result = await pool.request().query('SELECT id, username, role, name, modules FROM Users');
+        const result = await pool.request().query('SELECT id, username, role, name, modules, Email FROM Users');
         const users = result.recordset.map(u => ({
             ...u,
             modules: u.modules ? JSON.parse(u.modules) : []
@@ -1140,8 +1148,9 @@ app.post('/api/users', async (req, res) => {
                 .input('password', sql.VarChar(100), hashedPassword)
                 .input('role', sql.VarChar(50), u.role)
                 .input('name', sql.VarChar(100), u.name)
+                .input('Email', sql.NVarChar(255), u.email || null)
                 .input('modules', sql.VarChar(sql.MAX), modulesJson)
-                .query(`UPDATE Users SET username=@username, password=@password, role=@role, name=@name, modules=@modules WHERE id=@id`);
+                .query(`UPDATE Users SET username=@username, password=@password, role=@role, name=@name, Email=@Email, modules=@modules WHERE id=@id`);
         } else {
             await pool.request()
                 .input('id', sql.VarChar(50), u.id)
@@ -1149,11 +1158,12 @@ app.post('/api/users', async (req, res) => {
                 .input('password', sql.VarChar(100), hashedPassword)
                 .input('role', sql.VarChar(50), u.role)
                 .input('name', sql.VarChar(100), u.name)
+                .input('Email', sql.NVarChar(255), u.email || null)
                 .input('modules', sql.VarChar(sql.MAX), modulesJson)
-                .query(`INSERT INTO Users (id, username, password, role, name, modules) VALUES (@id, @username, @password, @role, @name, @modules)`);
+                .query(`INSERT INTO Users (id, username, password, role, name, Email, modules) VALUES (@id, @username, @password, @role, @name, @Email, @modules)`);
         }
         // Retornar sin contraseña
-        res.json({ id: u.id, username: u.username, role: u.role, name: u.name, modules: u.modules || [] });
+        res.json({ id: u.id, username: u.username, role: u.role, name: u.name, email: u.email, modules: u.modules || [] });
     } catch (err) {
         console.error('Error in POST /api/users:', err);
         res.status(500).json({ error: err.message });
@@ -1187,73 +1197,70 @@ app.post('/api/users/batch', async (req, res) => {
 });
 
 // --- ENDPOINT DE AUTENTICACIÓN ---
-app.post('/api/auth/login', async (req, res) => {
-    // Obtener IP real (considera proxies)
-    const clientIp = req.headers['x-forwarded-for']?.split(',')[0].trim() || req.socket.remoteAddress || 'unknown';
+    // --- MSAL SSO CONF ---
+    const msalConfigAuth = {
+        auth: {
+            clientId: process.env.AZURE_CLIENT_ID,
+            authority: `https://login.microsoftonline.com/${process.env.AZURE_TENANT_ID}`,
+            clientSecret: process.env.AZURE_CLIENT_SECRET,
+        }
+    };
+    const pca = new msal.ConfidentialClientApplication(msalConfigAuth);
 
-    // 1. Verificar rate limit
-    const rateCheck = checkLoginRateLimit(clientIp);
-    if (rateCheck.blocked) {
-        return res.status(429).json({
-            error: `Demasiados intentos fallidos. Intente nuevamente en ${rateCheck.remainingMin} minuto(s).`
+    // API: Iniciar Login con SSO
+    app.get('/api/auth/signin', (req, res) => {
+        const authCodeUrlParameters = {
+            scopes: ["user.read"],
+            redirectUri: "https://admin.simons.cl/api/auth/redirect",
+        };
+        pca.getAuthCodeUrl(authCodeUrlParameters).then((response) => {
+            res.redirect(response);
+        }).catch((error) => console.log(JSON.stringify(error)));
+    });
+
+    // API: Callback de Microsoft
+    app.get('/api/auth/redirect', (req, res) => {
+        const tokenRequest = {
+            code: req.query.code,
+            scopes: ["user.read"],
+            redirectUri: "https://admin.simons.cl/api/auth/redirect",
+        };
+        pca.acquireTokenByCode(tokenRequest).then(async (response) => {
+            const email = response.account.username.toLowerCase();
+            try {
+                const pool = await getDbPool();
+                const result = await pool.request()
+                    .input('Email', sql.NVarChar(255), email)
+                    .query('SELECT id, username, role, name, modules FROM Users WHERE Email = @Email');
+
+                if (result.recordset.length === 0) {
+                    return res.send("<h3>Acceso Denegado</h3><p>Tu usuario corporativo (" + email + ") no está autorizado en Contabilidad. Habla con el administrador.</p>");
+                }
+
+                const user = result.recordset[0];
+                const sessionData = {
+                    id: user.id,
+                    username: user.username,
+                    role: user.role,
+                    name: user.name,
+                    modules: user.modules ? JSON.parse(user.modules) : [],
+                    lastActivity: Date.now()
+                };
+
+                // Retornar script al navegador para guardar la sesión (que usa localStorage igual que el sistema actual)
+                res.send(`<script>
+                    localStorage.setItem('contabilidad_session', JSON.stringify(${JSON.stringify(sessionData)}));
+                    window.location.href = '/';
+                </script>`);
+            } catch (err) {
+                console.error('Error en SSO auth:', err.message);
+                res.status(500).send("Error interno validando usuario.");
+            }
+        }).catch((error) => {
+            console.log(error);
+            res.status(500).send(error);
         });
-    }
-
-    try {
-        const { username, password } = req.body;
-
-        // Validación de entrada sin revelar qué campo falta
-        if (!username || !password || typeof username !== 'string' || typeof password !== 'string') {
-            recordFailedLogin(clientIp);
-            return res.status(401).json({ error: 'Credenciales incorrectas.' });
-        }
-
-        // Sanitizar: solo letras, números y algunos especiales para el usuario
-        const safeUsername = username.toLowerCase().trim().slice(0, 50);
-
-        const pool = await getDbPool();
-        const result = await pool.request()
-            .input('username', sql.VarChar(50), safeUsername)
-            .query('SELECT id, username, password, role, name, modules FROM Users WHERE username = @username');
-
-        // IMPORTANTE: mismo mensaje genérico para usuario no encontrado Y contraseña incorrecta
-        // Esto evita la enumeración de usuarios (saber qué usuarios existen).
-        const GENERIC_ERROR = 'Usuario o contraseña incorrectos.';
-
-        if (result.recordset.length === 0) {
-            // Agregar retardo artificial para igualar tiempo de respuesta con bcrypt
-            // y evitar timing attacks
-            await bcrypt.compare(password, '$2b$10$invalidhashfortimingprotectionxxxx...');
-            recordFailedLogin(clientIp);
-            return res.status(401).json({ error: GENERIC_ERROR });
-        }
-
-        const user = result.recordset[0];
-        const isMatch = await bcrypt.compare(password, user.password);
-
-        if (!isMatch) {
-            recordFailedLogin(clientIp);
-            return res.status(401).json({ error: GENERIC_ERROR });
-        }
-
-        // Login exitoso: limpiar contador de intentos
-        clearLoginAttempts(clientIp);
-        console.log(`✅ Login exitoso: ${safeUsername}`);
-
-        // Responder sin incluir la contraseña
-        res.json({
-            id: user.id,
-            username: user.username,
-            role: user.role,
-            name: user.name,
-            modules: user.modules ? JSON.parse(user.modules) : []
-        });
-    } catch (err) {
-        // Log interno sin exponer detalles al cliente
-        console.error('Error en autenticación:', err.message);
-        res.status(500).json({ error: 'Error interno del servidor. Intente más tarde.' });
-    }
-});
+    });
 
 // Migrar contraseñas de texto plano a hash bcrypt (se llama al iniciar el servidor)
 async function migratePasswords() {

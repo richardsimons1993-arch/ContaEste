@@ -2,6 +2,13 @@
 <html lang="es">
 
 <head>
+    <script>
+        if (!localStorage.getItem('contabilidad_session') && !sessionStorage.getItem('logout_message')) {
+            window.location.href = '/api/auth/signin';
+        } else if (localStorage.getItem('contabilidad_session')) {
+            document.write('<style>#login-overlay { display: none !important; } .app-container { display: flex !important; }</style>');
+        }
+    </script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Contabilidad Premium</title>
@@ -70,56 +77,14 @@
                 <h2>Bienvenido</h2>
                 <p>Ingresa tus credenciales para continuar</p>
             </div>
-            <form id="login-form" autocomplete="on" novalidate onsubmit="return false;">
-                <div class="form-group">
-                    <label for="username">Usuario</label>
-                    <div class="input-with-icon">
-                        <i class="fa-solid fa-user"></i>
-                        <input type="text" id="username" name="username" required
-                            placeholder="Nombre de usuario"
-                            autocomplete="username"
-                            spellcheck="false"
-                            autocapitalize="none"
-                            oninvalid="this.setCustomValidity('Por favor, ingrese su usuario')"
-                            oninput="this.setCustomValidity('')">
-                    </div>
-                </div>
-                <div class="form-group">
-                    <label for="password">Contraseña</label>
-                    <div class="input-with-icon" style="position: relative;">
-                        <i class="fa-solid fa-lock"></i>
-                        <input type="password" id="password" name="password" required
-                            placeholder="••••••••"
-                            autocomplete="current-password"
-                            oninvalid="this.setCustomValidity('Por favor, ingrese su contraseña')"
-                            oninput="this.setCustomValidity('')">
-                        <button type="button" id="toggle-password" tabindex="-1"
-                            aria-label="Mostrar u ocultar contraseña"
-                            style="position: absolute; right: 12px; top: 50%; transform: translateY(-50%);
-                                   background: none; border: none; cursor: pointer; color: var(--text-muted);
-                                   padding: 0; font-size: 0.95rem; line-height: 1; z-index: 2;"
-                            onclick="(function(){
-                                var p = document.getElementById('password');
-                                var icon = document.querySelector('#toggle-password i');
-                                if(p.type==='password'){
-                                    p.type='text';
-                                    icon.className='fa-solid fa-eye-slash';
-                                } else {
-                                    p.type='password';
-                                    icon.className='fa-solid fa-eye';
-                                }
-                            })()">
-                            <i class="fa-solid fa-eye"></i>
-                        </button>
-                    </div>
-                </div>
-                <button type="submit" class="btn-primary btn-block" id="btn-login-submit">
-                    Entrar <i class="fa-solid fa-arrow-right"></i>
+            <div style="margin-top: 2rem;">
+                <button onclick="window.location.href='/api/auth/signin'" class="btn-primary btn-block" style="display: flex; align-items: center; justify-content: center; gap: 0.5rem; font-size: 1.1rem; padding: 1rem; background-color: #0078D4;">
+                    <i class="fa-brands fa-microsoft"></i> Iniciar Sesión con Microsoft
                 </button>
-                <div id="login-error" class="login-error" style="display: none;">
+                <div id="login-error" class="login-error" style="display: none; margin-top: 1rem;">
                     Credenciales incorrectas. Intente de nuevo.
                 </div>
-            </form>
+            </div>
         </div>
     </div>
 
@@ -1532,24 +1497,28 @@
                                     placeholder="Ej: Juan Perez">
                             </div>
                             <div class="form-group">
-                                <label>Nombre de Usuario</label>
-                                <input type="text" id="user-username" name="username" required placeholder="Ej: juanp">
+                                <label>Correo Electrónico (Para Login con Microsoft)</label>
+                                <input type="email" id="user-email" name="email" placeholder="Ej: juan@simons.cl" required>
                             </div>
                         </div>
                         <div class="grid-2">
+                            <div class="form-group">
+                                <label>Nombre de Usuario (Interno)</label>
+                                <input type="text" id="user-username" name="username" required placeholder="Ej: juanp">
+                            </div>
                             <div class="form-group">
                                 <label>Contraseña</label>
                                 <input type="password" id="user-password" name="password"
                                     placeholder="••••••••">
                             </div>
-                            <div class="form-group">
-                                <label>Rol / Privilegios</label>
-                                <select id="user-role" name="role" required>
-                                    <option value="administrador">Administrador</option>
-                                    <option value="operador">Operador (Registro)</option>
-                                    <option value="visualización">Visualización (Lectura)</option>
-                                </select>
-                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label>Rol / Privilegios</label>
+                            <select id="user-role" name="role" required>
+                                <option value="administrador">Administrador</option>
+                                <option value="operador">Operador (Registro)</option>
+                                <option value="visualización">Visualización (Lectura)</option>
+                            </select>
                         </div>
                         <div class="form-group" style="grid-column: span 2;">
                             <label style="display: flex; justify-content: space-between; align-items: center;">
@@ -1576,6 +1545,7 @@
                                 <tr>
                                     <th>Nombre</th>
                                     <th>Usuario</th>
+                                    <th>Correo</th>
                                     <th>Rol</th>
                                     <th>Módulos</th>
                                     <th>Acciones</th>

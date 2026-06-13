@@ -19,11 +19,15 @@
   },
   "homepage": "https://github.com/richardsimons1993-arch/ContaEste#readme",
   "dependencies": {
+    "@azure/msal-node": "^5.2.4",
+    "@microsoft/microsoft-graph-client": "^3.0.7",
     "axios": "^1.13.6",
     "bcrypt": "^6.0.0",
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
+    "express-session": "^1.19.0",
+    "isomorphic-fetch": "^3.0.0",
     "mssql": "^12.2.0",
     "multer": "^2.1.1",
     "nodemailer": "^8.0.5"
