@@ -4932,7 +4932,12 @@ const UI = {
         if (!p) return;
 
         document.getElementById('close-project-id').value = id;
-        document.getElementById('close-project-amount').value = '';
+        
+        // El usuario solicitó que el monto por defecto sea el Total con IVA (Gross), 
+        // que es justamente el estimatedAmount almacenado en el proyecto.
+        const rawAmount = p.estimatedAmount || 0;
+        document.getElementById('close-project-amount').value = new Intl.NumberFormat('es-CL').format(rawAmount);
+        
         this.openModal('close-project-modal');
     },
 
