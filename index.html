@@ -116,7 +116,7 @@
                         <i class="fa-solid fa-file-invoice-dollar"></i> Cotizaciones
                     </button>
                     <button class="nav-btn" data-target="calculator">
-                        <i class="fa-solid fa-calculator"></i> Calculadora de IVA
+                        <i class="fa-solid fa-calculator"></i> Calculadora IVA
                     </button>
                 </div>
 
@@ -324,24 +324,34 @@
             <section id="calculator" class="view-section scrollable">
                 <div class="card" style="margin-top: 2rem;">
                     <div class="card-header" style="text-align: center; border-bottom: none; padding-bottom: 0;">
-                        <h2 style="color: #ec4899; letter-spacing: 1px; font-size: 1.5rem; text-transform: uppercase;">Calculadora de IVA</h2>
+                        <h2 style="color: #ec4899; letter-spacing: 1px; font-size: 1.5rem; text-transform: uppercase;">Calculadora IVA</h2>
                     </div>
                     
                     <div class="calculator-container" style="max-width: 800px; margin: 0 auto; padding: 2rem;">
                         <!-- Opciones de cálculo -->
-                        <div class="form-group" style="margin-bottom: 2rem;">
-                            <label style="font-weight: 600; color: #64748b; font-size: 0.9rem; display: block; margin-bottom: 0.8rem; text-align: left;">¿Cómo quieres calcular el IVA?</label>
-                            <select id="calc-type" style="width: 100%; padding: 1rem; border-radius: 4px; border: 1px solid #cbd5e1; font-size: 1rem; appearance: auto; background-color: #f1f5f9; color: #475569; font-weight: 600;">
-                                <option value="bruto">BRUTO</option>
-                                <option value="neto">NETO</option>
-                            </select>
+                        <div style="display: flex; gap: 1rem; margin-bottom: 2rem; flex-wrap: wrap;">
+                            <div class="form-group" style="flex: 1; min-width: 200px;">
+                                <label style="font-weight: 600; color: #64748b; font-size: 0.9rem; display: block; margin-bottom: 0.8rem; text-align: left;">Moneda</label>
+                                <select id="calc-currency" style="width: 100%; padding: 1rem; border-radius: 4px; border: 1px solid #cbd5e1; font-size: 1rem; appearance: auto; background-color: #f1f5f9; color: #475569; font-weight: 600;">
+                                    <option value="CLP">Pesos (CLP)</option>
+                                    <option value="UF">UF</option>
+                                </select>
+                                <div id="calc-uf-info" style="font-size: 0.8rem; color: #94a3b8; margin-top: 0.5rem; text-align: left; display: none;">Cargando valor UF...</div>
+                            </div>
+                            <div class="form-group" style="flex: 1; min-width: 200px;">
+                                <label style="font-weight: 600; color: #64748b; font-size: 0.9rem; display: block; margin-bottom: 0.8rem; text-align: left;">¿Cómo quieres calcular el IVA?</label>
+                                <select id="calc-type" style="width: 100%; padding: 1rem; border-radius: 4px; border: 1px solid #cbd5e1; font-size: 1rem; appearance: auto; background-color: #f1f5f9; color: #475569; font-weight: 600;">
+                                    <option value="bruto">A partir del BRUTO</option>
+                                    <option value="neto">A partir del NETO</option>
+                                </select>
+                            </div>
                         </div>
 
                         <!-- Input principal -->
                         <div class="form-group" style="margin-bottom: 3rem;">
                             <div style="position: relative; width: 100%;">
-                                <span style="position: absolute; left: 1rem; top: 50%; transform: translateY(-50%); font-size: 1.5rem; color: #ec4899; font-weight: 600;">$</span>
-                                <input type="number" id="calc-input" placeholder="0" style="width: 100%; padding: 1.5rem 1rem 1.5rem 2.5rem; font-size: 1.8rem; border: 1px solid #ec4899; border-radius: 4px; text-align: left; color: #ec4899; font-weight: 500; outline: none; background: transparent;">
+                                <span id="calc-currency-symbol" style="position: absolute; left: 1rem; top: 50%; transform: translateY(-50%); font-size: 1.5rem; color: #ec4899; font-weight: 600;">$</span>
+                                <input type="text" id="calc-input" placeholder="0" style="width: 100%; padding: 1.5rem 1rem 1.5rem 2.5rem; font-size: 1.8rem; border: 1px solid #ec4899; border-radius: 4px; text-align: left; color: #ec4899; font-weight: 500; outline: none; background: transparent;">
                             </div>
                         </div>
 
@@ -371,26 +381,92 @@
             <script>
                 document.addEventListener('DOMContentLoaded', () => {
                     const typeSelect = document.getElementById('calc-type');
+                    const currencySelect = document.getElementById('calc-currency');
                     const inputVal = document.getElementById('calc-input');
                     const resNeto = document.getElementById('calc-res-neto');
                     const resIva = document.getElementById('calc-res-iva');
                     const resTotal = document.getElementById('calc-res-total');
+                    const symbolSpan = document.getElementById('calc-currency-symbol');
+                    const ufInfo = document.getElementById('calc-uf-info');
+
+                    let currentUfValue = 0;
+
+                    async function fetchUf() {
+                        try {
+                            const res = await fetch('/api/uf');
+                            const data = await res.json();
+                            if (data.valor) {
+                                currentUfValue = data.valor;
+                                ufInfo.textContent = `Valor UF actual: $${currentUfValue.toLocaleString('es-CL')}`;
+                                calculate();
+                            } else {
+                                ufInfo.textContent = 'No se pudo cargar el valor de la UF.';
+                            }
+                        } catch (err) {
+                            ufInfo.textContent = 'Error al conectar con el servidor.';
+                        }
+                    }
+
+                    // Initial fetch so it's ready if they switch
+                    fetchUf();
+
+                    currencySelect.addEventListener('change', () => {
+                        if (currencySelect.value === 'UF') {
+                            ufInfo.style.display = 'block';
+                            symbolSpan.textContent = 'UF';
+                            inputVal.placeholder = '0,00';
+                            // Limpiar input si tenia puntos de miles
+                            inputVal.value = '';
+                        } else {
+                            ufInfo.style.display = 'none';
+                            symbolSpan.textContent = '$';
+                            inputVal.placeholder = '0';
+                            inputVal.value = '';
+                        }
+                        calculate();
+                    });
 
                     function formatMoney(num) {
                         return '$ ' + Math.round(num).toLocaleString('es-CL');
                     }
 
+                    inputVal.addEventListener('input', function(e) {
+                        if (currencySelect.value === 'CLP') {
+                            let value = this.value.replace(/\D/g, '');
+                            if (value !== '') {
+                                this.value = parseInt(value, 10).toLocaleString('es-CL');
+                            } else {
+                                this.value = '';
+                            }
+                        } else {
+                            // Si es UF, permitimos comas, puntos y números
+                            let value = this.value.replace(/[^0-9.,]/g, '');
+                            // Asegurar que solo haya un separador decimal
+                            this.value = value;
+                        }
+                        calculate();
+                    });
+
                     function calculate() {
-                        const val = parseFloat(inputVal.value) || 0;
+                        let rawVal = 0;
+                        if (currencySelect.value === 'CLP') {
+                            rawVal = parseInt(inputVal.value.replace(/\D/g, ''), 10) || 0;
+                        } else {
+                            // UF puede tener coma decimal
+                            rawVal = parseFloat(inputVal.value.replace(',', '.')) || 0;
+                            // Convertir de UF a CLP para hacer los calculos en pesos
+                            rawVal = rawVal * currentUfValue;
+                        }
+
                         const type = typeSelect.value;
-                        let neto, iva, total;
+                        let neto = 0, iva = 0, total = 0;
 
                         if (type === 'bruto') {
-                            total = val;
+                            total = rawVal;
                             neto = total / 1.19;
                             iva = total - neto;
                         } else {
-                            neto = val;
+                            neto = rawVal;
                             iva = neto * 0.19;
                             total = neto + iva;
                         }
@@ -401,7 +477,6 @@
                     }
 
                     typeSelect.addEventListener('change', calculate);
-                    inputVal.addEventListener('input', calculate);
                 });
             </script>
 
