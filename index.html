@@ -324,23 +324,23 @@
             <section id="calculator" class="view-section scrollable">
                 <div class="card" style="margin-top: 2rem;">
                     <div class="card-header" style="text-align: center; border-bottom: none; padding-bottom: 0;">
-                        <h2 style="color: #ec4899; letter-spacing: 1px; font-size: 1.5rem; text-transform: uppercase;">Calculadora IVA</h2>
+                        <h2 style="color: var(--primary-color); letter-spacing: 1px; font-size: 1.5rem; text-transform: uppercase;">Calculadora IVA</h2>
                     </div>
                     
                     <div class="calculator-container" style="max-width: 800px; margin: 0 auto; padding: 2rem;">
                         <!-- Opciones de cálculo -->
                         <div style="display: flex; gap: 1rem; margin-bottom: 2rem; flex-wrap: wrap;">
                             <div class="form-group" style="flex: 1; min-width: 200px;">
-                                <label style="font-weight: 600; color: #64748b; font-size: 0.9rem; display: block; margin-bottom: 0.8rem; text-align: left;">Moneda</label>
-                                <select id="calc-currency" style="width: 100%; padding: 1rem; border-radius: 4px; border: 1px solid #cbd5e1; font-size: 1rem; appearance: auto; background-color: #f1f5f9; color: #475569; font-weight: 600;">
+                                <label style="font-weight: 600; color: var(--text-color); font-size: 0.9rem; display: block; margin-bottom: 0.8rem; text-align: left;">Moneda</label>
+                                <select id="calc-currency" style="width: 100%; padding: 1rem; border-radius: 4px; border: 1px solid var(--border-color); font-size: 1rem; appearance: auto; background-color: var(--bg-hover); color: var(--text-color); font-weight: 600;">
                                     <option value="CLP">Pesos (CLP)</option>
                                     <option value="UF">UF</option>
                                 </select>
-                                <div id="calc-uf-info" style="font-size: 0.8rem; color: #94a3b8; margin-top: 0.5rem; text-align: left; display: none;">Cargando valor UF...</div>
+                                <div id="calc-uf-info" style="font-size: 0.8rem; color: var(--text-muted); margin-top: 0.5rem; text-align: left; display: none;">Cargando valor UF...</div>
                             </div>
                             <div class="form-group" style="flex: 1; min-width: 200px;">
-                                <label style="font-weight: 600; color: #64748b; font-size: 0.9rem; display: block; margin-bottom: 0.8rem; text-align: left;">¿Cómo quieres calcular el IVA?</label>
-                                <select id="calc-type" style="width: 100%; padding: 1rem; border-radius: 4px; border: 1px solid #cbd5e1; font-size: 1rem; appearance: auto; background-color: #f1f5f9; color: #475569; font-weight: 600;">
+                                <label style="font-weight: 600; color: var(--text-color); font-size: 0.9rem; display: block; margin-bottom: 0.8rem; text-align: left;">¿Cómo quieres calcular el IVA?</label>
+                                <select id="calc-type" style="width: 100%; padding: 1rem; border-radius: 4px; border: 1px solid var(--border-color); font-size: 1rem; appearance: auto; background-color: var(--bg-hover); color: var(--text-color); font-weight: 600;">
                                     <option value="bruto">A partir del BRUTO</option>
                                     <option value="neto">A partir del NETO</option>
                                 </select>
@@ -350,29 +350,29 @@
                         <!-- Input principal -->
                         <div class="form-group" style="margin-bottom: 3rem;">
                             <div style="position: relative; width: 100%;">
-                                <span id="calc-currency-symbol" style="position: absolute; left: 1rem; top: 50%; transform: translateY(-50%); font-size: 1.5rem; color: #ec4899; font-weight: 600;">$</span>
-                                <input type="text" id="calc-input" placeholder="0" style="width: 100%; padding: 1.5rem 1rem 1.5rem 2.5rem; font-size: 1.8rem; border: 1px solid #ec4899; border-radius: 4px; text-align: left; color: #ec4899; font-weight: 500; outline: none; background: transparent;">
+                                <span id="calc-currency-symbol" style="position: absolute; left: 1rem; top: 50%; transform: translateY(-50%); font-size: 1.5rem; color: var(--primary-color); font-weight: 600;">$</span>
+                                <input type="text" id="calc-input" placeholder="0" style="width: 100%; padding: 1.5rem 1rem 1.5rem 2.5rem; font-size: 1.8rem; border: 2px solid var(--primary-color); border-radius: 6px; text-align: left; color: var(--primary-color); font-weight: 600; outline: none; background: transparent; transition: padding 0.2s ease;">
                             </div>
                         </div>
 
                         <!-- Resultados -->
                         <div style="display: flex; justify-content: space-between; align-items: center; border-top: none; padding-top: 1rem; flex-wrap: wrap; gap: 1rem;">
                             <div style="flex: 1; min-width: 120px;">
-                                <div style="font-weight: 800; color: #334155; font-size: 0.85rem; letter-spacing: 1px; margin-bottom: 0.5rem; display: flex; align-items: center;">VALOR NETO <div style="flex: 1; height: 1px; background-color: #e2e8f0; margin-left: 10px;"></div></div>
+                                <div style="font-weight: 800; color: var(--text-color); font-size: 0.85rem; letter-spacing: 1px; margin-bottom: 0.5rem; display: flex; align-items: center;">VALOR NETO <div style="flex: 1; height: 1px; background-color: var(--border-color); margin-left: 10px;"></div></div>
                             </div>
-                            <div style="font-size: 1.1rem; font-weight: 700; color: #64748b;" id="calc-res-neto">$ 0</div>
+                            <div style="font-size: 1.1rem; font-weight: 700; color: var(--text-color);" id="calc-res-neto">$ 0</div>
                             <div style="width: 100%; height: 0;"></div> <!-- Break row on mobile theoretically, but we use flex wrap -->
 
                             <div style="flex: 1; min-width: 120px;">
-                                <div style="font-weight: 800; color: #334155; font-size: 0.85rem; letter-spacing: 1px; margin-bottom: 0.5rem; display: flex; align-items: center;">IVA <span style="font-weight: 400; color: #94a3b8; font-size: 0.75rem; margin-left: 4px;">(19%)</span> <div style="flex: 1; height: 1px; background-color: #e2e8f0; margin-left: 10px;"></div></div>
+                                <div style="font-weight: 800; color: var(--text-color); font-size: 0.85rem; letter-spacing: 1px; margin-bottom: 0.5rem; display: flex; align-items: center;">IVA <span style="font-weight: 400; color: var(--text-muted); font-size: 0.75rem; margin-left: 4px;">(19%)</span> <div style="flex: 1; height: 1px; background-color: var(--border-color); margin-left: 10px;"></div></div>
                             </div>
-                            <div style="font-size: 1.1rem; font-weight: 700; color: #64748b;" id="calc-res-iva">$ 0</div>
+                            <div style="font-size: 1.1rem; font-weight: 700; color: var(--text-color);" id="calc-res-iva">$ 0</div>
                             <div style="width: 100%; height: 0;"></div>
 
                             <div style="flex: 1; min-width: 120px;">
-                                <div style="font-weight: 800; color: #334155; font-size: 0.85rem; letter-spacing: 1px; margin-bottom: 0.5rem; display: flex; align-items: center;">TOTAL <span style="font-weight: 400; color: #94a3b8; font-size: 0.75rem; margin-left: 4px;">(valor bruto)</span> <div style="flex: 1; height: 1px; background-color: #fbcfe8; margin-left: 10px;"></div></div>
+                                <div style="font-weight: 800; color: var(--text-color); font-size: 0.85rem; letter-spacing: 1px; margin-bottom: 0.5rem; display: flex; align-items: center;">TOTAL <span style="font-weight: 400; color: var(--text-muted); font-size: 0.75rem; margin-left: 4px;">(valor bruto)</span> <div style="flex: 1; height: 2px; background-color: var(--primary-color); opacity: 0.3; margin-left: 10px;"></div></div>
                             </div>
-                            <div style="font-size: 1.1rem; font-weight: 700; color: #ec4899;" id="calc-res-total">$ 0</div>
+                            <div style="font-size: 1.2rem; font-weight: 700; color: var(--primary-color);" id="calc-res-total">$ 0</div>
                         </div>
                     </div>
                 </div>
@@ -415,12 +415,14 @@
                             ufInfo.style.display = 'block';
                             symbolSpan.textContent = 'UF';
                             inputVal.placeholder = '0,00';
+                            inputVal.style.paddingLeft = '3.8rem';
                             // Limpiar input si tenia puntos de miles
                             inputVal.value = '';
                         } else {
                             ufInfo.style.display = 'none';
                             symbolSpan.textContent = '$';
                             inputVal.placeholder = '0';
+                            inputVal.style.paddingLeft = '2.5rem';
                             inputVal.value = '';
                         }
                         calculate();
