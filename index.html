@@ -335,8 +335,9 @@
                                 <select id="calc-currency" style="width: 100%; padding: 1rem; border-radius: 4px; border: 1px solid var(--border-color); font-size: 1rem; appearance: auto; background-color: var(--bg-hover); color: var(--text-color); font-weight: 600;">
                                     <option value="CLP">Pesos (CLP)</option>
                                     <option value="UF">UF</option>
+                                    <option value="USD">Dólares (USD)</option>
                                 </select>
-                                <div id="calc-uf-info" style="font-size: 0.8rem; color: var(--text-muted); margin-top: 0.5rem; text-align: left; display: none;">Cargando valor UF...</div>
+                                <div id="calc-uf-info" style="font-size: 0.8rem; color: var(--text-muted); margin-top: 0.5rem; text-align: left; display: none;">Cargando valor...</div>
                             </div>
                             <div class="form-group" style="flex: 1; min-width: 200px;">
                                 <label style="font-weight: 600; color: var(--text-color); font-size: 0.9rem; display: block; margin-bottom: 0.8rem; text-align: left;">¿Cómo quieres calcular el IVA?</label>
@@ -390,25 +391,35 @@
                     const ufInfo = document.getElementById('calc-uf-info');
 
                     let currentUfValue = 0;
+                    let currentUsdValue = 0;
 
-                    async function fetchUf() {
+                    async function fetchRates() {
                         try {
-                            const res = await fetch('/api/uf');
+                            const res = await fetch('/api/exchange-rates');
                             const data = await res.json();
-                            if (data.valor) {
-                                currentUfValue = data.valor;
-                                ufInfo.textContent = `Valor UF actual: $${currentUfValue.toLocaleString('es-CL')}`;
+                            if (data.uf && data.dolar) {
+                                currentUfValue = data.uf;
+                                currentUsdValue = data.dolar;
+                                updateRateInfo();
                                 calculate();
                             } else {
-                                ufInfo.textContent = 'No se pudo cargar el valor de la UF.';
+                                ufInfo.textContent = 'No se pudo cargar el valor de las divisas.';
                             }
                         } catch (err) {
                             ufInfo.textContent = 'Error al conectar con el servidor.';
                         }
                     }
 
+                    function updateRateInfo() {
+                        if (currencySelect.value === 'UF') {
+                            ufInfo.textContent = `Valor UF actual: $${currentUfValue.toLocaleString('es-CL')}`;
+                        } else if (currencySelect.value === 'USD') {
+                            ufInfo.textContent = `Valor Dólar actual: $${currentUsdValue.toLocaleString('es-CL')}`;
+                        }
+                    }
+
                     // Initial fetch so it's ready if they switch
-                    fetchUf();
+                    fetchRates();
 
                     currencySelect.addEventListener('change', () => {
                         if (currencySelect.value === 'UF') {
@@ -416,8 +427,15 @@
                             symbolSpan.textContent = 'UF';
                             inputVal.placeholder = '0,00';
                             inputVal.style.paddingLeft = '3.8rem';
-                            // Limpiar input si tenia puntos de miles
                             inputVal.value = '';
+                            updateRateInfo();
+                        } else if (currencySelect.value === 'USD') {
+                            ufInfo.style.display = 'block';
+                            symbolSpan.textContent = 'USD';
+                            inputVal.placeholder = '0,00';
+                            inputVal.style.paddingLeft = '4.5rem';
+                            inputVal.value = '';
+                            updateRateInfo();
                         } else {
                             ufInfo.style.display = 'none';
                             symbolSpan.textContent = '$';
@@ -441,9 +459,8 @@
                                 this.value = '';
                             }
                         } else {
-                            // Si es UF, permitimos comas, puntos y números
+                            // Si es UF o USD, permitimos comas, puntos y números
                             let value = this.value.replace(/[^0-9.,]/g, '');
-                            // Asegurar que solo haya un separador decimal
                             this.value = value;
                         }
                         calculate();
@@ -454,10 +471,11 @@
                         if (currencySelect.value === 'CLP') {
                             rawVal = parseInt(inputVal.value.replace(/\D/g, ''), 10) || 0;
                         } else {
-                            // UF puede tener coma decimal
+                            // UF o USD pueden tener coma decimal
                             rawVal = parseFloat(inputVal.value.replace(',', '.')) || 0;
-                            // Convertir de UF a CLP para hacer los calculos en pesos
-                            rawVal = rawVal * currentUfValue;
+                            // Convertir de UF/USD a CLP para hacer los calculos en pesos
+                            const rate = currencySelect.value === 'UF' ? currentUfValue : currentUsdValue;
+                            rawVal = rawVal * rate;
                         }
 
                         const type = typeSelect.value;
