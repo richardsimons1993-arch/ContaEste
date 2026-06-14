@@ -2962,6 +2962,7 @@ const UI = {
         tbody.innerHTML = '';
         
         let totalAmount = 0;
+        let totalNetAmount = 0;
 
         const sortedDebtors = [...state.debtors].sort((a, b) => {
             let nameA = a.titular || '';
@@ -2976,7 +2977,10 @@ const UI = {
         });
 
         sortedDebtors.forEach(d => {
-            totalAmount += Number(d.amount) || 0;
+            const rawAmount = Number(d.amount) || 0;
+            const netAmount = rawAmount / 1.19;
+            totalAmount += rawAmount;
+            totalNetAmount += netAmount;
             const tr = document.createElement('tr');
             
             // Intentar encontrar si el titular es un cliente para mostrar nombre de fantasía
@@ -2990,7 +2994,8 @@ const UI = {
                 <td>${formatDate(d.date)}</td>
                 <td>${displayName}</td>
                 <td>${d.description || '-'}</td>
-                <td style="font-weight:bold; color: var(--secondary-color)">${formatCurrency(d.amount)}</td>
+                <td style="color: var(--text-muted)">${formatCurrency(netAmount)}</td>
+                <td style="font-weight:bold; color: var(--secondary-color)">${formatCurrency(rawAmount)}</td>
                 <td class="actions">
                     <button class="btn-icon text-success" title="Marcar como Pagado" onclick="UI.payDebtor('${d.id}')">
                         <i class="fa-solid fa-check"></i>
@@ -3011,6 +3016,7 @@ const UI = {
             tfoot.innerHTML = `
                 <tr>
                     <td colspan="3" style="text-align: right; font-weight: bold;">Total:</td>
+                    <td style="font-weight: bold; color: var(--text-muted);">${formatCurrency(totalNetAmount)}</td>
                     <td style="font-weight: bold; color: var(--secondary-color);">${formatCurrency(totalAmount)}</td>
                     <td></td>
                 </tr>
@@ -4672,9 +4678,13 @@ const UI = {
         filtered.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
 
         let totalEstimado = 0;
+        let totalEstimadoNeto = 0;
 
         filtered.forEach(p => {
-            totalEstimado += parseFloat(p.estimatedAmount || 0);
+            const rawEstimado = parseFloat(p.estimatedAmount || 0);
+            const netEstimado = rawEstimado / 1.19;
+            totalEstimado += rawEstimado;
+            totalEstimadoNeto += netEstimado;
             const tr = document.createElement('tr');
             tr.id = `project-row-${p.id}`;
             const clientName = this.getClientName(p.clientId);
@@ -4714,6 +4724,9 @@ const UI = {
                         ${historyHtml || '<span class="text-muted small">Sin historial</span>'}
                     </div>
                 </td>
+                <td style="color: var(--text-muted);">
+                    ${p.estimatedAmount ? formatCurrency(netEstimado) : '<span class="text-muted small">-</span>'}
+                </td>
                 <td style="font-weight: bold; color: var(--text-color);">
                     <div style="display: flex; align-items: center; justify-content: space-between; gap: 0.5rem;">
                         <span>${p.estimatedAmount ? formatCurrency(p.estimatedAmount) : '<span class="text-muted small">-</span>'}</span>
@@ -4742,6 +4755,9 @@ const UI = {
             tfoot.innerHTML = `
                 <tr style="background-color: var(--card-bg); font-weight: bold; border-top: 2px solid var(--border-color);">
                     <td colspan="2" style="text-align: right; padding: 1rem; font-weight: bold;">Total Estimado:</td>
+                    <td style="padding: 1rem; font-weight: bold; font-size: 0.95rem; color: var(--text-muted)">
+                        ${formatCurrency(totalEstimadoNeto)}
+                    </td>
                     <td style="padding: 1rem; font-weight: bold; font-size: 1.05rem; color: var(--primary-color)">
                         ${formatCurrency(totalEstimado)}
                     </td>
