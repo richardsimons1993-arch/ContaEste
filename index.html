@@ -115,6 +115,9 @@
                     <button class="nav-btn" data-target="quotations">
                         <i class="fa-solid fa-file-invoice-dollar"></i> Cotizaciones
                     </button>
+                    <button class="nav-btn" data-target="calculator">
+                        <i class="fa-solid fa-calculator"></i> Calculadora de IVA
+                    </button>
                 </div>
 
                 <!-- Módulo Proyectos (Independiente) -->
@@ -316,6 +319,91 @@
             <section id="quotations" class="view-section scrollable">
                 <div id="quotations-root"></div>
             </section>
+
+            <!-- VISTA CALCULADORA -->
+            <section id="calculator" class="view-section scrollable">
+                <div class="card" style="margin-top: 2rem;">
+                    <div class="card-header" style="text-align: center; border-bottom: none; padding-bottom: 0;">
+                        <h2 style="color: #ec4899; letter-spacing: 1px; font-size: 1.5rem; text-transform: uppercase;">Calculadora de IVA</h2>
+                    </div>
+                    
+                    <div class="calculator-container" style="max-width: 800px; margin: 0 auto; padding: 2rem;">
+                        <!-- Opciones de cálculo -->
+                        <div class="form-group" style="margin-bottom: 2rem;">
+                            <label style="font-weight: 600; color: #64748b; font-size: 0.9rem; display: block; margin-bottom: 0.8rem; text-align: left;">¿Cómo quieres calcular el IVA?</label>
+                            <select id="calc-type" style="width: 100%; padding: 1rem; border-radius: 4px; border: 1px solid #cbd5e1; font-size: 1rem; appearance: auto; background-color: #f1f5f9; color: #475569; font-weight: 600;">
+                                <option value="bruto">BRUTO</option>
+                                <option value="neto">NETO</option>
+                            </select>
+                        </div>
+
+                        <!-- Input principal -->
+                        <div class="form-group" style="margin-bottom: 3rem;">
+                            <div style="position: relative; width: 100%;">
+                                <span style="position: absolute; left: 1rem; top: 50%; transform: translateY(-50%); font-size: 1.5rem; color: #ec4899; font-weight: 600;">$</span>
+                                <input type="number" id="calc-input" placeholder="0" style="width: 100%; padding: 1.5rem 1rem 1.5rem 2.5rem; font-size: 1.8rem; border: 1px solid #ec4899; border-radius: 4px; text-align: left; color: #ec4899; font-weight: 500; outline: none; background: transparent;">
+                            </div>
+                        </div>
+
+                        <!-- Resultados -->
+                        <div style="display: flex; justify-content: space-between; align-items: center; border-top: none; padding-top: 1rem; flex-wrap: wrap; gap: 1rem;">
+                            <div style="flex: 1; min-width: 120px;">
+                                <div style="font-weight: 800; color: #334155; font-size: 0.85rem; letter-spacing: 1px; margin-bottom: 0.5rem; display: flex; align-items: center;">VALOR NETO <div style="flex: 1; height: 1px; background-color: #e2e8f0; margin-left: 10px;"></div></div>
+                            </div>
+                            <div style="font-size: 1.1rem; font-weight: 700; color: #64748b;" id="calc-res-neto">$ 0</div>
+                            <div style="width: 100%; height: 0;"></div> <!-- Break row on mobile theoretically, but we use flex wrap -->
+
+                            <div style="flex: 1; min-width: 120px;">
+                                <div style="font-weight: 800; color: #334155; font-size: 0.85rem; letter-spacing: 1px; margin-bottom: 0.5rem; display: flex; align-items: center;">IVA <span style="font-weight: 400; color: #94a3b8; font-size: 0.75rem; margin-left: 4px;">(19%)</span> <div style="flex: 1; height: 1px; background-color: #e2e8f0; margin-left: 10px;"></div></div>
+                            </div>
+                            <div style="font-size: 1.1rem; font-weight: 700; color: #64748b;" id="calc-res-iva">$ 0</div>
+                            <div style="width: 100%; height: 0;"></div>
+
+                            <div style="flex: 1; min-width: 120px;">
+                                <div style="font-weight: 800; color: #334155; font-size: 0.85rem; letter-spacing: 1px; margin-bottom: 0.5rem; display: flex; align-items: center;">TOTAL <span style="font-weight: 400; color: #94a3b8; font-size: 0.75rem; margin-left: 4px;">(valor bruto)</span> <div style="flex: 1; height: 1px; background-color: #fbcfe8; margin-left: 10px;"></div></div>
+                            </div>
+                            <div style="font-size: 1.1rem; font-weight: 700; color: #ec4899;" id="calc-res-total">$ 0</div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+            
+            <script>
+                document.addEventListener('DOMContentLoaded', () => {
+                    const typeSelect = document.getElementById('calc-type');
+                    const inputVal = document.getElementById('calc-input');
+                    const resNeto = document.getElementById('calc-res-neto');
+                    const resIva = document.getElementById('calc-res-iva');
+                    const resTotal = document.getElementById('calc-res-total');
+
+                    function formatMoney(num) {
+                        return '$ ' + Math.round(num).toLocaleString('es-CL');
+                    }
+
+                    function calculate() {
+                        const val = parseFloat(inputVal.value) || 0;
+                        const type = typeSelect.value;
+                        let neto, iva, total;
+
+                        if (type === 'bruto') {
+                            total = val;
+                            neto = total / 1.19;
+                            iva = total - neto;
+                        } else {
+                            neto = val;
+                            iva = neto * 0.19;
+                            total = neto + iva;
+                        }
+
+                        resNeto.textContent = formatMoney(neto);
+                        resIva.textContent = formatMoney(iva);
+                        resTotal.textContent = formatMoney(total);
+                    }
+
+                    typeSelect.addEventListener('change', calculate);
+                    inputVal.addEventListener('input', calculate);
+                });
+            </script>
 
             <!-- VISTA INFORMES (React Container) -->
             <section id="reports" class="view-section scrollable">
@@ -1505,11 +1593,6 @@
                             <div class="form-group">
                                 <label>Nombre de Usuario (Interno)</label>
                                 <input type="text" id="user-username" name="username" required placeholder="Ej: juanp">
-                            </div>
-                            <div class="form-group">
-                                <label>Contraseña</label>
-                                <input type="password" id="user-password" name="password"
-                                    placeholder="••••••••">
                             </div>
                         </div>
                         <div class="form-group">

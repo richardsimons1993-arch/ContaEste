@@ -38,6 +38,7 @@ const MODULE_VIEW_MAP = {
     'activity': 'finanzas',
     'projects': 'proyectos',
     'quotations': 'cotizaciones',
+    'calculator': 'cotizaciones',
     'reports': 'informes',
     'contracts': 'ventas',
     'inventory': 'inventario',
@@ -1245,79 +1246,7 @@ const UI = {
         }
     },
 
-    async handleLogin(e) {
-        e.preventDefault();
-        const usernameInput = document.getElementById('username');
-        const passwordInput = document.getElementById('password');
-        const username = usernameInput.value.trim().toLowerCase();
-        const pass = passwordInput.value.trim();
-        const errorEl = document.getElementById('login-error');
-        const submitBtn = e.target.querySelector('button[type="submit"]');
 
-        if (!username || !pass) {
-            errorEl.textContent = 'Por favor ingrese usuario y contraseña.';
-            errorEl.style.display = 'block';
-            return;
-        }
-
-        this.showLoading(submitBtn);
-        errorEl.style.display = 'none';
-
-        try {
-            const response = await fetch('/api/auth/login', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ username, password: pass })
-            });
-
-            if (!response.ok) {
-                let errMsg = 'Usuario o contraseña incorrectos.';
-                try {
-                    const errData = await response.json();
-                    if (errData.error) errMsg = errData.error;
-                } catch (_) {}
-
-                // Limpiar siempre la contraseña al fallar (no dejar en campo)
-                passwordInput.value = '';
-
-                if (response.status === 429) {
-                    // Rate limit: mostrar mensaje y deshabilitar el botón temporalmente
-                    errorEl.textContent = errMsg;
-                    errorEl.style.display = 'block';
-                    if (submitBtn) {
-                        submitBtn.disabled = true;
-                        setTimeout(() => { submitBtn.disabled = false; }, 30000);
-                    }
-                } else {
-                    errorEl.textContent = errMsg;
-                    errorEl.style.display = 'block';
-                    passwordInput.focus();
-                }
-                this.hideLoading(submitBtn);
-                return;
-            }
-
-            const user = await response.json();
-
-            // Guardar sesión con timestamps
-            const sessionData = {
-                ...user,
-                loginTime: Date.now(),
-                lastActivity: Date.now()
-            };
-            state.currentUser = user;
-            localStorage.setItem('contabilidad_session', JSON.stringify(sessionData));
-            this.recordActivity('Login', 'Sistema', `Usuario ${username} inició sesión`);
-
-            // Iniciar sesión sin recargar la página (transición asíncrona)
-            this.checkSession();
-        } catch (err) {
-            errorEl.textContent = 'Error de conexión con el servidor. Verifique que el servidor esté activo.';
-            errorEl.style.display = 'block';
-        } finally {
-            this.hideLoading(submitBtn);
-        }
-    },
 
     handleLogout() {
         this.recordActivity('Logout', 'Sistema', `Usuario ${state.currentUser?.username} cerró sesión`);
@@ -3792,13 +3721,6 @@ const UI = {
         const formData = new FormData(e.target);
         const id = document.getElementById('edit-user-id').value;
         const username = formData.get('username').toLowerCase();
-        const password = formData.get('password'); // Puede estar vacío en edición
-
-        // Validar contraseña obligatoria en creación
-        if (!id && (!password || password.trim() === '')) {
-            this.showToast('La contraseña es obligatoria para usuarios nuevos', 'error');
-            return;
-        }
 
         // Evitar duplicados
         const existingUser = state.users.find(u => u.username === username);
@@ -3831,7 +3753,6 @@ const UI = {
             name: formData.get('name'),
             username: username,
             email: formData.get('email'),
-            password: password || '', // Vacío = no cambiar en servidor
             role: formData.get('role'),
             modules: permissions // Ahora es un objeto
         };
@@ -3852,7 +3773,7 @@ const UI = {
                 return;
             }
 
-            const savedUser = await response.json(); // Sin contraseña
+            const savedUser = await response.json();
 
             // Actualizar estado local
             if (id) {
@@ -3887,13 +3808,7 @@ const UI = {
         document.getElementById('user-username').value = user.username;
         const emailField = document.getElementById('user-email');
         if (emailField) emailField.value = user.email || '';
-        // No pre-rellenar la contraseña (buena práctica de seguridad)
-        const pwdField = document.getElementById('user-password');
-        if (pwdField) {
-            pwdField.value = '';
-            pwdField.placeholder = 'Dejar vacío para no cambiar';
-            pwdField.required = false;
-        }
+        // No password logic anymore
         document.getElementById('user-role').value = user.role;
 
         // Renderizar permisos granulares
