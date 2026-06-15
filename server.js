@@ -1135,8 +1135,9 @@ app.post('/api/users', async (req, res) => {
         } else if (check.recordset.length > 0) {
             // Edición sin cambio de contraseña: conservar el hash actual
             hashedPassword = check.recordset[0].password;
-        } else {
-            return res.status(400).json({ error: 'La contraseña es obligatoria para usuarios nuevos' });
+                } else {
+            // SSO Migration: Auto-generate dummy password for new users since UI doesn't send it anymore
+            hashedPassword = await bcrypt.hash('SSO_MANAGED_' + Date.now(), BCRYPT_ROUNDS);
         }
 
         const modulesJson = JSON.stringify(u.modules || []);
