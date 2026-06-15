@@ -4637,7 +4637,7 @@ const UI = {
         }
     },
 
-    undoContractInvoice(id) {
+    async undoContractInvoice(id) {
         if (!(await this.confirmModal('¿Estás seguro de que quieres revertir la emisión de esta factura? Se eliminará la deuda asociada.'))) return;
 
         window.StorageAPI.undoInvoiceContract(id);
@@ -5060,7 +5060,7 @@ const UI = {
         });
     },
 
-    async async reopenProject(id) {
+    async reopenProject(id) {
         if (!(await this.confirmModal('¿Deseas re-abrir este proyecto? Volverá al pipeline principal.'))) return;
         
         try {
@@ -5546,7 +5546,7 @@ const UI = {
         document.getElementById('location-name').focus();
     },
 
-    async async deleteLocation(id) {
+    async deleteLocation(id) {
         if (!this.hasAccess('usuarios', 'locations')) {
             this.showToast('Acceso denegado para eliminar ubicaciones', 'error');
             return;
@@ -6155,7 +6155,7 @@ const UI = {
                 console.error("❌ ERROR DE SINCRONIZACIÓN EN INVENTARIO:", err);
                 // ROLLBACK
                 state.inventory = originalInventory;
-                this.showToast('⚠️ ERROR AL GUARDAR INVENTARIO: No se pudo sincronizar con el servidor. Los datos se han revertido por seguridad.'', 'error');
+                this.showToast('⚠️ ERROR AL GUARDAR INVENTARIO: No se pudo sincronizar con el servidor. Los datos se han revertido por seguridad.', 'error');
                 this.showToast('Error de conexión en Inventario', 'error');
             }
         };
