@@ -175,7 +175,7 @@ const KeepApp = () => {
   };
 
   const emptyTrash = async () => {
-    if (!confirm("¿Deseas vaciar la papelera para siempre?")) return;
+    if (!(await window.UI.confirmModal("¿Deseas vaciar la papelera para siempre?"))) return;
     const trashIds = notes.filter(n => n.deleted).map(n => n.id);
     for (const id of trashIds) {
         await StorageAPI.async.deleteNote(id);

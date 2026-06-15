@@ -2922,9 +2922,9 @@ const UI = {
         }
     },
 
-    deleteSupplier(id) {
+    async deleteSupplier(id) {
         if (state.currentUser.role !== ROLES.ADMIN) return;
-        if (!confirm('¿Estás seguro de que quieres eliminar este proveedor?')) return;
+        if (!(await this.confirmModal('¿Estás seguro de que quieres eliminar este proveedor?'))) return;
 
         const supplier = state.suppliers.find(s => s.id === id);
         window.StorageAPI.deleteSupplier(id);
@@ -3395,7 +3395,7 @@ const UI = {
 
     async handleTransactionDelete(id) {
         if (state.currentUser.role !== ROLES.ADMIN) return;
-        if (!confirm('¿Estás seguro de que quieres eliminar este movimiento?')) return;
+        if (!(await this.confirmModal('¿Estás seguro de que quieres eliminar este movimiento?'))) return;
 
         const tx = state.transactions.find(t => t.id === id);
         const concept = state.concepts.find(c => c.id === tx?.conceptId);
@@ -4638,7 +4638,7 @@ const UI = {
     },
 
     undoContractInvoice(id) {
-        if (!confirm('¿Estás seguro de que quieres revertir la emisión de esta factura? Se eliminará la deuda asociada.')) return;
+        if (!(await this.confirmModal('¿Estás seguro de que quieres revertir la emisión de esta factura? Se eliminará la deuda asociada.'))) return;
 
         window.StorageAPI.undoInvoiceContract(id);
         this.showToast('Emisión revertida con éxito', 'info');
@@ -4882,7 +4882,7 @@ const UI = {
     async deleteProjectHistory(historyId, projectId, e) {
         if (e) e.stopPropagation();
         console.log('UI.deleteProjectHistory llamado:', { historyId, projectId });
-        if (!confirm('¿Estás seguro de que quieres eliminar este registro del historial?')) return;
+        if (!(await this.confirmModal('¿Estás seguro de que quieres eliminar este registro del historial?'))) return;
 
         try {
             // Obtener el registro antes de borrar para el log/undo
@@ -5060,8 +5060,8 @@ const UI = {
         });
     },
 
-    async reopenProject(id) {
-        if (!confirm('¿Deseas re-abrir este proyecto? Volverá al pipeline principal.')) return;
+    async async reopenProject(id) {
+        if (!(await this.confirmModal('¿Deseas re-abrir este proyecto? Volverá al pipeline principal.'))) return;
         
         try {
             const p = state.projects.find(proj => proj.id === id);
@@ -5176,9 +5176,9 @@ const UI = {
         if (cancelBtn) cancelBtn.style.display = 'inline-block';
     },
 
-    deleteProject(id) {
+    async deleteProject(id) {
         if (state.currentUser.role !== ROLES.ADMIN) return;
-        if (!confirm('¿Estás seguro de que quieres eliminar este registro de proyecto?')) return;
+        if (!(await this.confirmModal('¿Estás seguro de que quieres eliminar este registro de proyecto?'))) return;
 
         const p = state.projects.find(proj => proj.id === id);
         if (!p) return;
@@ -5297,7 +5297,7 @@ const UI = {
 
     initDatePickers() {
         if (typeof flatpickr !== 'undefined') {
-            flatpickr('input[type="date"], .datepicker', {
+            flatpickr('input[type="date"], .datepicker', { locale: 'es',
                 locale: 'es',
                 dateFormat: 'Y-m-d',
                 altInput: true,
@@ -5331,7 +5331,7 @@ const UI = {
             // Month picker para filtros (Principal)
             const filterMonthEl = document.getElementById('filter-month');
             if (filterMonthEl) {
-                flatpickr(filterMonthEl, {
+                flatpickr(filterMonthEl, { locale: 'es',
                     locale: 'es',
                     altInput: true,
                     altInputClass: "form-control",
@@ -5363,7 +5363,7 @@ const UI = {
             // Month pickers para Historiales en Alertas
             const contractHistMonth = document.getElementById('filter-contracts-history-month');
             if (contractHistMonth) {
-                flatpickr(contractHistMonth, {
+                flatpickr(contractHistMonth, { locale: 'es',
                     locale: 'es',
                     altInput: true,
                     altInputClass: "form-control",
@@ -5377,7 +5377,7 @@ const UI = {
 
             const opHistMonth = document.getElementById('filter-op-history-month');
             if (opHistMonth) {
-                flatpickr(opHistMonth, {
+                flatpickr(opHistMonth, { locale: 'es',
                     locale: 'es',
                     altInput: true,
                     altInputClass: "form-control",
@@ -5546,12 +5546,12 @@ const UI = {
         document.getElementById('location-name').focus();
     },
 
-    async deleteLocation(id) {
+    async async deleteLocation(id) {
         if (!this.hasAccess('usuarios', 'locations')) {
             this.showToast('Acceso denegado para eliminar ubicaciones', 'error');
             return;
         }
-        if (!confirm('¿Está seguro de eliminar esta ubicación?')) return;
+        if (!(await this.confirmModal('¿Está seguro de eliminar esta ubicación?'))) return;
         try {
             await window.StorageAPI.async.deleteAppLocation(id);
             this.showToast('Ubicación eliminada', 'success');
@@ -5893,7 +5893,7 @@ const UI = {
     },
 
     async handleOperationalDelete(id) {
-        if (!confirm('¿Está seguro de eliminar este gasto recurrente?')) return;
+        if (!(await this.confirmModal('¿Está seguro de eliminar este gasto recurrente?'))) return;
         try {
             await window.StorageAPI.async.deleteOperationalExpense(id);
             this.showToast('Gasto eliminado', 'success');
@@ -6004,7 +6004,7 @@ const UI = {
     },
 
     async deleteAvailable(id) {
-        if (!confirm('¿Está seguro de eliminar este registro de activo disponible?')) return;
+        if (!(await this.confirmModal('¿Está seguro de eliminar este registro de activo disponible?'))) return;
         try {
             await window.StorageAPI.async.deleteAvailable(id);
             this.showToast('Activo eliminado', 'success');
@@ -6155,7 +6155,7 @@ const UI = {
                 console.error("❌ ERROR DE SINCRONIZACIÓN EN INVENTARIO:", err);
                 // ROLLBACK
                 state.inventory = originalInventory;
-                alert('⚠️ ERROR AL GUARDAR INVENTARIO: No se pudo sincronizar con el servidor. Los datos se han revertido por seguridad.');
+                this.showToast('⚠️ ERROR AL GUARDAR INVENTARIO: No se pudo sincronizar con el servidor. Los datos se han revertido por seguridad.'', 'error');
                 this.showToast('Error de conexión en Inventario', 'error');
             }
         };
@@ -6164,7 +6164,7 @@ const UI = {
     },
 
     async deleteInventory(id) {
-        if (!confirm('¿Está seguro de eliminar este registro de inventario?')) return;
+        if (!(await this.confirmModal('¿Está seguro de eliminar este registro de inventario?'))) return;
         const item = state.inventory.find(i => i.id === id);
         try {
             if (item) {
@@ -6475,7 +6475,7 @@ const UI = {
     },
 
     async deleteCRMLead(id) {
-        if (!confirm('¿Está seguro de eliminar este prospecto? Se borrará también su historial de llamadas.')) return;
+        if (!(await this.confirmModal('¿Está seguro de eliminar este prospecto? Se borrará también su historial de llamadas.'))) return;
 
         try {
             await window.StorageAPI.async.deleteCRMProspecto(id);
@@ -6900,7 +6900,7 @@ const UI = {
             return this.showToast('No hay destinatarios válidos con email para este filtro', 'warning');
         }
 
-        if (!confirm(`¿Está seguro de enviar este correo a ${recipients.length} prospectos?`)) return;
+        if (!(await this.confirmModal(`¿Está seguro de enviar este correo a ${recipients.length} prospectos?`))) return;
 
         // --- PREPARACIÓN FINAL DEL HTML ---
         const tempDiv = document.createElement('div');

@@ -2259,6 +2259,21 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="storage.js?v=2"></script>
     <script src="app.js?v=40"></script>
+    <!-- CUSTOM CONFIRM MODAL -->
+    <div id="custom-confirm-modal" class="modal-overlay" style="display: none; z-index: 10000;">
+        <div class="modal-card" style="max-width: 400px; text-align: center;">
+            <div class="modal-header" style="border-bottom: none; justify-content: center; padding-bottom: 0;">
+                <h3 style="font-size: 1.5rem; color: var(--text-color);"><i class="fa-solid fa-circle-question text-primary" style="font-size: 2rem; display: block; margin-bottom: 1rem;"></i>Confirmación</h3>
+            </div>
+            <div class="modal-body" style="padding-top: 0;">
+                <p id="custom-confirm-message" style="margin-bottom: 1.5rem; color: var(--text-muted); font-size: 1.05rem;">¿Estás seguro?</p>
+                <div style="display: flex; gap: 1rem; justify-content: center;">
+                    <button type="button" class="btn-text" id="custom-confirm-cancel">Cancelar</button>
+                    <button type="button" class="btn-primary" id="custom-confirm-ok">Aceptar</button>
+                </div>
+            </div>
+        </div>
+    </div>
 </body>
 
 </html>
