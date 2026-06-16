@@ -24,20 +24,19 @@
         .view-section.scrollable { overflow-y: auto; max-height: calc(100vh - 100px); }
     </style>
     <!-- Flatpickr (Calendario) -->
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/plugins/monthSelect/style.css">
+    <link rel="stylesheet" href="vendor/flatpickr.js/dist/flatpickr.min.css">
+    <link rel="stylesheet" href="vendor/flatpickr.js/dist/plugins/monthSelect/style.css">
     <!-- SheetJS (Excel) -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="vendor/xlsx.full.min.js"></script>
     <!-- jsPDF & AutoTable (PDF) -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.1/jspdf.plugin.autotable.min.js"></script>
+    <script src="vendor/jspdf.umd.min.js"></script>
+    <script src="vendor/jspdf.plugin.autotable.min.js"></script>
     
     <!-- React & ReactDOM (UMD) -->
-    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="vendor/react.production.min.js"></script>
+    <script src="vendor/react-dom.production.min.js"></script>
     <!-- Tailwind CSS (Play CDN) -->
-    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="vendor/tailwindcss.js"></script>
     <script>
         tailwind.config = {
           prefix: 'tw-', // Prefix to avoid conflicts with existing CSS
@@ -53,10 +52,10 @@
         }
     </script>
     <!-- pdfmake for Cotizaciones -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/pdfmake.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/vfs_fonts.js"></script>
+    <script src="vendor/pdfmake.min.js"></script>
+    <script src="vendor/vfs_fonts.js"></script>
     <!-- Babel for JSX -->
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="vendor/babel.min.js"></script>
     <script type="text/babel" src="notas.js?v=20260605_01"></script>
     <script type="text/babel" src="cotizaciones.js?v=20260609_05"></script>
     <script type="text/babel" src="informes.js?v=20260609_05"></script>
@@ -2257,10 +2256,10 @@
 
     <!-- Scripts -->
 
-    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
-    <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/es.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/plugins/monthSelect/index.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js/dist/chart.umd.js"></script>
+    <script src="vendor/flatpickr.js"></script>
+    <script src="vendor/flatpickr-es.js"></script>
+    <script src="vendor/flatpickr-monthSelect.js"></script>
+    <script src="vendor/chart.umd.js"></script>
     <script src="storage.js?v=2"></script>
     <script src="app.js?v=40"></script>
     <!-- CUSTOM CONFIRM MODAL -->
