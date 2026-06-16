@@ -358,6 +358,12 @@
                             </div>
                         </div>
 
+                        <!-- Fila de Valor Manual si la API falla -->
+                        <div id="manual-rate-container" class="form-group" style="display: none; margin-bottom: 2rem;">
+                            <label id="manual-rate-label" style="font-weight: 600; color: var(--text-color); font-size: 0.9rem; display: block; margin-bottom: 0.8rem; text-align: left;">Valor de la UF en Pesos</label>
+                            <input type="text" id="manual-rate-input" placeholder="Ej: 37500" style="width: 100%; padding: 1rem; border-radius: 4px; border: 1px solid var(--border-color); font-size: 1rem; background-color: var(--bg-hover); color: var(--text-color); font-weight: 600;">
+                        </div>
+
                         <!-- Input principal -->
                         <div class="form-group" style="margin-bottom: 3rem;">
                             <div style="position: relative; width: 100%;">
@@ -402,29 +408,57 @@
 
                     let currentUfValue = 0;
                     let currentUsdValue = 0;
+                    let ratesFailed = false;
 
                     async function fetchRates() {
                         try {
                             const res = await fetch('/api/exchange-rates');
                             const data = await res.json();
-                            if (data.uf && data.dolar) {
+                            if (data.uf && data.dolar && !data.ufApiFailed && !data.dolarApiFailed) {
                                 currentUfValue = data.uf;
                                 currentUsdValue = data.dolar;
+                                ratesFailed = false;
                                 updateRateInfo();
                                 calculate();
                             } else {
-                                ufInfo.textContent = 'No se pudo cargar el valor de las divisas.';
+                                ratesFailed = true;
+                                updateRateInfo();
                             }
                         } catch (err) {
-                            ufInfo.textContent = 'Error al conectar con el servidor.';
+                            ratesFailed = true;
+                            updateRateInfo();
                         }
                     }
 
                     function updateRateInfo() {
-                        if (currencySelect.value === 'UF') {
-                            ufInfo.textContent = `Valor UF actual: $${currentUfValue.toLocaleString('es-CL')}`;
-                        } else if (currencySelect.value === 'USD') {
-                            ufInfo.textContent = `Valor Dólar actual: $${currentUsdValue.toLocaleString('es-CL')}`;
+                        const currency = currencySelect.value;
+                        const manualContainer = document.getElementById('manual-rate-container');
+                        const manualLabel = document.getElementById('manual-rate-label');
+                        const manualInput = document.getElementById('manual-rate-input');
+
+                        if (currency === 'CLP') {
+                            ufInfo.style.display = 'none';
+                            if (manualContainer) manualContainer.style.display = 'none';
+                        } else {
+                            if (ratesFailed) {
+                                ufInfo.style.display = 'block';
+                                ufInfo.style.color = 'var(--danger-color)';
+                                ufInfo.textContent = `⚠️ No se pudo obtener el valor automático. Ingrese el valor manual del ${currency} abajo:`;
+                                if (manualContainer) {
+                                    manualContainer.style.display = 'block';
+                                    manualLabel.textContent = `Valor de la ${currency} en Pesos (CLP)`;
+                                    manualInput.placeholder = currency === 'UF' ? 'Ej: 37500' : 'Ej: 950';
+                                }
+                            } else {
+                                ufInfo.style.display = 'block';
+                                ufInfo.style.color = 'var(--text-muted)';
+                                if (manualContainer) manualContainer.style.display = 'none';
+                                if (currency === 'UF') {
+                                    ufInfo.textContent = `Valor UF actual: $${currentUfValue.toLocaleString('es-CL')}`;
+                                } else if (currency === 'USD') {
+                                    ufInfo.textContent = `Valor Dólar actual: $${currentUsdValue.toLocaleString('es-CL')}`;
+                                }
+                            }
                         }
                     }
 
@@ -432,6 +466,9 @@
                     fetchRates();
 
                     currencySelect.addEventListener('change', () => {
+                        const manualInput = document.getElementById('manual-rate-input');
+                        if (manualInput) manualInput.value = '';
+                        
                         if (currencySelect.value === 'UF') {
                             ufInfo.style.display = 'block';
                             symbolSpan.textContent = 'UF';
@@ -452,6 +489,7 @@
                             inputVal.placeholder = '0';
                             inputVal.style.paddingLeft = '2.5rem';
                             inputVal.value = '';
+                            updateRateInfo();
                         }
                         calculate();
                     });
@@ -469,22 +507,34 @@
                                 this.value = '';
                             }
                         } else {
-                            // Si es UF o USD, permitimos comas, puntos y números
                             let value = this.value.replace(/[^0-9.,]/g, '');
                             this.value = value;
                         }
                         calculate();
                     });
 
+                    const manualInput = document.getElementById('manual-rate-input');
+                    if (manualInput) {
+                        manualInput.addEventListener('input', function() {
+                            this.value = this.value.replace(/\D/g, '');
+                            calculate();
+                        });
+                    }
+
                     function calculate() {
                         let rawVal = 0;
                         if (currencySelect.value === 'CLP') {
                             rawVal = parseInt(inputVal.value.replace(/\D/g, ''), 10) || 0;
                         } else {
-                            // UF o USD pueden tener coma decimal
                             rawVal = parseFloat(inputVal.value.replace(',', '.')) || 0;
-                            // Convertir de UF/USD a CLP para hacer los calculos en pesos
-                            const rate = currencySelect.value === 'UF' ? currentUfValue : currentUsdValue;
+                            
+                            let rate = 0;
+                            if (ratesFailed) {
+                                const manualInput = document.getElementById('manual-rate-input');
+                                rate = parseFloat(manualInput.value.replace(/\D/g, '')) || 0;
+                            } else {
+                                rate = currencySelect.value === 'UF' ? currentUfValue : currentUsdValue;
+                            }
                             rawVal = rawVal * rate;
                         }
 

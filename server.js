@@ -202,8 +202,8 @@ setInterval(() => {
 
 // Memoria caché para tipos de cambio (duración de 1 hora)
 let ratesCache = {
-    uf: { value: null, timestamp: 0 },
-    dolar: { value: null, timestamp: 0 }
+    uf: { value: null, timestamp: 0, apiFailed: false },
+    dolar: { value: null, timestamp: 0, apiFailed: false }
 };
 const CACHE_DURATION_MS = 60 * 60 * 1000;
 
@@ -217,12 +217,14 @@ async function fetchUF() {
         const response = await axios.get('https://mindicador.cl/api/uf', { timeout: 5000 });
         if (response.data && response.data.serie && response.data.serie.length > 0) {
             const val = response.data.serie[0].valor;
-            ratesCache.uf = { value: val, timestamp: now };
+            ratesCache.uf = { value: val, timestamp: now, apiFailed: false };
             console.log(`[API] UF obtenida de mindicador.cl: ${val}`);
             return val;
         }
+        throw new Error('Formato de respuesta inválido de UF');
     } catch (error) {
         console.error('Error fetching UF from mindicador.cl:', error.message);
+        ratesCache.uf.apiFailed = true;
     }
     return ratesCache.uf.value || 37800; // Retornar fallback
 }
@@ -237,12 +239,14 @@ async function fetchDolar() {
         const response = await axios.get('https://mindicador.cl/api/dolar', { timeout: 5000 });
         if (response.data && response.data.serie && response.data.serie.length > 0) {
             const val = response.data.serie[0].valor;
-            ratesCache.dolar = { value: val, timestamp: now };
+            ratesCache.dolar = { value: val, timestamp: now, apiFailed: false };
             console.log(`[API] Dolar obtenido de mindicador.cl: ${val}`);
             return val;
         }
+        throw new Error('Formato de respuesta inválido de Dólar');
     } catch (error) {
         console.error('Error fetching Dolar from mindicador.cl:', error.message);
+        ratesCache.dolar.apiFailed = true;
     }
     return ratesCache.dolar.value || 950; // Retornar fallback
 }
@@ -1576,7 +1580,12 @@ app.get('/api/uf', async (req, res) => {
 app.get('/api/exchange-rates', async (req, res) => {
     const uf = await fetchUF();
     const dolar = await fetchDolar();
-    res.json({ uf: uf || 37700, dolar: dolar || 950 });
+    res.json({ 
+        uf: uf || 37700, 
+        dolar: dolar || 950,
+        ufApiFailed: ratesCache.uf.apiFailed,
+        dolarApiFailed: ratesCache.dolar.apiFailed
+    });
 });
 
 app.get('/api/contracts/pending', async (req, res) => {
