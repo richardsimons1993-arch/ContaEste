@@ -3417,6 +3417,36 @@ const UI = {
 
     // --- SISTEMA DE DESHACER (UNDO) ---
 
+    confirmModal(message) {
+        return new Promise((resolve) => {
+            const modal = document.getElementById('custom-confirm-modal');
+            const messageEl = document.getElementById('custom-confirm-message');
+            const okBtn = document.getElementById('custom-confirm-ok');
+            const cancelBtn = document.getElementById('custom-confirm-cancel');
+
+            if (!modal || !messageEl || !okBtn || !cancelBtn) {
+                resolve(confirm(message));
+                return;
+            }
+
+            messageEl.textContent = message;
+            modal.style.display = 'flex';
+
+            const cleanUp = (value) => {
+                okBtn.removeEventListener('click', onOk);
+                cancelBtn.removeEventListener('click', onCancel);
+                modal.style.display = 'none';
+                resolve(value);
+            };
+
+            const onOk = () => cleanUp(true);
+            const onCancel = () => cleanUp(false);
+
+            okBtn.addEventListener('click', onOk);
+            cancelBtn.addEventListener('click', onCancel);
+        });
+    },
+
     showToast(message, type = 'info') {
         const container = document.getElementById('toast-container');
         if (!container) return;
