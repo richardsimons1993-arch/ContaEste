@@ -12,7 +12,6 @@ validate_persistence.js
 package-lock.json
 scratch/
 temp_parse/
-vendor/
 daemon/*.log
 uploads/
 temp_pdfs/
