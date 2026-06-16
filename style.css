@@ -170,6 +170,7 @@ aside {
     z-index: 100;
     overflow-y: auto;
     overflow-x: hidden;
+    overflow-x: hidden;
     scrollbar-width: thin;
 }
 

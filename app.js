@@ -1190,7 +1190,6 @@ const UI = {
                     console.warn("Sesión expirada por inactividad");
                     localStorage.removeItem('contabilidad_session');
                     document.body.classList.add('login-pending');
-                    document.body.classList.remove('dark-mode');
                     const errorEl = document.getElementById('login-error');
                     if (errorEl) {
                         errorEl.textContent = 'Sesión expirada por inactividad. Por favor ingrese nuevamente.';
@@ -1220,12 +1219,10 @@ const UI = {
                 console.error("Error al parsear sesión guardada:", e);
                 localStorage.removeItem('contabilidad_session');
                 document.body.classList.add('login-pending');
-                document.body.classList.remove('dark-mode');
             }
         } else {
             console.log("No hay sesión guardada. Solicitando login...");
             document.body.classList.add('login-pending');
-            document.body.classList.remove('dark-mode');
 
             // Mostrar mensaje de aviso de cierre de sesión si existe
             const logoutMsg = sessionStorage.getItem('logout_message');
@@ -1417,7 +1414,7 @@ const UI = {
 
     initTheme() {
         const savedTheme = localStorage.getItem('contabilidad_theme') || 'light';
-        if (savedTheme === 'dark' && !document.body.classList.contains('login-pending')) {
+        if (savedTheme === 'dark') {
             document.body.classList.add('dark-mode');
             this.updateThemeIcon(true);
         } else {
