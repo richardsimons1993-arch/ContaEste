@@ -2175,7 +2175,7 @@ const UI = {
                 <td>${conceptName}</td>
                 <td>${titularName}</td>
                 <td>${t.observation || '-'}</td>
-                <td style="font-weight: bold; color: ${t.type === 'income' ? 'var(--secondary-color)' : 'var(--danger-color)'}">
+                <td style="font-weight: bold; white-space: nowrap; color: ${t.type === 'income' ? 'var(--secondary-color)' : 'var(--danger-color)'}">
                     ${t.type === 'income' ? '+' : '-'} ${formatCurrency(t.amount)}
                 </td>
                 ${canRegister ? `
@@ -2197,7 +2197,7 @@ const UI = {
             tfoot.innerHTML = `
                 <tr>
                     <td colspan="5" style="text-align: right; font-weight: bold; color: var(--text-muted); padding-right: 1rem;">Total:</td>
-                    <td style="font-weight: bold; font-size: 1.1rem; color: ${totalSum >= 0 ? 'var(--secondary-color)' : 'var(--danger-color)'}">
+                    <td style="font-weight: bold; font-size: 1.1rem; white-space: nowrap; color: ${totalSum >= 0 ? 'var(--secondary-color)' : 'var(--danger-color)'}">
                         ${formatCurrency(Math.abs(totalSum))}
                     </td>
                     ${canRegister ? '<td></td>' : ''}
@@ -2648,7 +2648,7 @@ const UI = {
                 <td>${formatDate(d.dueDate || d.date)}</td>
                 <td>${supplierTitle}</td>
                 <td>${conceptTitle}</td>
-                <td style="font-weight:bold; color: var(--danger-color)">${formatCurrency(d.amount)}</td>
+                <td style="font-weight:bold; white-space: nowrap; color: var(--danger-color)">${formatCurrency(d.amount)}</td>
                 <td>${d.description || '-'}</td>
                 <td class="actions">
                     <button class="btn-icon text-success" title="Marcar como Pagada" onclick="UI.payDebt('${d.id}')">
@@ -2670,7 +2670,7 @@ const UI = {
             tfoot.innerHTML = `
                 <tr>
                     <td colspan="3" style="text-align: right; font-weight: bold;">Total:</td>
-                    <td style="font-weight: bold; color: var(--danger-color);">${formatCurrency(totalAmount)}</td>
+                    <td style="font-weight: bold; white-space: nowrap; color: var(--danger-color);">${formatCurrency(totalAmount)}</td>
                     <td colspan="2"></td>
                 </tr>
             `;
@@ -2991,8 +2991,8 @@ const UI = {
                 <td>${formatDate(d.date)}</td>
                 <td>${displayName}</td>
                 <td>${d.description || '-'}</td>
-                <td style="color: var(--text-muted)">${formatCurrency(netAmount)}</td>
-                <td style="font-weight:bold; color: var(--secondary-color)">${formatCurrency(rawAmount)}</td>
+                <td style="color: var(--text-muted); white-space: nowrap;">${formatCurrency(netAmount)}</td>
+                <td style="font-weight:bold; white-space: nowrap; color: var(--secondary-color)">${formatCurrency(rawAmount)}</td>
                 <td class="actions">
                     <button class="btn-icon text-success" title="Marcar como Pagado" onclick="UI.payDebtor('${d.id}')">
                         <i class="fa-solid fa-check"></i>
@@ -3013,8 +3013,8 @@ const UI = {
             tfoot.innerHTML = `
                 <tr>
                     <td colspan="3" style="text-align: right; font-weight: bold;">Total:</td>
-                    <td style="font-weight: bold; color: var(--text-muted);">${formatCurrency(totalNetAmount)}</td>
-                    <td style="font-weight: bold; color: var(--secondary-color);">${formatCurrency(totalAmount)}</td>
+                    <td style="font-weight: bold; white-space: nowrap; color: var(--text-muted);">${formatCurrency(totalNetAmount)}</td>
+                    <td style="font-weight: bold; white-space: nowrap; color: var(--secondary-color);">${formatCurrency(totalAmount)}</td>
                     <td></td>
                 </tr>
             `;
@@ -5630,7 +5630,7 @@ const UI = {
                 <td>${a.location}</td>
                 <td>${a.classification}</td>
                 <td>${a.instrument || '-'}</td>
-                <td style="font-weight: bold;">${formatCurrency(a.amount)}</td>
+                <td style="font-weight: bold; white-space: nowrap;">${formatCurrency(a.amount)}</td>
                 <td><span class="tag ${liquidityStatus.includes('Vence') ? 'expense' : 'income'}">${liquidityStatus}</span></td>
                 <td class="actions">
                     <button class="btn-icon" title="Editar" onclick="UI.editAvailable('${a.id}')">
@@ -5649,7 +5649,7 @@ const UI = {
             tfoot.innerHTML = `
                 <tr>
                     <td colspan="3" style="text-align: right; font-weight: bold; padding-right: 1rem;">Total Activo Disponible:</td>
-                    <td colspan="3" style="font-weight: bold; font-size: 1.1rem; color: var(--primary-color)">
+                    <td colspan="3" style="font-weight: bold; font-size: 1.1rem; white-space: nowrap; color: var(--primary-color)">
                         ${formatCurrency(total)}
                     </td>
                 </tr>
