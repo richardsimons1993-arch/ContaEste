@@ -316,29 +316,23 @@ const ReportsApp = () => {
 
         const content = docDefinition.content;
 
-        const addSectionHeader = (title) => {
-            content.push({
-                table: {
-                    widths: [4, '*'],
-                    body: [
-                        [
-                            { text: '', fillColor: '#0f766e', border: [false, false, false, false] },
-                            { text: title, fillColor: '#f8fafc', border: [false, false, false, false], margin: [5, 4, 0, 4], color: '#1e293b', bold: true, fontSize: 13 }
-                        ]
-                    ]
-                },
-                layout: 'noBorders',
-                margin: [0, 15, 0, 8]
-            });
-        };
-
         // 1. Datos Generales
-        addSectionHeader('1. DATOS GENERALES DEL PROYECTO');
-        content.push({ text: generalData || 'No se ingresaron datos generales.', margin: [8, 0, 0, 12], alignment: 'justify' });
+        const section1Elements = [];
+        section1Elements.push(buildSectionHeaderInline('1. DATOS GENERALES DEL PROYECTO'));
+        section1Elements.push({ text: generalData || 'No se ingresaron datos generales.', margin: [8, 0, 0, 12], alignment: 'justify' });
+        content.push({
+            unbreakable: true,
+            stack: section1Elements
+        });
 
         // 2. Alcance del Proyecto
-        addSectionHeader('2. ALCANCE DEL PROYECTO');
-        content.push({ text: scope || 'No se ingresó alcance del proyecto.', margin: [8, 0, 0, 12], alignment: 'justify' });
+        const section2Elements = [];
+        section2Elements.push(buildSectionHeaderInline('2. ALCANCE DEL PROYECTO'));
+        section2Elements.push({ text: scope || 'No se ingresó alcance del proyecto.', margin: [8, 0, 0, 12], alignment: 'justify' });
+        content.push({
+            unbreakable: true,
+            stack: section2Elements
+        });
 
         // 3. Materiales Utilizados
         const materialsStackElements = [];
@@ -388,8 +382,13 @@ const ReportsApp = () => {
         });
 
         // 4. Resultados del Proyecto (Texto + Imágenes)
-        addSectionHeader('4. RESULTADOS DEL PROYECTO');
-        content.push({ text: results || 'No se ingresaron resultados.', margin: [8, 0, 0, 12], alignment: 'justify' });
+        const section4Elements = [];
+        section4Elements.push(buildSectionHeaderInline('4. RESULTADOS DEL PROYECTO'));
+        section4Elements.push({ text: results || 'No se ingresaron resultados.', margin: [8, 0, 0, 12], alignment: 'justify' });
+        content.push({
+            unbreakable: true,
+            stack: section4Elements
+        });
 
         // Procesar y adjuntar imágenes
         if (images && images.length > 0) {
