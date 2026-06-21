@@ -290,7 +290,54 @@ const deleteApi = async (req, res, table) => {
 
 // --- ENDPOINTS PARA TRANSACTIONS ---
 app.get('/api/transactions', (req, res) => getApi(req, res, 'Transactions'));
-app.delete('/api/transactions/:id', (req, res) => deleteApi(req, res, 'Transactions'));
+app.delete('/api/transactions/:id', async (req, res) => {
+    try {
+        const pool = await getDbPool();
+        
+        // 1. Obtener invoicePath si existe para eliminarlo de OneDrive
+        const result = await pool.request()
+            .input('id', sql.VarChar(50), req.params.id)
+            .query('SELECT invoicePath FROM Transactions WHERE id = @id');
+        
+        if (result.recordset.length > 0) {
+            const invoicePath = result.recordset[0].invoicePath;
+            if (invoicePath) {
+                const isWindows = process.platform === 'win32';
+                if (isWindows) {
+                    if (fs.existsSync(invoicePath)) {
+                        fs.unlink(invoicePath, (err) => {
+                            if (err) console.error('Error al eliminar archivo local al borrar transaccion:', err);
+                        });
+                    }
+                } else {
+                    const { execFile } = require('child_process');
+                    const rcloneArgs = ['deletefile', invoicePath];
+                    const rcloneConfigPath = '/home/administrador/.config/rclone/rclone.conf';
+                    if (fs.existsSync(rcloneConfigPath)) {
+                        rcloneArgs.push('--config', rcloneConfigPath);
+                    }
+                    execFile('/usr/bin/rclone', rcloneArgs, (err, stdout, stderr) => {
+                        if (err) {
+                            console.error('Error al eliminar comprobante de OneDrive al borrar transaccion:', err);
+                        } else {
+                            console.log('✅ Comprobante de transacción eliminado de OneDrive al borrar transaccion:', invoicePath);
+                        }
+                    });
+                }
+            }
+        }
+
+        // 2. Eliminar de la base de datos
+        await pool.request()
+            .input('id', sql.VarChar(50), req.params.id)
+            .query('DELETE FROM Transactions WHERE id = @id');
+
+        res.json({ success: true });
+    } catch (err) {
+        console.error('Error al eliminar transacción:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
 
 app.post('/api/transactions', async (req, res) => {
     try {
@@ -705,7 +752,54 @@ app.post('/api/suppliers', async (req, res) => {
 
 // --- ENDPOINTS PARA DEBTORS ---
 app.get('/api/debtors', (req, res) => getApi(req, res, 'Debtors'));
-app.delete('/api/debtors/:id', (req, res) => deleteApi(req, res, 'Debtors'));
+app.delete('/api/debtors/:id', async (req, res) => {
+    try {
+        const pool = await getDbPool();
+        
+        // 1. Obtener invoicePath si existe para eliminarlo de OneDrive
+        const result = await pool.request()
+            .input('id', sql.VarChar(50), req.params.id)
+            .query('SELECT invoicePath FROM Debtors WHERE id = @id');
+        
+        if (result.recordset.length > 0) {
+            const invoicePath = result.recordset[0].invoicePath;
+            if (invoicePath) {
+                const isWindows = process.platform === 'win32';
+                if (isWindows) {
+                    if (fs.existsSync(invoicePath)) {
+                        fs.unlink(invoicePath, (err) => {
+                            if (err) console.error('Error al eliminar archivo local al borrar deudor:', err);
+                        });
+                    }
+                } else {
+                    const { execFile } = require('child_process');
+                    const rcloneArgs = ['deletefile', invoicePath];
+                    const rcloneConfigPath = '/home/administrador/.config/rclone/rclone.conf';
+                    if (fs.existsSync(rcloneConfigPath)) {
+                        rcloneArgs.push('--config', rcloneConfigPath);
+                    }
+                    execFile('/usr/bin/rclone', rcloneArgs, (err, stdout, stderr) => {
+                        if (err) {
+                            console.error('Error al eliminar factura de OneDrive al borrar deudor:', err);
+                        } else {
+                            console.log('✅ Factura de deudor eliminada de OneDrive al borrar deudor:', invoicePath);
+                        }
+                    });
+                }
+            }
+        }
+
+        // 2. Eliminar de la base de datos
+        await pool.request()
+            .input('id', sql.VarChar(50), req.params.id)
+            .query('DELETE FROM Debtors WHERE id = @id');
+
+        res.json({ success: true });
+    } catch (err) {
+        console.error('Error al eliminar deudor:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
 app.post('/api/debtors', async (req, res) => {
     try {
         const d = req.body;

@@ -3146,7 +3146,7 @@ const UI = {
             }
             uploadBanner.innerHTML = `
                 <i class="fa-solid fa-cloud-arrow-up fa-beat" style="color:#60a5fa;font-size:18px;"></i>
-                <span>Subiendo factura a OneDrive… <br><small style="opacity:0.7">Puedes seguir navegando, esto ocurre en segundo plano.</small></span>
+                <span>Subiendo documento… <br><small style="opacity:0.7">Puedes seguir navegando, esto ocurre en segundo plano.</small></span>
             `;
 
             // Leer archivo como base64
@@ -3176,7 +3176,7 @@ const UI = {
                         uploadBanner.style.borderLeftColor = '#22c55e';
                         uploadBanner.innerHTML = `
                             <i class="fa-solid fa-circle-check" style="color:#22c55e;font-size:18px;"></i>
-                            <span>✅ Factura cargada en OneDrive</span>
+                            <span>✅ Documento cargado</span>
                         `;
                         setTimeout(() => { if (uploadBanner.parentNode) uploadBanner.parentNode.removeChild(uploadBanner); }, 4000);
                         this.recordActivity('Carga', 'Deudor', `Factura adjuntada al deudor ${clientName}`);
@@ -3265,7 +3265,7 @@ const UI = {
         }
         uploadBanner.innerHTML = `
             <i class="fa-solid fa-cloud-arrow-up fa-beat" style="color:#60a5fa;font-size:18px;"></i>
-            <span>Subiendo comprobante a OneDrive… <br><small style="opacity:0.7">Puedes seguir navegando, esto ocurre en segundo plano.</small></span>
+            <span>Subiendo documento… <br><small style="opacity:0.7">Puedes seguir navegando, esto ocurre en segundo plano.</small></span>
         `;
 
         // Leer archivo como base64
@@ -3293,7 +3293,7 @@ const UI = {
                     uploadBanner.style.borderLeftColor = '#22c55e';
                     uploadBanner.innerHTML = `
                         <i class="fa-solid fa-circle-check" style="color:#22c55e;font-size:18px;"></i>
-                        <span>✅ Comprobante cargado en OneDrive</span>
+                        <span>✅ Documento cargado</span>
                     `;
                     setTimeout(() => { if (uploadBanner.parentNode) uploadBanner.parentNode.removeChild(uploadBanner); }, 4000);
                     this.recordActivity('Carga', 'Movimiento', `Comprobante adjuntado al movimiento de ${providerName}`);
