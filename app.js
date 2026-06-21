@@ -2180,6 +2180,9 @@ const UI = {
                 </td>
                 ${canRegister ? `
                 <td class="actions">
+                    <button class="btn-icon ${t.invoicePath ? 'text-success' : ''}" title="${t.invoicePath ? 'Comprobante cargado — Cargar nuevo' : 'Adjuntar Comprobante/Factura'}" onclick="UI.uploadTransactionInvoice('${t.id}')">
+                        <i class="fa-solid ${t.invoicePath ? 'fa-file-invoice' : 'fa-file-arrow-up'}"></i>
+                    </button>
                     <button class="btn-icon" title="Editar" onclick="UI.editTransaction('${t.id}')">
                         <i class="fa-solid fa-pen-to-square"></i>
                     </button>
@@ -3187,6 +3190,120 @@ const UI = {
         input.click();
     },
 
+    uploadTransactionInvoice(transactionId) {
+        const transaction = state.transactions.find(t => t.id === transactionId);
+        if (!transaction) return;
+
+        // Crear input de archivo oculto
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = '.pdf,.jpg,.jpeg,.png';
+        input.style.display = 'none';
+        document.body.appendChild(input);
+
+        input.onchange = () => {
+            const file = input.files[0];
+            document.body.removeChild(input);
+            if (!file) return;
+
+            this.uploadTransactionInvoiceFile(transaction, file);
+        };
+
+        input.click();
+    },
+
+    async uploadTransactionInvoiceFile(transaction, file) {
+        if (!transaction || !file) return;
+
+        // Determinar nombre del cliente/proveedor (titular)
+        let providerName = 'Varios';
+        if (transaction.supplierId) {
+            const supplier = state.suppliers.find(s => s.id === transaction.supplierId);
+            if (supplier) providerName = supplier.name;
+        } else if (transaction.clientId) {
+            const client = state.clients.find(c => c.id === transaction.clientId);
+            if (client) {
+                providerName = client.nombreFantasia || client.razonSocial || client.name || providerName;
+            }
+        }
+        const safeProviderName = providerName.replace(/[^a-zA-Z0-9 \-]/g, '').trim();
+        const year = transaction.date ? new Date(transaction.date).getFullYear() : new Date().getFullYear();
+
+        // Toast fijo y persistente durante la subida — visible aunque cambies de vista
+        let uploadBanner = document.getElementById('transaction-upload-banner');
+        if (!uploadBanner) {
+            uploadBanner = document.createElement('div');
+            uploadBanner.id = 'transaction-upload-banner';
+            uploadBanner.style.cssText = `
+                position: fixed; bottom: 24px; right: 24px; z-index: 99999;
+                background: #1e3a5f; color: #fff; border-radius: 10px;
+                padding: 14px 20px; font-size: 14px; font-weight: 500;
+                display: flex; align-items: center; gap: 12px;
+                box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+                border-left: 4px solid #3b82f6;
+                min-width: 300px; max-width: 420px;
+            `;
+            document.body.appendChild(uploadBanner);
+        }
+        uploadBanner.innerHTML = `
+            <i class="fa-solid fa-cloud-arrow-up fa-beat" style="color:#60a5fa;font-size:18px;"></i>
+            <span>Subiendo comprobante a OneDrive… <br><small style="opacity:0.7">Puedes seguir navegando, esto ocurre en segundo plano.</small></span>
+        `;
+
+        // Leer archivo como base64
+        const reader = new FileReader();
+        reader.onload = async (e) => {
+            const pdfBase64 = e.target.result;
+
+            try {
+                const response = await fetch('/api/transactions/upload-invoice', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        providerName: safeProviderName,
+                        year: year,
+                        transactionId: transaction.id,
+                        description: transaction.observation ? transaction.observation.substring(0, 40) : '',
+                        pdfBase64: pdfBase64,
+                        originalFileName: file.name
+                    })
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    uploadBanner.style.borderLeftColor = '#22c55e';
+                    uploadBanner.innerHTML = `
+                        <i class="fa-solid fa-circle-check" style="color:#22c55e;font-size:18px;"></i>
+                        <span>✅ Comprobante cargado en OneDrive</span>
+                    `;
+                    setTimeout(() => { if (uploadBanner.parentNode) uploadBanner.parentNode.removeChild(uploadBanner); }, 4000);
+                    this.recordActivity('Carga', 'Movimiento', `Comprobante adjuntado al movimiento de ${providerName}`);
+                    // Recargar datos del servidor para reflejar el ícono actualizado
+                    await this.loadData();
+                } else {
+                    uploadBanner.style.borderLeftColor = '#ef4444';
+                    uploadBanner.innerHTML = `
+                        <i class="fa-solid fa-triangle-exclamation" style="color:#ef4444;font-size:18px;"></i>
+                        <span>Error al cargar comprobante: ${result.error}</span>
+                    `;
+                    setTimeout(() => { if (uploadBanner.parentNode) uploadBanner.parentNode.removeChild(uploadBanner); }, 6000);
+                }
+            } catch (err) {
+                console.error('Error al subir comprobante:', err);
+                if (uploadBanner.parentNode) {
+                    uploadBanner.style.borderLeftColor = '#ef4444';
+                    uploadBanner.innerHTML = `
+                        <i class="fa-solid fa-triangle-exclamation" style="color:#ef4444;font-size:18px;"></i>
+                        <span>Error de conexión al cargar comprobante</span>
+                    `;
+                    setTimeout(() => { if (uploadBanner.parentNode) uploadBanner.parentNode.removeChild(uploadBanner); }, 6000);
+                }
+            }
+        };
+        reader.readAsDataURL(file);
+    },
+
     resetDebtorForm() {
         const form = document.getElementById('add-debtor-form');
         if (form) {
@@ -3394,6 +3511,11 @@ const UI = {
         console.log('Concepto:', concept?.name || 'Varios');
         console.log('Entidad:', isSupplierConcept ? 'Proveedor' : 'Cliente');
 
+        // Capturar archivo adjunto si existe
+        const fileInput = document.getElementById('transaction-invoice');
+        const file = fileInput ? fileInput.files[0] : null;
+
+        const existingTx = id ? state.transactions.find(t => t.id === id) : null;
         const transaction = {
             id: id || Date.now().toString(),
             type: type,
@@ -3402,7 +3524,8 @@ const UI = {
             clientId: (!isSupplierConcept && personId && personId.trim() !== '') ? personId : null,
             supplierId: (isSupplierConcept && personId && personId.trim() !== '') ? personId : null,
             date: dateVal,
-            observation: formData.get('observation')
+            observation: formData.get('observation'),
+            invoicePath: existingTx ? existingTx.invoicePath : null
         };
 
         console.log('Objeto Transacción:', transaction);
@@ -3433,7 +3556,10 @@ const UI = {
         window.StorageAPI.async.saveTransaction(transaction)
             .then(savedTx => {
                 console.log('✅ Sincronización exitosa:', savedTx.id);
-                // El éxito ya se notificó optimísticamente
+                // Si hay un archivo adjunto, procedemos a subirlo
+                if (file) {
+                    this.uploadTransactionInvoiceFile(transaction, file);
+                }
             })
             .catch(error => {
                 console.error("❌ ERROR CRÍTICO DE SINCRONIZACIÓN:", error);
@@ -3474,6 +3600,11 @@ const UI = {
         document.getElementById('btn-save-transaction').textContent = 'Actualizar Movimiento';
         document.getElementById('cancel-transaction-edit').style.display = 'inline-block';
 
+        const statusSpan = document.getElementById('transaction-invoice-status');
+        if (statusSpan) {
+            statusSpan.style.display = transaction.invoicePath ? 'block' : 'none';
+        }
+
         this.switchView('transaction-form');
         window.scrollTo({ top: 0, behavior: 'smooth' });
     },
@@ -3496,6 +3627,11 @@ const UI = {
                     dateInput.value = today;
                 }
             }
+            // Limpiar input de archivo y ocultar indicador
+            const fileInput = document.getElementById('transaction-invoice');
+            if (fileInput) fileInput.value = '';
+            const statusSpan = document.getElementById('transaction-invoice-status');
+            if (statusSpan) statusSpan.style.display = 'none';
         }
     },
 

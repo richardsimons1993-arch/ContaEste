@@ -335,7 +335,8 @@ app.post('/api/transactions', async (req, res) => {
                 .input('supplierId', sql.VarChar(50), cleanSupplierId)
                 .input('amount', sql.Decimal(18, 2), t.amount)
                 .input('observation', sql.VarChar(sql.MAX), t.observation || '')
-                .query(`UPDATE Transactions SET date=@date, type=@type, conceptId=@conceptId, clientId=@clientId, supplierId=@supplierId, amount=@amount, observation=@observation WHERE id=@id`);
+                .input('invoicePath', sql.VarChar(sql.MAX), t.invoicePath || null)
+                .query(`UPDATE Transactions SET date=@date, type=@type, conceptId=@conceptId, clientId=@clientId, supplierId=@supplierId, amount=@amount, observation=@observation, invoicePath=COALESCE(@invoicePath, invoicePath) WHERE id=@id`);
         } else {
             console.log('Insertando nueva transacción:', t.id);
             await pool.request()
@@ -347,10 +348,11 @@ app.post('/api/transactions', async (req, res) => {
                 .input('supplierId', sql.VarChar(50), cleanSupplierId)
                 .input('amount', sql.Decimal(18, 2), t.amount)
                 .input('observation', sql.VarChar(sql.MAX), t.observation || '')
-                .query(`INSERT INTO Transactions (id, date, type, conceptId, clientId, supplierId, amount, observation) VALUES (@id, @date, @type, @conceptId, @clientId, @supplierId, @amount, @observation)`);
+                .input('invoicePath', sql.VarChar(sql.MAX), t.invoicePath || null)
+                .query(`INSERT INTO Transactions (id, date, type, conceptId, clientId, supplierId, amount, observation, invoicePath) VALUES (@id, @date, @type, @conceptId, @clientId, @supplierId, @amount, @observation, @invoicePath)`);
         }
         console.log('✅ Operación exitosa');
-        res.json({ ...t, type: finalType, clientId: cleanClientId, supplierId: cleanSupplierId });
+        res.json({ ...t, type: finalType, clientId: cleanClientId, supplierId: cleanSupplierId, invoicePath: t.invoicePath || null });
     } catch (err) {
         console.error('❌ ERROR en POST /api/transactions:', err.message);
         if (err.number) console.error('SQL Error Number:', err.number);
@@ -2609,6 +2611,104 @@ app.post('/api/debtors/upload-invoice', async (req, res) => {
         }
     } catch (err) {
         console.error('Error al guardar factura:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.post('/api/transactions/upload-invoice', async (req, res) => {
+    try {
+        const { providerName, year, transactionId, description, pdfBase64, originalFileName } = req.body;
+
+        if (!pdfBase64) {
+            return res.status(400).json({ error: 'No se recibió archivo' });
+        }
+
+        // Limpiar base64 header si existe
+        const base64Data = pdfBase64.includes('base64,') ? pdfBase64.split('base64,')[1] : pdfBase64;
+        const safeDescription = description ? `_${description.replace(/[^a-zA-Z0-9 -]/g, '_')}` : '';
+        const safeProviderName = providerName ? providerName.replace(/[^a-zA-Z0-9 -]/g, '') : 'Varios';
+        const ext = (originalFileName && originalFileName.includes('.')) ? originalFileName.split('.').pop() : 'pdf';
+        const fileName = `Comprobante_${transactionId}${safeDescription}_${safeProviderName}.${ext}`;
+
+        const isWindows = process.platform === 'win32';
+
+        const saveInvoicePathToDB = async (invoicePath) => {
+            try {
+                const pool = await getDbPool();
+                await pool.request()
+                    .input('id', sql.VarChar(50), transactionId)
+                    .input('invoicePath', sql.VarChar(sql.MAX), invoicePath)
+                    .query(`UPDATE Transactions SET invoicePath=@invoicePath WHERE id=@id`);
+                console.log(`✅ invoicePath guardado en BD para transacción ${transactionId}`);
+            } catch (dbErr) {
+                console.error('Error al guardar invoicePath en BD para transacción:', dbErr.message);
+            }
+        };
+
+        if (isWindows) {
+            const baseDriveDir = path.join('C:', 'Users', 'Richard', 'OneDrive - SIMONS SPA', 'Simons SPA', 'Clientes', 'Movimientos');
+            const yearDir = path.join(baseDriveDir, year.toString());
+            const providerDir = path.join(yearDir, safeProviderName);
+
+            if (!fs.existsSync(baseDriveDir)) fs.mkdirSync(baseDriveDir, { recursive: true });
+            if (!fs.existsSync(yearDir)) fs.mkdirSync(yearDir, { recursive: true });
+            if (!fs.existsSync(providerDir)) fs.mkdirSync(providerDir, { recursive: true });
+
+            const filePath = path.join(providerDir, fileName);
+            fs.writeFileSync(filePath, base64Data, 'base64');
+
+            await saveInvoicePathToDB(filePath);
+            console.log(`✅ Comprobante guardado localmente (Windows): ${filePath}`);
+            res.json({ success: true, filePath });
+        } else {
+            // Comportamiento Linux (Ubuntu Server) con rclone
+            const localTempDir = path.join(__dirname, 'temp_pdfs');
+            if (!fs.existsSync(localTempDir)) {
+                fs.mkdirSync(localTempDir, { recursive: true });
+            }
+            const localFilePath = path.join(localTempDir, fileName);
+            fs.writeFileSync(localFilePath, base64Data, 'base64');
+            console.log(`✅ Comprobante guardado localmente temporal: ${localFilePath}`);
+
+            const { execFile } = require('child_process');
+
+            // Ruta remota en OneDrive para Movimientos
+            const remoteDestDir = `onedrive_backup:Simons SPA/Clientes/Movimientos/${year}/${safeProviderName}`;
+
+            const rcloneArgs = [
+                'copy',
+                localFilePath,
+                remoteDestDir
+            ];
+
+            const rcloneConfigPath = '/home/administrador/.config/rclone/rclone.conf';
+            if (fs.existsSync(rcloneConfigPath)) {
+                rcloneArgs.push('--config', rcloneConfigPath);
+            }
+
+            execFile('/usr/bin/rclone', rcloneArgs, async (error, stdout, stderr) => {
+                try {
+                    if (fs.existsSync(localFilePath)) {
+                        fs.unlinkSync(localFilePath);
+                    }
+                } catch (unlinkErr) {
+                    console.error('Error al eliminar comprobante temporal:', unlinkErr);
+                }
+
+                if (error) {
+                    console.error('Error al subir comprobante a OneDrive con rclone:', error);
+                    console.error('stderr:', stderr);
+                    return res.status(500).json({ error: `Error de subida a OneDrive con rclone: ${error.message}` });
+                }
+
+                const finalPath = `${remoteDestDir}/${fileName}`;
+                await saveInvoicePathToDB(finalPath);
+                console.log(`✅ Comprobante subido con éxito a OneDrive (${finalPath})`);
+                res.json({ success: true, filePath: finalPath });
+            });
+        }
+    } catch (err) {
+        console.error('Error al guardar comprobante de movimiento:', err);
         res.status(500).json({ error: err.message });
     }
 });

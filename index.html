@@ -703,6 +703,14 @@
                         </div>
 
                         <div class="form-group">
+                            <label for="transaction-invoice">Adjuntar Factura o Comprobante (Opcional)</label>
+                            <input type="file" id="transaction-invoice" accept=".pdf,.jpg,.jpeg,.png">
+                            <span id="transaction-invoice-status" style="font-size: 0.85rem; color: var(--secondary-color); margin-top: 4px; display: none; font-weight: 500;">
+                                <i class="fa-solid fa-file-invoice"></i> Ya existe un archivo cargado. Seleccione uno nuevo para reemplazarlo.
+                            </span>
+                        </div>
+
+                        <div class="form-group">
                             <label for="observation">Observación (Opcional)</label>
                             <textarea id="observation" name="observation" rows="3"
                                 placeholder="Detalles adicionales..."></textarea>
