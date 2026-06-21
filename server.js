@@ -720,7 +720,8 @@ app.post('/api/debtors', async (req, res) => {
                 .input('description', sql.VarChar(sql.MAX), d.description || '')
                 .input('status', sql.VarChar(50), d.status || 'pending')
                 .input('clientId', sql.VarChar(50), d.clientId || null)
-                .query(`UPDATE Debtors SET debtor=@debtor, amount=@amount, dueDate=@dueDate, description=@description, status=@status, clientId=@clientId WHERE id=@id`);
+                .input('invoicePath', sql.VarChar(sql.MAX), d.invoicePath || null)
+                .query(`UPDATE Debtors SET debtor=@debtor, amount=@amount, dueDate=@dueDate, description=@description, status=@status, clientId=@clientId, invoicePath=@invoicePath WHERE id=@id`);
         } else {
             await pool.request()
                 .input('id', sql.VarChar(50), d.id)
@@ -730,7 +731,8 @@ app.post('/api/debtors', async (req, res) => {
                 .input('description', sql.VarChar(sql.MAX), d.description || '')
                 .input('status', sql.VarChar(50), d.status || 'pending')
                 .input('clientId', sql.VarChar(50), d.clientId || null)
-                .query(`INSERT INTO Debtors (id, debtor, amount, dueDate, description, status, clientId) VALUES (@id, @debtor, @amount, @dueDate, @description, @status, @clientId)`);
+                .input('invoicePath', sql.VarChar(sql.MAX), d.invoicePath || null)
+                .query(`INSERT INTO Debtors (id, debtor, amount, dueDate, description, status, clientId, invoicePath) VALUES (@id, @debtor, @amount, @dueDate, @description, @status, @clientId, @invoicePath)`);
         }
         res.json(d);
     } catch (err) {
@@ -2506,6 +2508,88 @@ app.post('/api/reports/save-pdf', async (req, res) => {
         }
     } catch (err) {
         console.error('Error al guardar PDF de informe:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.post('/api/debtors/upload-invoice', async (req, res) => {
+    try {
+        const { clientName, year, debtorId, description, pdfBase64, originalFileName } = req.body;
+
+        if (!pdfBase64) {
+            return res.status(400).json({ error: 'No se recibió archivo' });
+        }
+
+        // Limpiar base64 header si existe
+        const base64Data = pdfBase64.includes('base64,') ? pdfBase64.split('base64,')[1] : pdfBase64;
+        const safeDescription = description ? `_${description.replace(/[^a-zA-Z0-9 -]/g, '_')}` : '';
+        const safeClientName = clientName.replace(/[^a-zA-Z0-9 -]/g, '');
+        const ext = (originalFileName && originalFileName.includes('.')) ? originalFileName.split('.').pop() : 'pdf';
+        const fileName = `Factura_${debtorId}${safeDescription}_${safeClientName}.${ext}`;
+
+        const isWindows = process.platform === 'win32';
+
+        if (isWindows) {
+            const baseDriveDir = path.join('C:', 'Users', 'Richard', 'OneDrive - SIMONS SPA', 'Simons SPA', 'Clientes', 'Facturas APP');
+            const yearDir = path.join(baseDriveDir, year.toString());
+            const clientDir = path.join(yearDir, clientName);
+
+            if (!fs.existsSync(baseDriveDir)) fs.mkdirSync(baseDriveDir, { recursive: true });
+            if (!fs.existsSync(yearDir)) fs.mkdirSync(yearDir, { recursive: true });
+            if (!fs.existsSync(clientDir)) fs.mkdirSync(clientDir, { recursive: true });
+
+            const filePath = path.join(clientDir, fileName);
+            fs.writeFileSync(filePath, base64Data, 'base64');
+
+            console.log(`✅ Factura guardada localmente (Windows): ${filePath}`);
+            res.json({ success: true, filePath });
+        } else {
+            // Comportamiento Linux (Ubuntu Server) con rclone
+            const localTempDir = path.join(__dirname, 'temp_pdfs');
+            if (!fs.existsSync(localTempDir)) {
+                fs.mkdirSync(localTempDir, { recursive: true });
+            }
+            const localFilePath = path.join(localTempDir, fileName);
+            fs.writeFileSync(localFilePath, base64Data, 'base64');
+            console.log(`✅ Factura guardada localmente temporal: ${localFilePath}`);
+
+            const { execFile } = require('child_process');
+
+            // Ruta remota en OneDrive para Facturas
+            const remoteDestDir = `onedrive_backup:Simons SPA/Clientes/Facturas APP/${year}/${clientName}`;
+
+            const rcloneArgs = [
+                'copy',
+                localFilePath,
+                remoteDestDir
+            ];
+
+            const rcloneConfigPath = '/home/administrador/.config/rclone/rclone.conf';
+            if (fs.existsSync(rcloneConfigPath)) {
+                rcloneArgs.push('--config', rcloneConfigPath);
+            }
+
+            execFile('/usr/bin/rclone', rcloneArgs, (error, stdout, stderr) => {
+                try {
+                    if (fs.existsSync(localFilePath)) {
+                        fs.unlinkSync(localFilePath);
+                    }
+                } catch (unlinkErr) {
+                    console.error('Error al eliminar factura temporal:', unlinkErr);
+                }
+
+                if (error) {
+                    console.error('Error al subir factura a OneDrive con rclone:', error);
+                    console.error('stderr:', stderr);
+                    return res.status(500).json({ error: `Error de subida a OneDrive con rclone: ${error.message}` });
+                }
+
+                console.log(`✅ Factura subida con éxito a OneDrive (${remoteDestDir}/${fileName})`);
+                res.json({ success: true, filePath: `${remoteDestDir}/${fileName}` });
+            });
+        }
+    } catch (err) {
+        console.error('Error al guardar factura:', err);
         res.status(500).json({ error: err.message });
     }
 });

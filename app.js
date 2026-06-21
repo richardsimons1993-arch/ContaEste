@@ -2994,6 +2994,9 @@ const UI = {
                 <td style="color: var(--text-muted); white-space: nowrap;">${formatCurrency(netAmount)}</td>
                 <td style="font-weight:bold; white-space: nowrap; color: var(--secondary-color)">${formatCurrency(rawAmount)}</td>
                 <td class="actions">
+                    <button class="btn-icon ${d.invoicePath ? 'text-success' : ''}" title="${d.invoicePath ? 'Factura cargada — Cargar nueva' : 'Adjuntar Factura'}" onclick="UI.uploadDebtorInvoice('${d.id}')">
+                        <i class="fa-solid ${d.invoicePath ? 'fa-file-invoice' : 'fa-file-arrow-up'}"></i>
+                    </button>
                     <button class="btn-icon text-success" title="Marcar como Pagado" onclick="UI.payDebtor('${d.id}')">
                         <i class="fa-solid fa-check"></i>
                     </button>
@@ -3076,6 +3079,77 @@ const UI = {
         const cancelBtn = document.getElementById('cancel-debtor-edit');
         if (cancelBtn) cancelBtn.style.display = 'inline-block';
         window.scrollTo({ top: 0, behavior: 'smooth' });
+    },
+
+    uploadDebtorInvoice(debtorId) {
+        const debtor = state.debtors.find(d => d.id === debtorId);
+        if (!debtor) return;
+
+        // Determinar nombre del cliente
+        let clientName = debtor.titular || 'SinCliente';
+        const client = state.clients.find(c => c.id === debtor.clientId || c.name === debtor.titular || c.razonSocial === debtor.titular || c.nombreFantasia === debtor.titular);
+        if (client) {
+            clientName = client.nombreFantasia || client.razonSocial || client.name || clientName;
+        }
+        // Sanitizar nombre para nombre de archivo
+        const safeClientName = clientName.replace(/[^a-zA-Z0-9 \-]/g, '').trim();
+
+        // Crear input de archivo oculto
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = '.pdf,.jpg,.jpeg,.png';
+        input.style.display = 'none';
+        document.body.appendChild(input);
+
+        input.onchange = async () => {
+            const file = input.files[0];
+            document.body.removeChild(input);
+            if (!file) return;
+
+            const year = debtor.date ? new Date(debtor.date).getFullYear() : new Date().getFullYear();
+
+            // Leer archivo como base64
+            const reader = new FileReader();
+            reader.onload = async (e) => {
+                const pdfBase64 = e.target.result; // incluye el prefijo data:...;base64,...
+
+                this.showToast('Subiendo factura a OneDrive...', 'info');
+
+                try {
+                    const response = await fetch('/api/debtors/upload-invoice', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            clientName: safeClientName,
+                            year: year,
+                            debtorId: debtorId,
+                            description: debtor.description ? debtor.description.substring(0, 40) : '',
+                            pdfBase64: pdfBase64,
+                            originalFileName: file.name
+                        })
+                    });
+
+                    const result = await response.json();
+
+                    if (result.success) {
+                        // Guardar referencia del path en el deudor
+                        debtor.invoicePath = result.filePath;
+                        window.StorageAPI.saveDebtor(debtor);
+                        this.renderDebtors();
+                        this.showToast(`✅ Factura cargada correctamente en OneDrive`, 'success');
+                        this.recordActivity('Carga', 'Deudor', `Factura adjuntada al deudor ${clientName}`);
+                    } else {
+                        this.showToast(`Error al cargar factura: ${result.error}`, 'error');
+                    }
+                } catch (err) {
+                    console.error('Error al subir factura:', err);
+                    this.showToast('Error de conexión al cargar factura', 'error');
+                }
+            };
+            reader.readAsDataURL(file);
+        };
+
+        input.click();
     },
 
     resetDebtorForm() {
