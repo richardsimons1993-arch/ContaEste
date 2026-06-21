@@ -4682,6 +4682,25 @@ const UI = {
         sortedContracts.forEach(c => {
             const tr = document.createElement('tr');
             const amountText = c.currency?.toUpperCase() === 'UF' ? `${c.amount} UF` : formatCurrency(c.amount);
+            
+            let docActionHtml = '';
+            if (c.documentPath) {
+                docActionHtml = `
+                    <button class="btn-sm btn-outline-primary" title="Descargar Vigente" onclick="UI.downloadContractDocument('${c.id}')">
+                        <i class="fa-solid fa-download"></i>
+                    </button>
+                    <button class="btn-sm btn-outline-secondary" title="Actualizar Documento" onclick="UI.uploadContractDocument('${c.id}')">
+                        <i class="fa-solid fa-upload"></i>
+                    </button>
+                `;
+            } else {
+                docActionHtml = `
+                    <button class="btn-sm btn-outline-secondary" title="Cargar Documento PDF" onclick="UI.uploadContractDocument('${c.id}')">
+                        <i class="fa-solid fa-upload"></i>
+                    </button>
+                `;
+            }
+
             tr.innerHTML = `
                 <td>${this.getClientName(c.clientId)}</td>
                 <td style="font-weight:bold;">${amountText}</td>
@@ -4689,6 +4708,9 @@ const UI = {
                 <td>${c.endDate ? formatDate(c.endDate) : '<span class="tag-status" style="background: var(--primary-light); color: var(--primary-color)">Indefinido</span>'}</td>
                 <td>Día ${c.billingDay}</td>
                 <td>${c.frequency || 'Mensual'}</td>
+                <td style="text-align: center; white-space: nowrap;">
+                    ${docActionHtml}
+                </td>
                 <td class="actions">
                     <button class="btn-icon" title="Editar" onclick="UI.editContract('${c.id}')">
                         <i class="fa-solid fa-pen-to-square"></i>
@@ -4796,6 +4818,73 @@ const UI = {
         this.recordActivity('Baja', 'Contrato', `Eliminado contrato`);
         await this.loadData();
         this.renderContracts();
+    },
+
+    uploadContractDocument(id) {
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = 'application/pdf';
+        
+        input.onchange = async e => {
+            const file = e.target.files[0];
+            if (!file) return;
+            
+            if (file.type !== 'application/pdf') {
+                this.showToast('Solo se permiten archivos PDF', 'error');
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('document', file);
+
+            this.showToast('Subiendo documento...', 'info');
+
+            try {
+                const response = await fetch(`/api/contracts/${id}/upload-document`, {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${state.token}` },
+                    body: formData
+                });
+                
+                if (response.ok) {
+                    this.showToast('Documento subido correctamente', 'success');
+                    await this.loadData();
+                    this.renderContracts();
+                } else {
+                    const data = await response.json();
+                    this.showToast(data.error || 'Error al subir el documento', 'error');
+                }
+            } catch (err) {
+                this.showToast('Error de conexión al subir documento', 'error');
+            }
+        };
+        input.click();
+    },
+
+    downloadContractDocument(id) {
+        window.location.href = `/api/contracts/${id}/download-document?token=${state.token}`;
+    },
+
+    async deleteContractDocument(id) {
+        if (!(await this.confirmModal('¿Está seguro de eliminar el documento de este contrato de OneDrive?'))) return;
+
+        try {
+            const response = await fetch(`/api/contracts/${id}/document`, {
+                method: 'DELETE',
+                headers: { 'Authorization': `Bearer ${state.token}` }
+            });
+            
+            if (response.ok) {
+                this.showToast('Documento eliminado correctamente', 'success');
+                await this.loadData();
+                this.renderContracts();
+            } else {
+                const data = await response.json();
+                this.showToast(data.error || 'Error al eliminar el documento', 'error');
+            }
+        } catch (err) {
+            this.showToast('Error de conexión al eliminar documento', 'error');
+        }
     },
 
     checkPendingContracts() {

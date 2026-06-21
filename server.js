@@ -37,6 +37,15 @@ const upload = multer({
     }
 });
 
+const uploadDocument = multer({
+    storage,
+    limits: { fileSize: 15 * 1024 * 1024 }, // 15MB limit for PDFs
+    fileFilter: (req, file, cb) => {
+        if (file.mimetype === 'application/pdf') cb(null, true);
+        else cb(new Error('Solo se permiten archivos PDF'), false);
+    }
+});
+
 const app = express();
 
 // Confiar en el proxy de Cloudflare para manejar HTTPS correctamente
@@ -294,7 +303,7 @@ app.delete('/api/transactions/:id', async (req, res) => {
     try {
         const pool = await getDbPool();
         
-        // 1. Obtener invoicePath si existe para eliminarlo de OneDrive
+        // 1. Obtener invoicePath si existe para eliminarlo del almacenamiento remoto
         const result = await pool.request()
             .input('id', sql.VarChar(50), req.params.id)
             .query('SELECT invoicePath FROM Transactions WHERE id = @id');
@@ -302,28 +311,7 @@ app.delete('/api/transactions/:id', async (req, res) => {
         if (result.recordset.length > 0) {
             const invoicePath = result.recordset[0].invoicePath;
             if (invoicePath) {
-                const isWindows = process.platform === 'win32';
-                if (isWindows) {
-                    if (fs.existsSync(invoicePath)) {
-                        fs.unlink(invoicePath, (err) => {
-                            if (err) console.error('Error al eliminar archivo local al borrar transaccion:', err);
-                        });
-                    }
-                } else {
-                    const { execFile } = require('child_process');
-                    const rcloneArgs = ['deletefile', invoicePath];
-                    const rcloneConfigPath = '/home/administrador/.config/rclone/rclone.conf';
-                    if (fs.existsSync(rcloneConfigPath)) {
-                        rcloneArgs.push('--config', rcloneConfigPath);
-                    }
-                    execFile('/usr/bin/rclone', rcloneArgs, (err, stdout, stderr) => {
-                        if (err) {
-                            console.error('Error al eliminar comprobante de OneDrive al borrar transaccion:', err);
-                        } else {
-                            console.log('✅ Comprobante de transacción eliminado de OneDrive al borrar transaccion:', invoicePath);
-                        }
-                    });
-                }
+                deleteRemoteFile(invoicePath); // Se ejecuta en segundo plano
             }
         }
 
@@ -756,7 +744,7 @@ app.delete('/api/debtors/:id', async (req, res) => {
     try {
         const pool = await getDbPool();
         
-        // 1. Obtener invoicePath si existe para eliminarlo de OneDrive
+        // 1. Obtener invoicePath si existe para eliminarlo del almacenamiento remoto
         const result = await pool.request()
             .input('id', sql.VarChar(50), req.params.id)
             .query('SELECT invoicePath FROM Debtors WHERE id = @id');
@@ -764,28 +752,7 @@ app.delete('/api/debtors/:id', async (req, res) => {
         if (result.recordset.length > 0) {
             const invoicePath = result.recordset[0].invoicePath;
             if (invoicePath) {
-                const isWindows = process.platform === 'win32';
-                if (isWindows) {
-                    if (fs.existsSync(invoicePath)) {
-                        fs.unlink(invoicePath, (err) => {
-                            if (err) console.error('Error al eliminar archivo local al borrar deudor:', err);
-                        });
-                    }
-                } else {
-                    const { execFile } = require('child_process');
-                    const rcloneArgs = ['deletefile', invoicePath];
-                    const rcloneConfigPath = '/home/administrador/.config/rclone/rclone.conf';
-                    if (fs.existsSync(rcloneConfigPath)) {
-                        rcloneArgs.push('--config', rcloneConfigPath);
-                    }
-                    execFile('/usr/bin/rclone', rcloneArgs, (err, stdout, stderr) => {
-                        if (err) {
-                            console.error('Error al eliminar factura de OneDrive al borrar deudor:', err);
-                        } else {
-                            console.log('✅ Factura de deudor eliminada de OneDrive al borrar deudor:', invoicePath);
-                        }
-                    });
-                }
+                deleteRemoteFile(invoicePath); // Se ejecuta en segundo plano
             }
         }
 
@@ -1140,39 +1107,7 @@ app.post('/api/notes', async (req, res) => {
     }
 });
 
-app.post('/api/notes/migrate/:userId', async (req, res) => {
-    try {
-        const notes = req.body; // Array de notas
-        const userId = req.params.userId;
-        const pool = await getDbPool();
-        
-        console.log(`Migrando ${notes.length} notas para usuario ${userId}`);
 
-        for (const n of notes) {
-            const content = typeof n.content === 'object' ? JSON.stringify(n.content) : n.content;
-            const lastModified = n.lastModified || new Date().toISOString();
-            
-            // Asegurar que n.id es una cadena para SQL y manejar IDs numéricos de localStorage
-            const noteIdStr = String(n.id);
-            
-            const check = await pool.request().input('id', sql.VarChar(50), noteIdStr).query('SELECT id FROM Notes WHERE id = @id');
-            const finalId = check.recordset.length > 0 ? 'MIG-' + Date.now() + Math.random() : noteIdStr;
-
-            await pool.request()
-                .input('id', sql.VarChar(50), finalId)
-                .input('userId', sql.VarChar(50), userId)
-                .input('title', sql.VarChar(255), n.title || '')
-                .input('content', sql.VarChar(sql.MAX), content)
-                .input('type', sql.VarChar(50), n.type || 'text')
-                .input('pinned', sql.Bit, n.pinned ? 1 : 0)
-                .input('lastModified', sql.VarChar(100), lastModified)
-                .query(`INSERT INTO Notes (id, userId, title, content, type, pinned, lastModified) VALUES (@id, @userId, @title, @content, @type, @pinned, @lastModified)`);
-        }
-        res.json({ success: true, count: notes.length });
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
-});
 
 app.delete('/api/notes/:id', async (req, res) => {
     try {
@@ -1365,30 +1300,7 @@ app.post('/api/users/batch', async (req, res) => {
         });
     });
 
-// Migrar contraseñas de texto plano a hash bcrypt (se llama al iniciar el servidor)
-async function migratePasswords() {
-    try {
-        const pool = await getDbPool();
-        const result = await pool.request().query('SELECT id, password FROM Users');
-        let migrated = 0;
-        for (const user of result.recordset) {
-            if (!user.password || user.password.startsWith('$2b$')) continue;
-            const hashed = await bcrypt.hash(user.password, BCRYPT_ROUNDS);
-            await pool.request()
-                .input('id', sql.VarChar(50), user.id)
-                .input('password', sql.VarChar(100), hashed)
-                .query('UPDATE Users SET password = @password WHERE id = @id');
-            migrated++;
-        }
-        if (migrated > 0) {
-            console.log(`✅ Migración: ${migrated} contraseña(s) convertida(s) a hash bcrypt`);
-        } else {
-            console.log('✅ Contraseñas: todas ya tienen hash bcrypt');
-        }
-    } catch (err) {
-        console.error('⚠️  Error en migración de contraseñas:', err.message);
-    }
-}
+
 
 // --- ENDPOINTS PARA CRM (Prospectos y Bitácora) ---
 
@@ -1625,6 +1537,14 @@ app.get('/api/contracts', (req, res) => getApi(req, res, 'Contracts'));
 app.delete('/api/contracts/:id', async (req, res) => {
     try {
         const pool = await getDbPool();
+        
+        // Obtener la ruta del documento para borrarlo físicamente
+        const contractRes = await pool.request()
+            .input('id', sql.VarChar(50), req.params.id)
+            .query('SELECT documentPath FROM Contracts WHERE id = @id');
+        
+        const documentPath = contractRes.recordset[0]?.documentPath;
+        
         // Borrar primero el historial para no violar la llave foránea
         await pool.request()
             .input('id', sql.VarChar, req.params.id)
@@ -1634,6 +1554,137 @@ app.delete('/api/contracts/:id', async (req, res) => {
             .input('id', sql.VarChar, req.params.id)
             .query('DELETE FROM Contracts WHERE id = @id');
 
+        // Eliminar el archivo de OneDrive de forma asíncrona (si existe)
+        if (documentPath) {
+            deleteRemoteFile(documentPath).catch(err => console.error('Error borrando doc contrato:', err));
+        }
+
+        res.json({ success: true });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// --- Documentos de Contratos ---
+app.post('/api/contracts/:id/upload-document', uploadDocument.single('document'), async (req, res) => {
+    try {
+        if (!req.file) return res.status(400).json({ error: 'No se subió ningún archivo' });
+        
+        const pool = await getDbPool();
+        const contractId = req.params.id;
+        
+        // Obtener el cliente para saber el nombre de la carpeta
+        const contractRes = await pool.request()
+            .input('id', sql.VarChar(50), contractId)
+            .query(`
+                SELECT c.clientId, cl.name as clientName 
+                FROM Contracts c 
+                JOIN Clients cl ON c.clientId = cl.id 
+                WHERE c.id = @id
+            `);
+            
+        if (contractRes.recordset.length === 0) {
+            return res.status(404).json({ error: 'Contrato no encontrado' });
+        }
+        
+        const clientName = contractRes.recordset[0].clientName || 'SinCliente';
+        
+        const fileName = req.file.originalname;
+        
+        // Añadir timestamp para histórico (no sobreescribir)
+        const safeFileName = `${Date.now()}_${fileName}`;
+        const uploadedFilePath = req.file.path; // Archivo temporal que creó multer
+        const localFilePath = path.join(path.dirname(uploadedFilePath), safeFileName);
+        
+        // Renombramos el archivo temporal para que tenga el nombre correcto
+        fs.renameSync(uploadedFilePath, localFilePath);
+        
+        const remoteDestDir = `onedrive_backup:Simons SPA/Clientes/Contratos APP/${clientName}`;
+        const finalRemotePath = `${remoteDestDir}/${safeFileName}`;
+        
+        const rcloneArgs = ['copy', localFilePath, remoteDestDir];
+        const rcloneConfigPath = '/home/administrador/.config/rclone/rclone.conf';
+        if (fs.existsSync(rcloneConfigPath)) {
+            rcloneArgs.push('--config', rcloneConfigPath);
+        }
+        
+        const { execFile } = require('child_process');
+        execFile('/usr/bin/rclone', rcloneArgs, async (error, stdout, stderr) => {
+            try {
+                if (fs.existsSync(localFilePath)) fs.unlinkSync(localFilePath);
+            } catch (unlinkErr) {}
+
+            if (error) {
+                console.error('Error al subir documento de contrato:', error);
+                return res.status(500).json({ error: 'Error de subida de documento.' });
+            }
+            
+            // Actualizar DB
+            await pool.request()
+                .input('id', sql.VarChar(50), contractId)
+                .input('path', sql.VarChar(sql.MAX), finalRemotePath)
+                .query('UPDATE Contracts SET documentPath = @path WHERE id = @id');
+                
+            res.json({ success: true, documentPath: finalRemotePath });
+        });
+    } catch (err) {
+        console.error('Error en upload contrato:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.get('/api/contracts/:id/download-document', async (req, res) => {
+    try {
+        const pool = await getDbPool();
+        const result = await pool.request()
+            .input('id', sql.VarChar(50), req.params.id)
+            .query('SELECT documentPath FROM Contracts WHERE id = @id');
+            
+        if (result.recordset.length === 0 || !result.recordset[0].documentPath) {
+            return res.status(404).send('Documento no encontrado.');
+        }
+        
+        const documentPath = result.recordset[0].documentPath;
+        const fileName = path.basename(documentPath);
+        
+        const { spawn } = require('child_process');
+        const rcloneArgs = ['cat', documentPath];
+        const rcloneConfigPath = '/home/administrador/.config/rclone/rclone.conf';
+        if (fs.existsSync(rcloneConfigPath)) {
+            rcloneArgs.push('--config', rcloneConfigPath);
+        }
+
+        res.setHeader('Content-Disposition', `attachment; filename="${fileName.replace(/^\d+_/, '')}"`);
+        const ext = fileName.split('.').pop().toLowerCase();
+        if (ext === 'pdf') res.setHeader('Content-Type', 'application/pdf');
+        
+        const child = spawn('/usr/bin/rclone', rcloneArgs);
+        child.stdout.pipe(res);
+        child.on('error', (err) => {
+            console.error('rclone spawn error:', err);
+            if (!res.headersSent) res.status(500).send(`Error de descarga: ${err.message}`);
+        });
+    } catch (err) {
+        res.status(500).send('Error interno del servidor.');
+    }
+});
+
+app.delete('/api/contracts/:id/document', async (req, res) => {
+    try {
+        const pool = await getDbPool();
+        const result = await pool.request()
+            .input('id', sql.VarChar(50), req.params.id)
+            .query('SELECT documentPath FROM Contracts WHERE id = @id');
+            
+        if (result.recordset.length > 0 && result.recordset[0].documentPath) {
+            const documentPath = result.recordset[0].documentPath;
+            // Borrar de rclone
+            deleteRemoteFile(documentPath).catch(err => console.error('Error borrando:', err));
+            // Borrar de DB
+            await pool.request()
+                .input('id', sql.VarChar(50), req.params.id)
+                .query('UPDATE Contracts SET documentPath = NULL WHERE id = @id');
+        }
         res.json({ success: true });
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -1811,11 +1862,7 @@ app.get('/api/contracts/invoiced-history', async (req, res) => {
     }
 });
 
-// Mantener alias para compatibilidad mientras se migra el frontend
-app.get('/api/contracts/invoiced-current', (req, res) => {
-    // Redirigir a la nueva ruta que devuelve todo el historial
-    res.redirect('/api/contracts/invoiced-history');
-});
+
 
 
 app.post('/api/contracts/:id/undo', async (req, res) => {
@@ -2405,9 +2452,9 @@ app.post('/api/quotations/save-pdf', async (req, res) => {
                 }
 
                 if (error) {
-                    console.error('Error al subir PDF a OneDrive con rclone:', error);
+                    console.error('Error al subir PDF de cotización con rclone:', error);
                     console.error('stderr:', stderr);
-                    return res.status(500).json({ error: `Error de subida a OneDrive con rclone: ${error.message}` });
+                    return res.status(500).json({ error: `Error de subida de documento: ${error.message}` });
                 }
                 
                 console.log(`✅ PDF cotización subido con éxito a OneDrive (${remoteDestDir}/${fileName})`);
@@ -2593,9 +2640,9 @@ app.post('/api/reports/save-pdf', async (req, res) => {
                 }
 
                 if (error) {
-                    console.error('Error al subir PDF de informe a OneDrive con rclone:', error);
+                    console.error('Error al subir PDF de informe con rclone:', error);
                     console.error('stderr:', stderr);
-                    return res.status(500).json({ error: `Error de subida a OneDrive con rclone: ${error.message}` });
+                    return res.status(500).json({ error: `Error de subida de documento: ${error.message}` });
                 }
                 
                 console.log(`✅ PDF informe subido con éxito a OneDrive (${remoteDestDir}/${fileName})`);
@@ -2691,9 +2738,9 @@ app.post('/api/debtors/upload-invoice', async (req, res) => {
                 }
 
                 if (error) {
-                    console.error('Error al subir factura a OneDrive con rclone:', error);
+                    console.error('Error al subir factura con rclone:', error);
                     console.error('stderr:', stderr);
-                    return res.status(500).json({ error: `Error de subida a OneDrive con rclone: ${error.message}` });
+                    return res.status(500).json({ error: `Error de subida de documento: ${error.message}` });
                 }
 
                 const finalPath = `${remoteDestDir}/${fileName}`;
@@ -2790,9 +2837,9 @@ app.post('/api/transactions/upload-invoice', async (req, res) => {
                 }
 
                 if (error) {
-                    console.error('Error al subir comprobante a OneDrive con rclone:', error);
+                    console.error('Error al subir comprobante con rclone:', error);
                     console.error('stderr:', stderr);
-                    return res.status(500).json({ error: `Error de subida a OneDrive con rclone: ${error.message}` });
+                    return res.status(500).json({ error: `Error de subida de documento: ${error.message}` });
                 }
 
                 const finalPath = `${remoteDestDir}/${fileName}`;
@@ -2806,6 +2853,79 @@ app.post('/api/transactions/upload-invoice', async (req, res) => {
         res.status(500).json({ error: err.message });
     }
 });
+
+// Helper para eliminar archivos de manera robusta (Windows local o Linux rclone con fallback)
+const deleteRemoteFile = (invoicePath) => {
+    return new Promise((resolve) => {
+        if (!invoicePath) return resolve(true);
+
+        const isWindows = process.platform === 'win32';
+        if (isWindows) {
+            const fs = require('fs');
+            if (fs.existsSync(invoicePath)) {
+                fs.unlink(invoicePath, (err) => {
+                    if (err) {
+                        console.error('Error al eliminar archivo local:', err);
+                    } else {
+                        console.log('✅ Archivo local eliminado:', invoicePath);
+                    }
+                    resolve(true);
+                });
+            } else {
+                resolve(true);
+            }
+        } else {
+            const { execFile } = require('child_process');
+            const fs = require('fs');
+            const rcloneConfigPath = '/home/administrador/.config/rclone/rclone.conf';
+            
+            const runRclone = (args) => {
+                return new Promise((res, rej) => {
+                    const argsWithConfig = [...args];
+                    if (fs.existsSync(rcloneConfigPath)) {
+                        argsWithConfig.push('--config', rcloneConfigPath);
+                    }
+                    execFile('/usr/bin/rclone', argsWithConfig, (err, stdout, stderr) => {
+                        if (err) {
+                            rej({ err, stderr });
+                        } else {
+                            res(stdout);
+                        }
+                    });
+                });
+            };
+
+            // 1. Intentar deletefile (más rápido y limpio para archivos individuales)
+            runRclone(['deletefile', invoicePath])
+                .then(() => {
+                    console.log('✅ Archivo eliminado con deletefile:', invoicePath);
+                    resolve(true);
+                })
+                .catch((errorInfo) => {
+                    console.warn('⚠️ Falló deletefile, intentando delete con --include...', errorInfo.err.message);
+                    
+                    // 2. Fallback: usar delete con filtro --include (soportado en todas las versiones de rclone)
+                    const lastSlashIndex = invoicePath.lastIndexOf('/');
+                    if (lastSlashIndex !== -1) {
+                        const dirPath = invoicePath.substring(0, lastSlashIndex);
+                        const fileName = invoicePath.substring(lastSlashIndex + 1);
+                        
+                        runRclone(['delete', dirPath, '--include', fileName])
+                            .then(() => {
+                                console.log('✅ Archivo eliminado con delete --include:', invoicePath);
+                                resolve(true);
+                            })
+                            .catch((fallbackErr) => {
+                                console.error('❌ Falló también el método fallback de eliminación:', fallbackErr.err.message);
+                                resolve(false);
+                            });
+                    } else {
+                        resolve(false);
+                    }
+                });
+        }
+    });
+};
 
 // --- ENPOINTS DE DESCARGA Y ELIMINACION DE FACTURAS/COMPROBANTES (ONEDRIVE) ---
 
@@ -2936,36 +3056,14 @@ app.delete('/api/debtors/:id/invoice', async (req, res) => {
         }
 
         const invoicePath = result.recordset[0].invoicePath;
-        const isWindows = process.platform === 'win32';
 
         // 1. Limpiar de la BD
         await pool.request()
             .input('id', sql.VarChar(50), req.params.id)
             .query('UPDATE Debtors SET invoicePath = NULL WHERE id = @id');
 
-        // 2. Eliminar de OneDrive
-        if (isWindows) {
-            if (fs.existsSync(invoicePath)) {
-                fs.unlink(invoicePath, (err) => {
-                    if (err) console.error('Error al eliminar archivo local de deudor:', err);
-                });
-            }
-        } else {
-            const { execFile } = require('child_process');
-            const rcloneArgs = ['deletefile', invoicePath];
-            const rcloneConfigPath = '/home/administrador/.config/rclone/rclone.conf';
-            if (fs.existsSync(rcloneConfigPath)) {
-                rcloneArgs.push('--config', rcloneConfigPath);
-            }
-            execFile('/usr/bin/rclone', rcloneArgs, (err, stdout, stderr) => {
-                if (err) {
-                    console.error('Error al eliminar archivo de OneDrive con rclone:', err);
-                    console.error('stderr:', stderr);
-                } else {
-                    console.log('✅ Archivo de deudor eliminado de OneDrive:', invoicePath);
-                }
-            });
-        }
+        // 2. Eliminar del almacenamiento remoto
+        deleteRemoteFile(invoicePath); // Se ejecuta en segundo plano
 
         res.json({ success: true });
     } catch (err) {
@@ -2986,36 +3084,14 @@ app.delete('/api/transactions/:id/invoice', async (req, res) => {
         }
 
         const invoicePath = result.recordset[0].invoicePath;
-        const isWindows = process.platform === 'win32';
 
         // 1. Limpiar de la BD
         await pool.request()
             .input('id', sql.VarChar(50), req.params.id)
             .query('UPDATE Transactions SET invoicePath = NULL WHERE id = @id');
 
-        // 2. Eliminar de OneDrive
-        if (isWindows) {
-            if (fs.existsSync(invoicePath)) {
-                fs.unlink(invoicePath, (err) => {
-                    if (err) console.error('Error al eliminar archivo local de transacción:', err);
-                });
-            }
-        } else {
-            const { execFile } = require('child_process');
-            const rcloneArgs = ['deletefile', invoicePath];
-            const rcloneConfigPath = '/home/administrador/.config/rclone/rclone.conf';
-            if (fs.existsSync(rcloneConfigPath)) {
-                rcloneArgs.push('--config', rcloneConfigPath);
-            }
-            execFile('/usr/bin/rclone', rcloneArgs, (err, stdout, stderr) => {
-                if (err) {
-                    console.error('Error al eliminar comprobante de OneDrive con rclone:', err);
-                    console.error('stderr:', stderr);
-                } else {
-                    console.log('✅ Comprobante de transacción eliminado de OneDrive:', invoicePath);
-                }
-            });
-        }
+        // 2. Eliminar del almacenamiento remoto
+        deleteRemoteFile(invoicePath); // Se ejecuta en segundo plano
 
         res.json({ success: true });
     } catch (err) {
@@ -3087,7 +3163,7 @@ function getNetworkIp() {
 // Función de inicio de tareas de mantenimiento
 async function runMaintenanceTasks() {
     try {
-        await migratePasswords();
+
         await deleteExpiredNotes();
         await cleanOldQuotations();
         await syncQuotationsToProjects();
