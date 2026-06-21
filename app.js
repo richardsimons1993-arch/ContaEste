@@ -3091,7 +3091,6 @@ const UI = {
         if (client) {
             clientName = client.nombreFantasia || client.razonSocial || client.name || clientName;
         }
-        // Sanitizar nombre para nombre de archivo
         const safeClientName = clientName.replace(/[^a-zA-Z0-9 \-]/g, '').trim();
 
         // Crear input de archivo oculto
@@ -3108,12 +3107,31 @@ const UI = {
 
             const year = debtor.date ? new Date(debtor.date).getFullYear() : new Date().getFullYear();
 
+            // Toast fijo y persistente durante la subida — visible aunque cambies de vista
+            let uploadBanner = document.getElementById('invoice-upload-banner');
+            if (!uploadBanner) {
+                uploadBanner = document.createElement('div');
+                uploadBanner.id = 'invoice-upload-banner';
+                uploadBanner.style.cssText = `
+                    position: fixed; bottom: 24px; right: 24px; z-index: 99999;
+                    background: #1e3a5f; color: #fff; border-radius: 10px;
+                    padding: 14px 20px; font-size: 14px; font-weight: 500;
+                    display: flex; align-items: center; gap: 12px;
+                    box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+                    border-left: 4px solid #3b82f6;
+                    min-width: 300px; max-width: 420px;
+                `;
+                document.body.appendChild(uploadBanner);
+            }
+            uploadBanner.innerHTML = `
+                <i class="fa-solid fa-cloud-arrow-up fa-beat" style="color:#60a5fa;font-size:18px;"></i>
+                <span>Subiendo factura a OneDrive… <br><small style="opacity:0.7">Puedes seguir navegando, esto ocurre en segundo plano.</small></span>
+            `;
+
             // Leer archivo como base64
             const reader = new FileReader();
             reader.onload = async (e) => {
-                const pdfBase64 = e.target.result; // incluye el prefijo data:...;base64,...
-
-                this.showToast('Subiendo factura a OneDrive...', 'info');
+                const pdfBase64 = e.target.result;
 
                 try {
                     const response = await fetch('/api/debtors/upload-invoice', {
@@ -3132,18 +3150,35 @@ const UI = {
                     const result = await response.json();
 
                     if (result.success) {
-                        // Guardar referencia del path en el deudor
-                        debtor.invoicePath = result.filePath;
-                        window.StorageAPI.saveDebtor(debtor);
-                        this.renderDebtors();
-                        this.showToast(`✅ Factura cargada correctamente en OneDrive`, 'success');
+                        // El backend ya guardó invoicePath en BD.
+                        // Recargamos los datos para que el ícono se actualice correctamente.
+                        uploadBanner.style.borderLeftColor = '#22c55e';
+                        uploadBanner.innerHTML = `
+                            <i class="fa-solid fa-circle-check" style="color:#22c55e;font-size:18px;"></i>
+                            <span>✅ Factura cargada en OneDrive</span>
+                        `;
+                        setTimeout(() => { if (uploadBanner.parentNode) uploadBanner.parentNode.removeChild(uploadBanner); }, 4000);
                         this.recordActivity('Carga', 'Deudor', `Factura adjuntada al deudor ${clientName}`);
+                        // Recargar datos del servidor para reflejar el ícono actualizado
+                        await this.loadData();
                     } else {
-                        this.showToast(`Error al cargar factura: ${result.error}`, 'error');
+                        uploadBanner.style.borderLeftColor = '#ef4444';
+                        uploadBanner.innerHTML = `
+                            <i class="fa-solid fa-triangle-exclamation" style="color:#ef4444;font-size:18px;"></i>
+                            <span>Error al cargar factura: ${result.error}</span>
+                        `;
+                        setTimeout(() => { if (uploadBanner.parentNode) uploadBanner.parentNode.removeChild(uploadBanner); }, 6000);
                     }
                 } catch (err) {
                     console.error('Error al subir factura:', err);
-                    this.showToast('Error de conexión al cargar factura', 'error');
+                    if (uploadBanner.parentNode) {
+                        uploadBanner.style.borderLeftColor = '#ef4444';
+                        uploadBanner.innerHTML = `
+                            <i class="fa-solid fa-triangle-exclamation" style="color:#ef4444;font-size:18px;"></i>
+                            <span>Error de conexión al cargar factura</span>
+                        `;
+                        setTimeout(() => { if (uploadBanner.parentNode) uploadBanner.parentNode.removeChild(uploadBanner); }, 6000);
+                    }
                 }
             };
             reader.readAsDataURL(file);

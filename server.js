@@ -2529,6 +2529,21 @@ app.post('/api/debtors/upload-invoice', async (req, res) => {
 
         const isWindows = process.platform === 'win32';
 
+        // Helper: guarda invoicePath en la BD directamente — no depende del cliente
+        // Así el path queda guardado aunque el usuario cierre la pestaña o cambie de vista
+        const saveInvoicePathToDB = async (invoicePath) => {
+            try {
+                const pool = await getDbPool();
+                await pool.request()
+                    .input('id', sql.VarChar(50), debtorId)
+                    .input('invoicePath', sql.VarChar(sql.MAX), invoicePath)
+                    .query(`UPDATE Debtors SET invoicePath=@invoicePath WHERE id=@id`);
+                console.log(`✅ invoicePath guardado en BD para deudor ${debtorId}`);
+            } catch (dbErr) {
+                console.error('Error al guardar invoicePath en BD:', dbErr.message);
+            }
+        };
+
         if (isWindows) {
             const baseDriveDir = path.join('C:', 'Users', 'Richard', 'OneDrive - SIMONS SPA', 'Simons SPA', 'Clientes', 'Facturas APP');
             const yearDir = path.join(baseDriveDir, year.toString());
@@ -2541,6 +2556,7 @@ app.post('/api/debtors/upload-invoice', async (req, res) => {
             const filePath = path.join(clientDir, fileName);
             fs.writeFileSync(filePath, base64Data, 'base64');
 
+            await saveInvoicePathToDB(filePath);
             console.log(`✅ Factura guardada localmente (Windows): ${filePath}`);
             res.json({ success: true, filePath });
         } else {
@@ -2569,7 +2585,7 @@ app.post('/api/debtors/upload-invoice', async (req, res) => {
                 rcloneArgs.push('--config', rcloneConfigPath);
             }
 
-            execFile('/usr/bin/rclone', rcloneArgs, (error, stdout, stderr) => {
+            execFile('/usr/bin/rclone', rcloneArgs, async (error, stdout, stderr) => {
                 try {
                     if (fs.existsSync(localFilePath)) {
                         fs.unlinkSync(localFilePath);
@@ -2584,8 +2600,11 @@ app.post('/api/debtors/upload-invoice', async (req, res) => {
                     return res.status(500).json({ error: `Error de subida a OneDrive con rclone: ${error.message}` });
                 }
 
-                console.log(`✅ Factura subida con éxito a OneDrive (${remoteDestDir}/${fileName})`);
-                res.json({ success: true, filePath: `${remoteDestDir}/${fileName}` });
+                const finalPath = `${remoteDestDir}/${fileName}`;
+                // Guardar en BD ANTES de responder al cliente — robusto ante desconexiones
+                await saveInvoicePathToDB(finalPath);
+                console.log(`✅ Factura subida con éxito a OneDrive (${finalPath})`);
+                res.json({ success: true, filePath: finalPath });
             });
         }
     } catch (err) {
