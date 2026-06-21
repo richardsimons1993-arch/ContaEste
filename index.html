@@ -706,7 +706,8 @@
                             <label for="transaction-invoice">Adjuntar Factura o Comprobante (Opcional)</label>
                             <input type="file" id="transaction-invoice" accept=".pdf,.jpg,.jpeg,.png">
                             <span id="transaction-invoice-status" style="font-size: 0.85rem; color: var(--secondary-color); margin-top: 4px; display: none; font-weight: 500;">
-                                <i class="fa-solid fa-file-invoice"></i> Ya existe un archivo cargado. Seleccione uno nuevo para reemplazarlo.
+                                <i class="fa-solid fa-file-invoice"></i> Ya existe un archivo cargado. Seleccione uno nuevo para reemplazarlo o 
+                                <a href="javascript:void(0)" onclick="UI.deleteTransactionInvoiceFromForm()" style="color: var(--danger-color); text-decoration: underline; margin-left: 5px;">eliminarlo</a>.
                             </span>
                         </div>
 

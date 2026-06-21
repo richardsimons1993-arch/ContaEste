@@ -2180,9 +2180,21 @@ const UI = {
                 </td>
                 ${canRegister ? `
                 <td class="actions">
-                    <button class="btn-icon ${t.invoicePath ? 'text-success' : ''}" title="${t.invoicePath ? 'Comprobante cargado — Cargar nuevo' : 'Adjuntar Comprobante/Factura'}" onclick="UI.uploadTransactionInvoice('${t.id}')">
-                        <i class="fa-solid ${t.invoicePath ? 'fa-file-invoice' : 'fa-file-arrow-up'}"></i>
+                    ${t.invoicePath ? `
+                    <a class="btn-icon text-primary" title="Descargar Comprobante" href="/api/transactions/${t.id}/download-invoice" target="_blank">
+                        <i class="fa-solid fa-file-pdf"></i>
+                    </a>
+                    <button class="btn-icon text-warning" title="Reemplazar Comprobante" onclick="UI.uploadTransactionInvoice('${t.id}')">
+                        <i class="fa-solid fa-arrows-rotate"></i>
                     </button>
+                    <button class="btn-icon text-danger" title="Eliminar Comprobante" onclick="UI.deleteTransactionInvoice('${t.id}')">
+                        <i class="fa-solid fa-file-circle-xmark"></i>
+                    </button>
+                    ` : `
+                    <button class="btn-icon" title="Adjuntar Comprobante/Factura" onclick="UI.uploadTransactionInvoice('${t.id}')">
+                        <i class="fa-solid fa-file-arrow-up"></i>
+                    </button>
+                    `}
                     <button class="btn-icon" title="Editar" onclick="UI.editTransaction('${t.id}')">
                         <i class="fa-solid fa-pen-to-square"></i>
                     </button>
@@ -2997,9 +3009,21 @@ const UI = {
                 <td style="color: var(--text-muted); white-space: nowrap;">${formatCurrency(netAmount)}</td>
                 <td style="font-weight:bold; white-space: nowrap; color: var(--secondary-color)">${formatCurrency(rawAmount)}</td>
                 <td class="actions">
-                    <button class="btn-icon ${d.invoicePath ? 'text-success' : ''}" title="${d.invoicePath ? 'Factura cargada — Cargar nueva' : 'Adjuntar Factura'}" onclick="UI.uploadDebtorInvoice('${d.id}')">
-                        <i class="fa-solid ${d.invoicePath ? 'fa-file-invoice' : 'fa-file-arrow-up'}"></i>
+                    ${d.invoicePath ? `
+                    <a class="btn-icon text-primary" title="Descargar Factura" href="/api/debtors/${d.id}/download-invoice" target="_blank">
+                        <i class="fa-solid fa-file-pdf"></i>
+                    </a>
+                    <button class="btn-icon text-warning" title="Reemplazar Factura" onclick="UI.uploadDebtorInvoice('${d.id}')">
+                        <i class="fa-solid fa-arrows-rotate"></i>
                     </button>
+                    <button class="btn-icon text-danger" title="Eliminar Factura" onclick="UI.deleteDebtorInvoice('${d.id}')">
+                        <i class="fa-solid fa-file-circle-xmark"></i>
+                    </button>
+                    ` : `
+                    <button class="btn-icon" title="Adjuntar Factura" onclick="UI.uploadDebtorInvoice('${d.id}')">
+                        <i class="fa-solid fa-file-arrow-up"></i>
+                    </button>
+                    `}
                     <button class="btn-icon text-success" title="Marcar como Pagado" onclick="UI.payDebtor('${d.id}')">
                         <i class="fa-solid fa-check"></i>
                     </button>
@@ -3302,6 +3326,78 @@ const UI = {
             }
         };
         reader.readAsDataURL(file);
+    },
+
+    async deleteDebtorInvoice(id) {
+        if (!(await this.confirmModal('¿Estás seguro de que quieres eliminar la factura asociada?'))) return;
+
+        try {
+            const response = await fetch(`/api/debtors/${id}/invoice`, {
+                method: 'DELETE'
+            });
+            const result = await response.json();
+            if (result.success) {
+                this.showToast('Factura eliminada con éxito', 'success');
+                this.recordActivity('Baja', 'Deudor', `Factura eliminada para el deudor`);
+                await this.loadData();
+            } else {
+                this.showToast('Error al eliminar factura: ' + result.error, 'danger');
+            }
+        } catch (err) {
+            console.error('Error al eliminar factura:', err);
+            this.showToast('Error de conexión al eliminar factura', 'danger');
+        }
+    },
+
+    async deleteTransactionInvoice(id) {
+        if (!(await this.confirmModal('¿Estás seguro de que quieres eliminar el comprobante asociado?'))) return;
+
+        try {
+            const response = await fetch(`/api/transactions/${id}/invoice`, {
+                method: 'DELETE'
+            });
+            const result = await response.json();
+            if (result.success) {
+                this.showToast('Comprobante eliminado con éxito', 'success');
+                this.recordActivity('Baja', 'Movimiento', `Comprobante de movimiento eliminado`);
+                await this.loadData();
+            } else {
+                this.showToast('Error al eliminar comprobante: ' + result.error, 'danger');
+            }
+        } catch (err) {
+            console.error('Error al eliminar comprobante:', err);
+            this.showToast('Error de conexión al eliminar comprobante', 'danger');
+        }
+    },
+
+    async deleteTransactionInvoiceFromForm() {
+        const id = document.getElementById('transaction-id').value;
+        if (!id) return;
+        
+        if (!(await this.confirmModal('¿Estás seguro de que quieres eliminar el comprobante asociado?'))) return;
+
+        try {
+            const response = await fetch(`/api/transactions/${id}/invoice`, {
+                method: 'DELETE'
+            });
+            const result = await response.json();
+            if (result.success) {
+                this.showToast('Comprobante eliminado con éxito', 'success');
+                this.recordActivity('Baja', 'Movimiento', `Comprobante de movimiento eliminado`);
+                
+                // Ocultar indicador en el formulario
+                const statusSpan = document.getElementById('transaction-invoice-status');
+                if (statusSpan) statusSpan.style.display = 'none';
+                
+                // Recargar datos
+                await this.loadData();
+            } else {
+                this.showToast('Error al eliminar comprobante: ' + result.error, 'danger');
+            }
+        } catch (err) {
+            console.error('Error al eliminar comprobante:', err);
+            this.showToast('Error de conexión al eliminar comprobante', 'danger');
+        }
     },
 
     resetDebtorForm() {

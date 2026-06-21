@@ -2713,6 +2713,223 @@ app.post('/api/transactions/upload-invoice', async (req, res) => {
     }
 });
 
+// --- ENPOINTS DE DESCARGA Y ELIMINACION DE FACTURAS/COMPROBANTES (ONEDRIVE) ---
+
+app.get('/api/debtors/:id/download-invoice', async (req, res) => {
+    try {
+        const pool = await getDbPool();
+        const result = await pool.request()
+            .input('id', sql.VarChar(50), req.params.id)
+            .query('SELECT invoicePath FROM Debtors WHERE id = @id');
+        
+        if (result.recordset.length === 0 || !result.recordset[0].invoicePath) {
+            return res.status(404).send('Factura no encontrada o no cargada.');
+        }
+
+        const invoicePath = result.recordset[0].invoicePath;
+        const isWindows = process.platform === 'win32';
+        const fileName = path.basename(invoicePath);
+
+        if (isWindows) {
+            if (fs.existsSync(invoicePath)) {
+                res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+                res.sendFile(invoicePath);
+            } else {
+                res.status(404).send('Archivo local no encontrado en el servidor.');
+            }
+        } else {
+            // Linux + rclone
+            const { spawn } = require('child_process');
+            
+            const rcloneArgs = ['cat', invoicePath];
+            const rcloneConfigPath = '/home/administrador/.config/rclone/rclone.conf';
+            if (fs.existsSync(rcloneConfigPath)) {
+                rcloneArgs.push('--config', rcloneConfigPath);
+            }
+
+            res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+            
+            // Tipo de contenido
+            const ext = fileName.split('.').pop().toLowerCase();
+            if (ext === 'pdf') res.setHeader('Content-Type', 'application/pdf');
+            else if (ext === 'png') res.setHeader('Content-Type', 'image/png');
+            else if (ext === 'jpg' || ext === 'jpeg') res.setHeader('Content-Type', 'image/jpeg');
+
+            const child = spawn('/usr/bin/rclone', rcloneArgs);
+            child.stdout.pipe(res);
+            child.stderr.on('data', (data) => {
+                console.error(`rclone cat stderr: ${data}`);
+            });
+            child.on('error', (err) => {
+                console.error('rclone spawn error:', err);
+                if (!res.headersSent) {
+                    res.status(500).send(`Error de descarga: ${err.message}`);
+                }
+            });
+        }
+    } catch (err) {
+        console.error('Error al descargar factura:', err);
+        res.status(500).send('Error interno del servidor.');
+    }
+});
+
+app.get('/api/transactions/:id/download-invoice', async (req, res) => {
+    try {
+        const pool = await getDbPool();
+        const result = await pool.request()
+            .input('id', sql.VarChar(50), req.params.id)
+            .query('SELECT invoicePath FROM Transactions WHERE id = @id');
+        
+        if (result.recordset.length === 0 || !result.recordset[0].invoicePath) {
+            return res.status(404).send('Comprobante no encontrado o no cargado.');
+        }
+
+        const invoicePath = result.recordset[0].invoicePath;
+        const isWindows = process.platform === 'win32';
+        const fileName = path.basename(invoicePath);
+
+        if (isWindows) {
+            if (fs.existsSync(invoicePath)) {
+                res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+                res.sendFile(invoicePath);
+            } else {
+                res.status(404).send('Archivo local no encontrado en el servidor.');
+            }
+        } else {
+            // Linux + rclone
+            const { spawn } = require('child_process');
+            
+            const rcloneArgs = ['cat', invoicePath];
+            const rcloneConfigPath = '/home/administrador/.config/rclone/rclone.conf';
+            if (fs.existsSync(rcloneConfigPath)) {
+                rcloneArgs.push('--config', rcloneConfigPath);
+            }
+
+            res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+            
+            const ext = fileName.split('.').pop().toLowerCase();
+            if (ext === 'pdf') res.setHeader('Content-Type', 'application/pdf');
+            else if (ext === 'png') res.setHeader('Content-Type', 'image/png');
+            else if (ext === 'jpg' || ext === 'jpeg') res.setHeader('Content-Type', 'image/jpeg');
+
+            const child = spawn('/usr/bin/rclone', rcloneArgs);
+            child.stdout.pipe(res);
+            child.stderr.on('data', (data) => {
+                console.error(`rclone cat stderr: ${data}`);
+            });
+            child.on('error', (err) => {
+                console.error('rclone spawn error:', err);
+                if (!res.headersSent) {
+                    res.status(500).send(`Error de descarga: ${err.message}`);
+                }
+            });
+        }
+    } catch (err) {
+        console.error('Error al descargar comprobante:', err);
+        res.status(500).send('Error interno del servidor.');
+    }
+});
+
+app.delete('/api/debtors/:id/invoice', async (req, res) => {
+    try {
+        const pool = await getDbPool();
+        const result = await pool.request()
+            .input('id', sql.VarChar(50), req.params.id)
+            .query('SELECT invoicePath FROM Debtors WHERE id = @id');
+        
+        if (result.recordset.length === 0 || !result.recordset[0].invoicePath) {
+            return res.status(404).json({ error: 'No hay factura asociada para eliminar.' });
+        }
+
+        const invoicePath = result.recordset[0].invoicePath;
+        const isWindows = process.platform === 'win32';
+
+        // 1. Limpiar de la BD
+        await pool.request()
+            .input('id', sql.VarChar(50), req.params.id)
+            .query('UPDATE Debtors SET invoicePath = NULL WHERE id = @id');
+
+        // 2. Eliminar de OneDrive
+        if (isWindows) {
+            if (fs.existsSync(invoicePath)) {
+                fs.unlink(invoicePath, (err) => {
+                    if (err) console.error('Error al eliminar archivo local de deudor:', err);
+                });
+            }
+        } else {
+            const { execFile } = require('child_process');
+            const rcloneArgs = ['deletefile', invoicePath];
+            const rcloneConfigPath = '/home/administrador/.config/rclone/rclone.conf';
+            if (fs.existsSync(rcloneConfigPath)) {
+                rcloneArgs.push('--config', rcloneConfigPath);
+            }
+            execFile('/usr/bin/rclone', rcloneArgs, (err, stdout, stderr) => {
+                if (err) {
+                    console.error('Error al eliminar archivo de OneDrive con rclone:', err);
+                    console.error('stderr:', stderr);
+                } else {
+                    console.log('✅ Archivo de deudor eliminado de OneDrive:', invoicePath);
+                }
+            });
+        }
+
+        res.json({ success: true });
+    } catch (err) {
+        console.error('Error al eliminar factura de deudor:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.delete('/api/transactions/:id/invoice', async (req, res) => {
+    try {
+        const pool = await getDbPool();
+        const result = await pool.request()
+            .input('id', sql.VarChar(50), req.params.id)
+            .query('SELECT invoicePath FROM Transactions WHERE id = @id');
+        
+        if (result.recordset.length === 0 || !result.recordset[0].invoicePath) {
+            return res.status(404).json({ error: 'No hay comprobante asociado para eliminar.' });
+        }
+
+        const invoicePath = result.recordset[0].invoicePath;
+        const isWindows = process.platform === 'win32';
+
+        // 1. Limpiar de la BD
+        await pool.request()
+            .input('id', sql.VarChar(50), req.params.id)
+            .query('UPDATE Transactions SET invoicePath = NULL WHERE id = @id');
+
+        // 2. Eliminar de OneDrive
+        if (isWindows) {
+            if (fs.existsSync(invoicePath)) {
+                fs.unlink(invoicePath, (err) => {
+                    if (err) console.error('Error al eliminar archivo local de transacción:', err);
+                });
+            }
+        } else {
+            const { execFile } = require('child_process');
+            const rcloneArgs = ['deletefile', invoicePath];
+            const rcloneConfigPath = '/home/administrador/.config/rclone/rclone.conf';
+            if (fs.existsSync(rcloneConfigPath)) {
+                rcloneArgs.push('--config', rcloneConfigPath);
+            }
+            execFile('/usr/bin/rclone', rcloneArgs, (err, stdout, stderr) => {
+                if (err) {
+                    console.error('Error al eliminar comprobante de OneDrive con rclone:', err);
+                    console.error('stderr:', stderr);
+                } else {
+                    console.log('✅ Comprobante de transacción eliminado de OneDrive:', invoicePath);
+                }
+            });
+        }
+
+        res.json({ success: true });
+    } catch (err) {
+        console.error('Error al eliminar comprobante de transacción:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
 app.post('/api/reports/upload-image', upload.single('image'), (req, res) => {
     if (!req.file) return res.status(400).json({ error: 'No se subió ninguna imagen' });
     const imageUrl = `/uploads/${req.file.filename}`;
