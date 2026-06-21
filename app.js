@@ -2184,9 +2184,6 @@ const UI = {
                     <a class="btn-icon text-primary" title="Descargar Comprobante" href="/api/transactions/${t.id}/download-invoice" target="_blank">
                         <i class="fa-solid fa-file-pdf"></i>
                     </a>
-                    <button class="btn-icon text-warning" title="Reemplazar Comprobante" onclick="UI.uploadTransactionInvoice('${t.id}')">
-                        <i class="fa-solid fa-arrows-rotate"></i>
-                    </button>
                     <button class="btn-icon text-danger" title="Eliminar Comprobante" onclick="UI.deleteTransactionInvoice('${t.id}')">
                         <i class="fa-solid fa-file-circle-xmark"></i>
                     </button>
@@ -3013,9 +3010,6 @@ const UI = {
                     <a class="btn-icon text-primary" title="Descargar Factura" href="/api/debtors/${d.id}/download-invoice" target="_blank">
                         <i class="fa-solid fa-file-pdf"></i>
                     </a>
-                    <button class="btn-icon text-warning" title="Reemplazar Factura" onclick="UI.uploadDebtorInvoice('${d.id}')">
-                        <i class="fa-solid fa-arrows-rotate"></i>
-                    </button>
                     <button class="btn-icon text-danger" title="Eliminar Factura" onclick="UI.deleteDebtorInvoice('${d.id}')">
                         <i class="fa-solid fa-file-circle-xmark"></i>
                     </button>
