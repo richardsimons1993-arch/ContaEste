@@ -412,9 +412,8 @@
 
                     async function fetchRates() {
                         try {
-                            const res = await fetch('/api/exchange-rates');
-                            const data = await res.json();
-                            if (data.uf && data.dolar && !data.ufApiFailed && !data.dolarApiFailed) {
+                            const data = await window.StorageAPI.async.getExchangeRates();
+                            if (data && data.uf && data.dolar && !data.ufApiFailed && !data.dolarApiFailed) {
                                 currentUfValue = data.uf;
                                 currentUsdValue = data.dolar;
                                 ratesFailed = false;
