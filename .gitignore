@@ -14,4 +14,6 @@ scratch/
 temp_parse/
 daemon/*.log
 uploads/
-temp_pdfs/
+temp_pdfs/uploads/
+temp_pdfs/
+icono_old.svg
