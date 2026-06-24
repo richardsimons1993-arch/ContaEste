@@ -2475,32 +2475,21 @@ app.post('/api/quotations', async (req, res) => {
                         VALUES (@projectId, NULL, @newStatus, @note, GETDATE())
                     `);
             } else {
-                // Si ya existe, actualizamos siempre el nombre, monto y forzamos el estado a 'Cotizado'
+                // Si ya existe, actualizamos siempre el nombre y monto, pero NO tocamos el estado 
+                // para evitar revivir proyectos eliminados o retroceder proyectos en ejecución.
                 const currentStatus = projectCheck.recordset[0].status;
                 
                 await pool.request()
                     .input('id', sql.VarChar(50), projectId)
                     .input('projectName', sql.VarChar(255), finalProjectName)
-                    .input('status', sql.VarChar(50), projectStatus)
                     .input('estimatedAmount', sql.Decimal(18, 2), estimatedAmountClp)
                     .query(`
                         UPDATE Projects 
-                        SET projectName = @projectName, estimatedAmount = @estimatedAmount, status = @status, visitDate = GETDATE() 
+                        SET projectName = @projectName, estimatedAmount = @estimatedAmount 
                         WHERE id = @id
                     `);
 
-                // Si el estado anterior era diferente, registrar el cambio de fase en el historial
-                if (currentStatus !== projectStatus) {
-                    await pool.request()
-                        .input('projectId', sql.VarChar(50), projectId)
-                        .input('previousStatus', sql.VarChar(50), currentStatus)
-                        .input('newStatus', sql.VarChar(50), projectStatus)
-                        .input('note', sql.VarChar(sql.MAX), 'Actualizado automáticamente a Cotizado desde Cotización N° ' + q.id + versionSuffix + conversionNote)
-                        .query(`
-                            INSERT INTO ProjectHistory (projectId, previousStatus, newStatus, note, changeDate) 
-                            VALUES (@projectId, @previousStatus, @newStatus, @note, GETDATE())
-                        `);
-                }
+                // Ya no registramos cambio de fase en el historial, porque no cambiamos el estado.
             }
         } catch (projErr) {
             console.error('Error al sincronizar cotización con proyectos:', projErr);
