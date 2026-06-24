@@ -6,6 +6,13 @@ function syncRequest(method, endpoint, body) {
     try {
         var xhr = new XMLHttpRequest();
         xhr.open(method, API_BASE + endpoint, false); // false = Síncrono
+
+        // Inject JWT Token
+        const sessionData = JSON.parse(localStorage.getItem('contabilidad_session') || '{}');
+        if (sessionData.token) {
+            xhr.setRequestHeader('Authorization', `Bearer ${sessionData.token}`);
+        }
+
         if (body) {
             xhr.setRequestHeader('Content-Type', 'application/json');
             xhr.send(JSON.stringify(body));
@@ -13,6 +20,10 @@ function syncRequest(method, endpoint, body) {
             xhr.send(null);
         }
         if (xhr.status >= 200 && xhr.status < 300) {
+            // Dispatch event for auto-refetch on synchronous as well
+            if (['POST', 'PUT', 'DELETE'].includes(method)) {
+                window.dispatchEvent(new CustomEvent('dataMutated', { detail: { endpoint } }));
+            }
             return xhr.responseText ? JSON.parse(xhr.responseText) : null;
         } else if (xhr.status === 0 || xhr.status >= 500) {
             console.error("API o Base de Datos no disponible. Status:", xhr.status);
@@ -28,12 +39,17 @@ function syncRequest(method, endpoint, body) {
 
 // Nueva implementación Asíncrona para Reactividad y Optimismo
 async function asyncRequest(method, endpoint, body) {
+    const sessionData = JSON.parse(localStorage.getItem('contabilidad_session') || '{}');
     const options = {
         method,
         headers: {
             'Content-Type': 'application/json'
         }
     };
+    
+    if (sessionData.token) {
+        options.headers['Authorization'] = `Bearer ${sessionData.token}`;
+    }
     if (body) options.body = JSON.stringify(body);
 
     try {
@@ -53,7 +69,14 @@ async function asyncRequest(method, endpoint, body) {
             throw new Error(errorMsg);
         }
         const text = await response.text();
-        return text ? JSON.parse(text) : null;
+        
+        // Dispatch event for auto-refetch
+        if (['POST', 'PUT', 'DELETE'].includes(method)) {
+            window.dispatchEvent(new CustomEvent('dataMutated', { detail: { endpoint } }));
+        }
+
+        const data = text ? JSON.parse(text) : null;
+        return data;
     } catch (e) {
         console.error("Async API Error:", e);
         throw e;

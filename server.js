@@ -11,6 +11,9 @@ const multer = require('multer');
 
 const msal = require('@azure/msal-node');
 const session = require('express-session');
+const jwt = require('jsonwebtoken');
+
+const JWT_SECRET = process.env.JWT_SECRET || 'contaeste_super_secret_key_2026!';
 
 const BCRYPT_ROUNDS = 10;
 const UPLOADS_DIR = path.join(__dirname, 'uploads');
@@ -83,6 +86,124 @@ app.get('/', (req, res) => {
     res.set('Cache-Control', 'no-cache, must-revalidate');
     res.sendFile(path.join(__dirname, 'index.html'));
 });
+
+// --- SEGURIDAD: MIDDLEWARE DE AUTENTICACIÓN (JWT) ---
+const requireAuth = (req, res, next) => {
+    // Si la ruta es pública, dejamos pasar
+    if (req.path.startsWith('/auth/')) return next();
+
+    const authHeader = req.headers.authorization;
+    if (!authHeader) {
+        return res.status(401).json({ error: 'Acceso Denegado: Falta token de autenticación MFA' });
+    }
+
+    const token = authHeader.split(' ')[1];
+    try {
+        const decoded = jwt.verify(token, JWT_SECRET);
+        req.user = decoded; // inyecta { id, email, role, modules }
+        next();
+    } catch (err) {
+        console.error('Error verificando JWT:', err.message);
+        return res.status(401).json({ error: 'Acceso Denegado: Token inválido o expirado' });
+    }
+};
+
+const requireModule = (moduleName) => {
+    return (req, res, next) => {
+        if (!req.user) return res.status(401).json({ error: 'No autenticado' });
+        if (req.user.role === 'administrador') return next(); // Admin tiene acceso total
+        if (req.user.modules && req.user.modules.includes(moduleName)) {
+            return next();
+        }
+        return res.status(403).json({ error: `Acceso denegado. Se requiere el módulo: ${moduleName}` });
+    };
+};
+
+const routeModuleMap = {
+    '/api/transactions': 'finanzas',
+    '/api/concepts': 'finanzas',
+    '/api/clients': 'finanzas',
+    '/api/debts': 'finanzas',
+    '/api/debtors': 'finanzas',
+    '/api/suppliers': 'finanzas',
+    '/api/operational-expenses': 'finanzas',
+    '/api/availables': 'finanzas',
+    '/api/projects': 'proyectos',
+    '/api/inventory': 'inventario',
+    '/api/crm': 'crm',
+    '/api/contracts': 'ventas',
+    '/api/quotations': 'cotizaciones',
+    '/api/reports': 'informes',
+    '/api/users': 'usuarios',
+    '/api/app-locations': 'usuarios',
+    '/api/notes': 'notas'
+};
+
+const rbacMiddleware = (req, res, next) => {
+    // Only restrict POST, PUT, DELETE. Allow GET for now so UI doesn't break, 
+    // or restrict GET too if you want full lockdown. We'll restrict POST/PUT/DELETE primarily.
+    if (req.method === 'GET') return next();
+    if (req.path.startsWith('/api/auth/')) return next();
+    if (req.path.startsWith('/api/logs')) return next(); // anyone can log
+
+    if (!req.user) return res.status(401).json({ error: 'No autenticado' });
+    if (req.user.role === 'administrador') return next();
+
+    // Find the required module based on the path
+    let requiredModule = null;
+    for (const [route, mod] of Object.entries(routeModuleMap)) {
+        if (req.path.startsWith(route)) {
+            requiredModule = mod;
+            break;
+        }
+    }
+
+    if (requiredModule) {
+        if (req.user.modules && req.user.modules.includes(requiredModule)) {
+            return next();
+        } else {
+            console.warn(`[RBAC Bloqueado] ${req.user.email} intentó acceder a ${req.path} sin el módulo ${requiredModule}`);
+            return res.status(403).json({ error: `Acceso denegado. Se requiere el módulo: ${requiredModule}` });
+        }
+    }
+
+    // If no specific module mapped, allow or deny? We allow by default to not break unknowns
+    next();
+};
+
+const auditLogMiddleware = async (req, res, next) => {
+    res.on('finish', async () => {
+        // Solo registrar escrituras exitosas (mutaciones)
+        if (['POST', 'PUT', 'DELETE'].includes(req.method) && res.statusCode >= 200 && res.statusCode < 300) {
+            if (req.path.startsWith('/api/logs') || req.path.startsWith('/api/auth')) return;
+
+            try {
+                const pool = await getDbPool();
+                const userName = req.user ? req.user.email : 'System';
+                const action = req.method;
+                const moduleName = req.path.split('/')[2] || 'unknown'; // ej. /api/transactions -> transactions
+                const details = `Path: ${req.path}`;
+                const extraData = JSON.stringify({ body: req.body, query: req.query });
+
+                await pool.request()
+                    .input('id', sql.VarChar(50), Date.now().toString() + Math.floor(Math.random() * 1000).toString())
+                    .input('action', sql.VarChar(50), action)
+                    .input('module', sql.VarChar(50), moduleName)
+                    .input('userName', sql.VarChar(100), userName)
+                    .input('details', sql.VarChar(sql.MAX), details)
+                    .input('timestamp', sql.DateTime, new Date())
+                    .input('extraData', sql.VarChar(sql.MAX), extraData)
+                    .query(`INSERT INTO Logs (id, action, module, userName, details, timestamp, extraData) VALUES (@id, @action, @module, @userName, @details, @timestamp, @extraData)`);
+            } catch (err) {
+                console.error('Error guardando AuditLog:', err.message);
+            }
+        }
+    });
+    next();
+};
+
+// Aplicar Auth, RBAC y AuditLogging a TODAS las rutas /api
+app.use('/api', requireAuth, rbacMiddleware, auditLogMiddleware);
 
 // Configuración de Conexión a SQL Server
 const dbConfig = {
@@ -1276,13 +1397,24 @@ app.post('/api/users/batch', async (req, res) => {
                 }
 
                 const user = result.recordset[0];
+                const sessionModules = user.modules ? JSON.parse(user.modules) : [];
+                
+                const jwtToken = jwt.sign({ 
+                    id: user.id, 
+                    email: email, 
+                    role: user.role, 
+                    modules: sessionModules 
+                }, JWT_SECRET, { expiresIn: '12h' });
+
                 const sessionData = {
                     id: user.id,
                     username: user.username,
+                    email: email,
                     role: user.role,
                     name: user.name,
-                    modules: user.modules ? JSON.parse(user.modules) : [],
-                    lastActivity: Date.now()
+                    modules: sessionModules,
+                    lastActivity: Date.now(),
+                    token: jwtToken
                 };
 
                 // Retornar script al navegador para guardar la sesión (que usa localStorage igual que el sistema actual)
@@ -1926,13 +2058,22 @@ app.get('/api/contracts/history/:clientId', async (req, res) => {
 app.delete('/api/projects/:id', async (req, res) => {
     try {
         const pool = await getDbPool();
-        // Borrar historial primero para evitar error de FK
-        await pool.request()
-            .input('projectId', sql.VarChar(50), req.params.id)
-            .query('DELETE FROM ProjectHistory WHERE projectId = @projectId');
+        // En lugar de borrar físicamente (lo cual causaba que el cron job lo reviviera si venía de una cotización), 
+        // hacemos un Soft-Delete
+        const prevRes = await pool.request()
+            .input('id', sql.VarChar(50), req.params.id)
+            .query('SELECT status FROM Projects WHERE id = @id');
+        const prevStatus = prevRes.recordset.length > 0 ? prevRes.recordset[0].status : null;
+
         await pool.request()
             .input('id', sql.VarChar(50), req.params.id)
-            .query('DELETE FROM Projects WHERE id = @id');
+            .query("UPDATE Projects SET status = 'Eliminado' WHERE id = @id");
+
+        await pool.request()
+            .input('projectId', sql.VarChar(50), req.params.id)
+            .input('prevStatus', sql.NVarChar(50), prevStatus)
+            .query("INSERT INTO ProjectHistory (projectId, previousStatus, newStatus, changeDate, note) VALUES (@projectId, @prevStatus, 'Eliminado', GETDATE(), 'Proyecto eliminado (Soft Delete)')");
+        
         res.json({ success: true });
     } catch (err) {
         res.status(500).json({ error: err.message });

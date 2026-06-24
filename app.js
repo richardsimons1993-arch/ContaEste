@@ -407,6 +407,47 @@ const UI = {
                 }
             }
             console.log("✅ UI.init() completado con éxito");
+            
+            // --- Auto-Refetch Listener ---
+            window.addEventListener('dataMutated', async (e) => {
+                const endpoint = e.detail?.endpoint || '';
+                try {
+                    // Refetch specific entity based on the endpoint
+                    if (endpoint.includes('/transactions')) {
+                        const tx = await window.StorageAPI.async.getTransactions();
+                        state.transactions = tx.map(t => ({ ...t, date: t.date ? t.date.split('T')[0] : null }));
+                    } else if (endpoint.includes('/debts')) {
+                        const dbts = await window.StorageAPI.async.getDebts();
+                        state.debts = dbts.map(d => ({ ...d, date: d.date ? d.date.split('T')[0] : null, dueDate: d.dueDate ? d.dueDate.split('T')[0] : null }));
+                    } else if (endpoint.includes('/debtors')) {
+                        const dbtrs = await window.StorageAPI.async.getDebtors();
+                        state.debtors = dbtrs.map(d => ({ ...d, date: d.date ? d.date.split('T')[0] : null, dueDate: d.dueDate ? d.dueDate.split('T')[0] : null }));
+                    } else if (endpoint.includes('/clients')) {
+                        state.clients = await window.StorageAPI.async.getClients();
+                    } else if (endpoint.includes('/suppliers')) {
+                        state.suppliers = await window.StorageAPI.async.getSuppliers();
+                    } else if (endpoint.includes('/inventory')) {
+                        state.inventory = await window.StorageAPI.async.getInventory();
+                    } else if (endpoint.includes('/contracts')) {
+                        const cntr = await window.StorageAPI.async.getContracts();
+                        state.contracts = cntr.map(c => ({ ...c, startDate: c.startDate ? c.startDate.split('T')[0] : null, endDate: c.endDate ? c.endDate.split('T')[0] : null }));
+                    } else if (endpoint.includes('/projects')) {
+                        state.projects = await window.StorageAPI.async.getProjects();
+                    } else if (endpoint.includes('/availables')) {
+                        const avl = await window.StorageAPI.async.getAvailables();
+                        state.availables = avl.map(a => ({ ...a, placementDate: a.placementDate ? a.placementDate.split('T')[0] : null, dueDate: a.dueDate ? a.dueDate.split('T')[0] : null }));
+                    } else if (endpoint.includes('/operational-expenses')) {
+                        state.operationalExpenses = await window.StorageAPI.async.getOperationalExpenses();
+                    } else {
+                        // For generic or complex changes, we could trigger a full loadData, but it's better to avoid it.
+                        // We will just do a lightweight check if we need to.
+                    }
+                    console.log(`Auto-refetched data for ${endpoint}`);
+                } catch (err) {
+                    console.warn(`Error auto-refetching ${endpoint}:`, err);
+                }
+            });
+
         } catch (error) {
             console.error("Error en UI.init: " + error.message);
         }
@@ -1189,12 +1230,8 @@ const UI = {
                 if (Date.now() - lastActivity > TIMEOUT_MS) {
                     console.warn("Sesión expirada por inactividad");
                     localStorage.removeItem('contabilidad_session');
-                    document.body.classList.add('login-pending');
-                    const errorEl = document.getElementById('login-error');
-                    if (errorEl) {
-                        errorEl.textContent = 'Sesión expirada por inactividad. Por favor ingrese nuevamente.';
-                        errorEl.style.display = 'block';
-                    }
+                    sessionStorage.setItem('logout_message', 'Sesión expirada por inactividad. Por favor ingrese nuevamente.');
+                    window.location.href = '/api/auth/signin';
                     return;
                 }
 
@@ -2120,6 +2157,14 @@ const UI = {
 
         return displayedTransactions;
     },
+    // --- Paginación Client-Side ---
+    _currentTxPage: 1,
+    _txPageLimit: 50,
+
+    changeTxPage(delta) {
+        this._currentTxPage += delta;
+        this.renderTransactionsList();
+    },
 
     renderTransactionsList() {
         const tbody = document.getElementById('transactions-list-body');
@@ -2152,11 +2197,24 @@ const UI = {
 
         let totalSum = 0;
 
+        // Calcular la suma total en base a TODAS las transacciones filtradas (no solo la página)
         sorted.forEach(t => {
             const amount = parseFloat(t.amount);
             if (t.type === 'income') totalSum += amount;
             else totalSum -= amount;
+        });
 
+        // Paginación
+        const totalItems = sorted.length;
+        const totalPages = Math.ceil(totalItems / this._txPageLimit) || 1;
+        if (this._currentTxPage > totalPages) this._currentTxPage = 1;
+        if (this._currentTxPage < 1) this._currentTxPage = 1;
+
+        const startIndex = (this._currentTxPage - 1) * this._txPageLimit;
+        const paginated = sorted.slice(startIndex, startIndex + this._txPageLimit);
+
+        paginated.forEach(t => {
+            // Solo se calculaba la suma aquí antes, ahora ya se hizo arriba
             const row = document.createElement('tr');
             const conceptName = state.concepts.find(c => c.id === t.conceptId)?.name || 'Desconocido';
 
@@ -2203,19 +2261,29 @@ const UI = {
             tbody.appendChild(row);
         });
 
-        // Renderizar Total en el Pie de Tabla
-        const tfoot = document.getElementById('transactions-list-footer');
-        if (tfoot) {
-            tfoot.innerHTML = `
-                <tr>
-                    <td colspan="5" style="text-align: right; font-weight: bold; color: var(--text-muted); padding-right: 1rem;">Total:</td>
-                    <td style="font-weight: bold; font-size: 1.1rem; white-space: nowrap; color: ${totalSum >= 0 ? 'var(--secondary-color)' : 'var(--danger-color)'}">
-                        ${formatCurrency(Math.abs(totalSum))}
-                    </td>
-                    ${canRegister ? '<td></td>' : ''}
-                </tr>
+        // Renderizar Controles de Paginación
+        const paginationContainer = document.getElementById('transactions-pagination-container');
+        if (paginationContainer) {
+            paginationContainer.innerHTML = `
+                <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px 1rem; background: var(--bg-card); border-radius: 8px; margin-top: 10px; border: 1px solid var(--border-color);">
+                    <span style="color: var(--text-muted); font-size: 0.9rem;">
+                        Mostrando ${totalItems > 0 ? startIndex + 1 : 0} a ${Math.min(startIndex + this._txPageLimit, totalItems)} de ${totalItems} registros
+                    </span>
+                    <div style="display: flex; align-items: center; gap: 15px;">
+                        <button class="btn btn-secondary btn-sm" onclick="UI.changeTxPage(-1)" ${this._currentTxPage === 1 ? 'disabled' : ''} style="padding: 5px 15px; border-radius: 6px;">
+                            <i class="fa-solid fa-chevron-left"></i> Anterior
+                        </button>
+                        <span style="font-weight: 600; font-size: 0.95rem;">
+                            Página ${this._currentTxPage} de ${totalPages}
+                        </span>
+                        <button class="btn btn-secondary btn-sm" onclick="UI.changeTxPage(1)" ${this._currentTxPage === totalPages ? 'disabled' : ''} style="padding: 5px 15px; border-radius: 6px;">
+                            Siguiente <i class="fa-solid fa-chevron-right"></i>
+                        </button>
+                    </div>
+                </div>
             `;
         }
+
         this.applyPrivileges();
     },
 
@@ -5110,8 +5178,10 @@ const UI = {
 
         let filtered = state.projects || [];
         
-        // Por defecto, ocultar los finalizados del pipeline principal, 
-        // a menos que se filtre específicamente por ellos.
+        // Ocultar siempre los Eliminados.
+        // Además, si el filtro es 'all', ocultar los finalizados del pipeline principal.
+        filtered = filtered.filter(p => p.status !== 'Eliminado');
+
         if (statusFilter === 'all') {
             filtered = filtered.filter(p => p.status !== 'Finalizado');
         } else {

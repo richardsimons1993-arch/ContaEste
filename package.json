@@ -28,6 +28,7 @@
     "express": "^5.2.1",
     "express-session": "^1.19.0",
     "isomorphic-fetch": "^3.0.0",
+    "jsonwebtoken": "^9.0.3",
     "mssql": "^12.2.0",
     "multer": "^2.1.1",
     "nodemailer": "^8.0.5"
