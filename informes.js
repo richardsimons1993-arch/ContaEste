@@ -207,9 +207,14 @@ const ReportsApp = () => {
             formData.append('image', file);
 
             try {
+                const sessionData = JSON.parse(localStorage.getItem('contabilidad_session') || '{}');
+                const headers = {};
+                if (sessionData.token) headers['Authorization'] = `Bearer ${sessionData.token}`;
+
                 // Hacer el post al endpoint de imágenes
                 const response = await fetch('/api/reports/upload-image', {
                     method: 'POST',
+                    headers: headers,
                     body: formData
                 });
                 if (response.ok) {
@@ -236,7 +241,7 @@ const ReportsApp = () => {
     const convertImageUrlToBase64 = (url) => {
         return new Promise((resolve) => {
             const img = new Image();
-            img.crossOrigin = 'Anonymous';
+            if (url.startsWith('http')) img.crossOrigin = 'Anonymous';
             img.onload = () => {
                 const canvas = document.createElement('canvas');
                 canvas.width = img.width;
