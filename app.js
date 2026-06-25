@@ -1745,11 +1745,13 @@ const UI = {
             'activity': 'Actividad',
             'available-funds': 'Disponible',
             'quotations': 'Cotizaciones',
+            'calculator': 'Calculadora IVA',
             'reports': 'Informes',
             'operational-expenses': 'Gastos Operacionales',
             'crm-leads': 'Prospectos (CRM)',
             'crm-emails': 'CRM - Marketing',
-            'crm-smtp-config': 'CRM - Configuración SMTP'
+            'crm-smtp-config': 'CRM - Configuración SMTP',
+            'locations': 'Ubicaciones'
         };
 
         const pageTitle = document.getElementById('page-title');
