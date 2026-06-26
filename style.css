@@ -2164,19 +2164,30 @@ body.dark-mode .notas-search-container {
 
 body.dark-mode .notas-search-input {
     background-color: transparent !important;
-}body.is-mobile-device .bottom-nav { display: flex !important; }
+}
+
+/* ==========================================================================
+   Responsive Overrides for Bottom Nav and Padding
+   ========================================================================== */
+body.is-mobile-device .bottom-nav { 
+    display: flex !important; 
+}
 body.is-mobile-device .view-section,
 body.is-mobile-device main.main-content {
     padding-bottom: 120px !important;
 }
 
 @media screen and (max-width: 768px) {
-    .bottom-nav { display: flex !important; }
+    .bottom-nav { 
+        display: flex !important; 
+    }
     .view-section,
     main.main-content {
         padding-bottom: 120px !important;
     }
 }
+
+/* Ensure bottom-nav is fixed and ready for mobile, but hidden by default on desktop */
 .bottom-nav {
     position: fixed !important;
     bottom: 0 !important;
@@ -2184,5 +2195,11 @@ body.is-mobile-device main.main-content {
     right: 0 !important;
     z-index: 2147483647 !important;
     transform: translateZ(0);
+    display: none; /* Base state: Hidden */
 }
-.bottom-nav .nav-btn { display: flex !important; }
+
+/* Base state for buttons inside bottom-nav */
+.bottom-nav .nav-btn { 
+    display: flex; 
+}
+
