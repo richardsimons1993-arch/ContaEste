@@ -2165,9 +2165,17 @@ body.dark-mode .notas-search-container {
 body.dark-mode .notas-search-input {
     background-color: transparent !important;
 }body.is-mobile-device .bottom-nav { display: flex !important; }
+body.is-mobile-device .view-section,
+body.is-mobile-device main.main-content {
+    padding-bottom: 120px !important;
+}
 
-@media screen and (max-width: 1024px) {
+@media screen and (max-width: 768px) {
     .bottom-nav { display: flex !important; }
+    .view-section,
+    main.main-content {
+        padding-bottom: 120px !important;
+    }
 }
 .bottom-nav {
     position: fixed !important;
@@ -2177,6 +2185,4 @@ body.dark-mode .notas-search-input {
     z-index: 2147483647 !important;
     transform: translateZ(0);
 }
-.view-section { padding-bottom: 120px !important; }
-main.main-content { padding-bottom: 120px !important; }
 .bottom-nav .nav-btn { display: flex !important; }
