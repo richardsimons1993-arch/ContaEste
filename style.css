@@ -2170,3 +2170,17 @@ body.dark-mode .notas-search-container {
 body.dark-mode .notas-search-input {
     background-color: transparent !important;
 }body.is-mobile-device .bottom-nav { display: flex !important; }
+
+@media screen and (max-width: 1024px) {
+    .bottom-nav { display: flex !important; }
+}
+.bottom-nav {
+    position: fixed !important;
+    bottom: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    z-index: 2147483647 !important;
+    transform: translateZ(0);
+}
+.view-section { padding-bottom: 120px !important; }
+main.main-content { padding-bottom: 120px !important; }
