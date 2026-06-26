@@ -1053,11 +1053,31 @@ app.post('/api/operational-expenses/:id/pay', async (req, res) => {
         let newNextDate = new Date(lastNextDate);
         
         switch (expense.frequency) {
-            case 'monthly': newNextDate.setMonth(newNextDate.getMonth() + 1); break;
-            case 'quarterly': newNextDate.setMonth(newNextDate.getMonth() + 3); break;
-            case 'semiannually': newNextDate.setMonth(newNextDate.getMonth() + 6); break;
-            case 'yearly': newNextDate.setFullYear(newNextDate.getFullYear() + 1); break;
-            default: newNextDate.setMonth(newNextDate.getMonth() + 1);
+            case 'monthly': 
+                // Evitar el bug de JS donde el 31 de Enero + 1 mes = 3 de Marzo
+                const expectedMonth = (newNextDate.getMonth() + 1) % 12;
+                newNextDate.setMonth(newNextDate.getMonth() + 1); 
+                if (newNextDate.getMonth() !== expectedMonth) {
+                    newNextDate.setDate(0); // Volver al último día del mes correcto
+                }
+                break;
+            case 'quarterly': 
+                const expectedQuarter = (newNextDate.getMonth() + 3) % 12;
+                newNextDate.setMonth(newNextDate.getMonth() + 3); 
+                if (newNextDate.getMonth() !== expectedQuarter) newNextDate.setDate(0);
+                break;
+            case 'semiannually': 
+                const expectedSemi = (newNextDate.getMonth() + 6) % 12;
+                newNextDate.setMonth(newNextDate.getMonth() + 6); 
+                if (newNextDate.getMonth() !== expectedSemi) newNextDate.setDate(0);
+                break;
+            case 'yearly': 
+                newNextDate.setFullYear(newNextDate.getFullYear() + 1); 
+                break;
+            default: 
+                const expectedDef = (newNextDate.getMonth() + 1) % 12;
+                newNextDate.setMonth(newNextDate.getMonth() + 1);
+                if (newNextDate.getMonth() !== expectedDef) newNextDate.setDate(0);
         }
 
         const transaction = new sql.Transaction(pool);
