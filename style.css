@@ -2184,3 +2184,4 @@ body.dark-mode .notas-search-input {
 }
 .view-section { padding-bottom: 120px !important; }
 main.main-content { padding-bottom: 120px !important; }
+.bottom-nav .nav-btn { display: flex !important; }
