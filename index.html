@@ -2319,6 +2319,22 @@
         </div>
     </div>
 
+    <!-- NAVEGACIÓN INFERIOR (MÓVIL) -->
+    <nav class="bottom-nav">
+        <button class="nav-btn active" data-target="dashboard" onclick="UI.switchView('dashboard')">
+            <img src="icono_old.svg" alt="Inicio" style="width: 28px; height: 28px; object-fit: contain;">
+            <span>Inicio</span>
+        </button>
+        <button class="nav-btn" data-target="projects" onclick="UI.switchView('projects')">
+            <i class="fa-solid fa-briefcase"></i>
+            <span>Proyectos</span>
+        </button>
+        <button class="nav-btn" data-target="cotizaciones" onclick="UI.switchView('cotizaciones')">
+            <i class="fa-solid fa-file-invoice-dollar"></i>
+            <span>Cotizar</span>
+        </button>
+    </nav>
+
     <!-- Scripts -->
 
     <script data-cfasync="false" src="vendor/flatpickr.js"></script>
