@@ -13,7 +13,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Contabilidad Premium</title>
     <link rel="icon" type="image/svg+xml" href="icono_old.svg">
-    <link rel="stylesheet" href="style.css?v=1782504103">
+    <link rel="stylesheet" href="style.css?v=1782512000fix3">
     <!-- Font Awesome para Iconos -->
     <link rel="stylesheet" href="vendor/fontawesome/css/all.min.css">
     <!-- Fuentes de Google -->
@@ -79,6 +79,14 @@
         if (localStorage.getItem('contabilidad_theme') === 'dark') {
             document.body.classList.add('dark-mode');
         }
+        // Detección de dispositivo móvil para mostrar bottom-nav
+        (function() {
+            var isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) 
+                || (navigator.maxTouchPoints && navigator.maxTouchPoints > 2 && /Macintosh/.test(navigator.userAgent));
+            if (isMobile) {
+                document.body.classList.add('is-mobile-device');
+            }
+        })();
     </script>
     <!-- VISTA LOGIN (Capa Superior) -->
     <div id="login-overlay" class="login-overlay">
