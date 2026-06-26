@@ -1673,6 +1673,13 @@ const UI = {
     switchView(viewName) {
         console.log(`Intentando cambiar vista a: ${viewName}`);
         
+        // Cerrar todos los modales abiertos al cambiar de vista (excepto la capa de login)
+        document.querySelectorAll('.modal-overlay').forEach(modal => {
+            if (modal.id !== 'login-overlay') {
+                modal.style.display = 'none';
+            }
+        });
+
         // Reiniciar posición de scroll al cambiar de vista
         window.scrollTo(0, 0);
         const activeSection = document.getElementById(viewName);
@@ -1707,9 +1714,8 @@ const UI = {
         }
 
         // --- GESTIÓN DE UI MÓVIL ---
-        // Ocultar barra de navegación si estamos en el inicio móvil, pero la cabecera queda siempre visible
-        const isMobileDashboard = viewName === 'mobile-dashboard';
-        document.body.classList.toggle('hide-mobile-nav', isMobileDashboard);
+        // La barra de navegación (bottom-nav) debe estar siempre visible en móvil para regresar al inicio
+        document.body.classList.remove('hide-mobile-nav');
 
         // Actualizar Barra Lateral
         document.querySelectorAll('.nav-btn').forEach(btn => {

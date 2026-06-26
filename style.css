@@ -1384,11 +1384,6 @@ body.dark-mode .bottom-nav .nav-btn.active {
         display: none !important;
     }
 
-    /* Eliminar barra inferior permanentemente en móvil */
-    .bottom-nav {
-        display: none !important;
-    }
-
     /* Estilos Premium Minimalistas para Inicio Móvil */
     #mobile-dashboard {
         background: var(--background);
