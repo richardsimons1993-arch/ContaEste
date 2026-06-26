@@ -6382,30 +6382,42 @@ const UI = {
         const today = new Date();
         today.setHours(0, 0, 0, 0);
         
-        const warningLimit = new Date(today);
-        warningLimit.setDate(today.getDate() + 5);
+        const getEffectiveDueDate = (e) => {
+            if (!e.nextPaymentDate) return null;
+            const parts = e.nextPaymentDate.split('T')[0].split('-');
+            const year = parseInt(parts[0], 10);
+            const month = parseInt(parts[1], 10) - 1;
+            const day = parseInt(parts[2], 10);
+            
+            if (e.frequency === 'monthly') {
+                return new Date(year, month + 1, 0);
+            }
+            return new Date(year, month, day);
+        };
 
         // --- RENDERIZAR PRÓXIMOS VENCIMIENTOS ---
         const pendingExpenses = state.operationalExpenses.filter(e => {
-            if (!e.nextPaymentDate) return false;
-            const nextDate = new Date(e.nextPaymentDate);
-            return nextDate <= warningLimit;
+            const effectiveDate = getEffectiveDueDate(e);
+            if (!effectiveDate) return false;
+            return today >= effectiveDate; // Avisa solo el día exacto o si está vencido
         });
 
         if (pendingExpenses.length === 0) {
-            alertsBody.innerHTML = '<tr><td colspan="3" style="text-align: center; color: var(--text-muted); padding: 1.5rem;">No hay vencimientos próximos</td></tr>';
+            alertsBody.innerHTML = '<tr><td colspan="3" style="text-align: center; color: var(--text-muted); padding: 1.5rem;">No hay vencimientos pendientes</td></tr>';
         }
 
         pendingExpenses.forEach(e => {
-            const nextDate = new Date(e.nextPaymentDate);
-            const isOverdue = nextDate < today;
+            const effectiveDate = getEffectiveDueDate(e);
+            const isOverdue = effectiveDate < today;
             const tr = document.createElement('tr');
+            
+            const formattedDate = effectiveDate.toLocaleDateString('es-CL');
             
             tr.innerHTML = `
                 <td>${e.name}</td>
                 <td>
                     <span style="color: ${isOverdue ? 'var(--danger-color)' : 'var(--warning-color)'}; font-weight: bold;">
-                        ${formatDate(e.nextPaymentDate)} ${isOverdue ? '(VENCIDO)' : ''}
+                        ${formattedDate} ${isOverdue ? '(VENCIDO)' : ''}
                     </span>
                 </td>
                 <td class="action-cell">
@@ -6464,17 +6476,27 @@ const UI = {
         const today = new Date();
         today.setHours(0, 0, 0, 0);
         
-        const warningLimit = new Date(today);
-        warningLimit.setDate(today.getDate() + 5);
+        const getEffectiveDueDate = (e) => {
+            if (!e.nextPaymentDate) return null;
+            const parts = e.nextPaymentDate.split('T')[0].split('-');
+            const year = parseInt(parts[0], 10);
+            const month = parseInt(parts[1], 10) - 1;
+            const day = parseInt(parts[2], 10);
+            
+            if (e.frequency === 'monthly') {
+                return new Date(year, month + 1, 0);
+            }
+            return new Date(year, month, day);
+        };
 
         // 1. Contratos pendientes de facturar
         const contractsCount = state.pendingContracts ? state.pendingContracts.length : 0;
 
-        // 2. Gastos operacionales próximos a vencer (vencidos o dentro de 5 días)
+        // 2. Gastos operacionales pendientes (avisa el mismo día exacto)
         const expensesCount = state.operationalExpenses ? state.operationalExpenses.filter(e => {
-            if (!e.nextPaymentDate) return false;
-            const nextDate = new Date(e.nextPaymentDate);
-            return nextDate <= warningLimit;
+            const effectiveDate = getEffectiveDueDate(e);
+            if (!effectiveDate) return false;
+            return today >= effectiveDate;
         }).length : 0;
 
         // 3. Deudas pendientes (Removido del conteo por solicitud, pero mantiene la campana visible si existen)
