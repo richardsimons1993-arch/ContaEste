@@ -544,7 +544,6 @@ app.get('/api/projects', async (req, res) => {
         res.status(500).json({ error: err.message });
     }
 });
-app.delete('/api/projects/:id', (req, res) => deleteApi(req, res, 'Projects'));
 
 // --- ENDPOINTS PARA INVENTORY (INVENTARIO) ---
 app.get('/api/inventory', (req, res) => getApi(req, res, 'Inventory'));
@@ -2175,6 +2174,182 @@ app.put('/api/projects/history/:id', async (req, res) => {
             .query('UPDATE ProjectHistory SET note = @note, newStatus = @newStatus, changeDate = @changeDate WHERE id = @id');
         res.json({ success: true });
     } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.post('/api/projects/upload-po', async (req, res) => {
+    try {
+        const { clientName, year, projectId, pdfBase64, originalFileName } = req.body;
+
+        if (!pdfBase64) {
+            return res.status(400).json({ error: 'No se recibió archivo' });
+        }
+
+        const base64Data = pdfBase64.includes('base64,') ? pdfBase64.split('base64,')[1] : pdfBase64;
+        const safeClientName = clientName ? clientName.replace(/[^a-zA-Z0-9 -]/g, '') : 'Varios';
+        const ext = (originalFileName && originalFileName.includes('.')) ? originalFileName.split('.').pop() : 'pdf';
+        const fileName = `OrdenCompra_${projectId}_${safeClientName}.${ext}`;
+
+        const isWindows = process.platform === 'win32';
+
+        const savePOPathToDB = async (poPath) => {
+            try {
+                const pool = await getDbPool();
+                await pool.request()
+                    .input('id', sql.VarChar(50), projectId)
+                    .input('purchaseOrderPath', sql.VarChar(sql.MAX), poPath)
+                    .query(`UPDATE Projects SET purchaseOrderPath=@purchaseOrderPath WHERE id=@id`);
+                console.log(`✅ purchaseOrderPath guardado en BD para proyecto ${projectId}`);
+            } catch (dbErr) {
+                console.error('Error al guardar purchaseOrderPath en BD para proyecto:', dbErr.message);
+            }
+        };
+
+        if (isWindows) {
+            const baseDriveDir = path.join('C:', 'Users', 'Richard', 'OneDrive - SIMONS SPA', 'Simons SPA', 'Clientes', 'Ordenes de Compra APP');
+            const yearDir = path.join(baseDriveDir, year.toString());
+            const clientDir = path.join(yearDir, safeClientName);
+
+            if (!fs.existsSync(baseDriveDir)) fs.mkdirSync(baseDriveDir, { recursive: true });
+            if (!fs.existsSync(yearDir)) fs.mkdirSync(yearDir, { recursive: true });
+            if (!fs.existsSync(clientDir)) fs.mkdirSync(clientDir, { recursive: true });
+
+            const filePath = path.join(clientDir, fileName);
+            fs.writeFileSync(filePath, base64Data, 'base64');
+
+            await savePOPathToDB(filePath);
+            console.log(`✅ Orden de Compra guardada localmente (Windows): ${filePath}`);
+            res.json({ success: true, filePath });
+        } else {
+            const localTempDir = path.join(__dirname, 'temp_pdfs');
+            if (!fs.existsSync(localTempDir)) {
+                fs.mkdirSync(localTempDir, { recursive: true });
+            }
+            const localFilePath = path.join(localTempDir, fileName);
+            fs.writeFileSync(localFilePath, base64Data, 'base64');
+            console.log(`✅ Orden de Compra guardada localmente temporal: ${localFilePath}`);
+
+            const { execFile } = require('child_process');
+
+            const remoteDestDir = `onedrive_backup:Simons SPA/Clientes/Ordenes de Compra APP/${year}/${safeClientName}`;
+
+            const rcloneArgs = [
+                'copy',
+                localFilePath,
+                remoteDestDir
+            ];
+
+            const rcloneConfigPath = '/home/administrador/.config/rclone/rclone.conf';
+            if (fs.existsSync(rcloneConfigPath)) {
+                rcloneArgs.push('--config', rcloneConfigPath);
+            }
+
+            execFile('/usr/bin/rclone', rcloneArgs, async (error, stdout, stderr) => {
+                try {
+                    if (fs.existsSync(localFilePath)) {
+                        fs.unlinkSync(localFilePath);
+                    }
+                } catch (unlinkErr) {
+                    console.error('Error al eliminar comprobante temporal:', unlinkErr);
+                }
+
+                if (error) {
+                    console.error('Error al subir OC con rclone:', error);
+                    console.error('stderr:', stderr);
+                    return res.status(500).json({ error: `Error de subida de documento: ${error.message}` });
+                }
+
+                const finalPath = `${remoteDestDir}/${fileName}`;
+                await savePOPathToDB(finalPath);
+                console.log(`✅ Orden de Compra subida con éxito a OneDrive (${finalPath})`);
+                res.json({ success: true, filePath: finalPath });
+            });
+        }
+    } catch (err) {
+        console.error('Error al guardar Orden de Compra de proyecto:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.get('/api/projects/:id/download-po', async (req, res) => {
+    try {
+        const pool = await getDbPool();
+        const result = await pool.request()
+            .input('id', sql.VarChar(50), req.params.id)
+            .query('SELECT purchaseOrderPath FROM Projects WHERE id = @id');
+        
+        if (result.recordset.length === 0 || !result.recordset[0].purchaseOrderPath) {
+            return res.status(404).send('Orden de Compra no encontrada o no cargada.');
+        }
+
+        const poPath = result.recordset[0].purchaseOrderPath;
+        const isWindows = process.platform === 'win32';
+        const fileName = path.basename(poPath);
+
+        if (isWindows) {
+            if (fs.existsSync(poPath)) {
+                res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+                res.sendFile(poPath);
+            } else {
+                res.status(404).send('Archivo local no encontrado en el servidor.');
+            }
+        } else {
+            const { spawn } = require('child_process');
+            
+            const rcloneArgs = ['cat', poPath];
+            const rcloneConfigPath = '/home/administrador/.config/rclone/rclone.conf';
+            if (fs.existsSync(rcloneConfigPath)) {
+                rcloneArgs.push('--config', rcloneConfigPath);
+            }
+
+            res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+            
+            const ext = fileName.split('.').pop().toLowerCase();
+            if (ext === 'pdf') res.setHeader('Content-Type', 'application/pdf');
+            else if (ext === 'png') res.setHeader('Content-Type', 'image/png');
+            else if (ext === 'jpg' || ext === 'jpeg') res.setHeader('Content-Type', 'image/jpeg');
+
+            const child = spawn('/usr/bin/rclone', rcloneArgs);
+            child.stdout.pipe(res);
+            child.stderr.on('data', (data) => {
+                console.error(`rclone cat stderr: ${data}`);
+            });
+            child.on('error', (err) => {
+                console.error('rclone spawn error:', err);
+                if (!res.headersSent) {
+                    res.status(500).send(`Error de descarga: ${err.message}`);
+                }
+            });
+        }
+    } catch (err) {
+        console.error('Error al descargar Orden de Compra:', err);
+        res.status(500).send('Error interno del servidor.');
+    }
+});
+
+app.delete('/api/projects/:id/po', async (req, res) => {
+    try {
+        const pool = await getDbPool();
+        const result = await pool.request()
+            .input('id', sql.VarChar(50), req.params.id)
+            .query('SELECT purchaseOrderPath FROM Projects WHERE id = @id');
+        
+        if (result.recordset.length === 0 || !result.recordset[0].purchaseOrderPath) {
+            return res.status(404).json({ error: 'No hay OC asociada para eliminar.' });
+        }
+
+        const poPath = result.recordset[0].purchaseOrderPath;
+
+        await pool.request()
+            .input('id', sql.VarChar(50), req.params.id)
+            .query('UPDATE Projects SET purchaseOrderPath = NULL WHERE id = @id');
+
+        deleteRemoteFile(poPath);
+
+        res.json({ success: true });
+    } catch (err) {
+        console.error('Error al eliminar OC de proyecto:', err);
         res.status(500).json({ error: err.message });
     }
 });

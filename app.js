@@ -3225,9 +3225,13 @@ const UI = {
                 const pdfBase64 = e.target.result;
 
                 try {
+                    const sessionData = JSON.parse(localStorage.getItem('contabilidad_session') || '{}');
+                    const authHeaders = { 'Content-Type': 'application/json' };
+                    if (sessionData.token) authHeaders['Authorization'] = `Bearer ${sessionData.token}`;
+
                     const response = await fetch('/api/debtors/upload-invoice', {
                         method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
+                        headers: authHeaders,
                         body: JSON.stringify({
                             clientName: safeClientName,
                             year: year,
@@ -3344,9 +3348,13 @@ const UI = {
             const pdfBase64 = e.target.result;
 
             try {
+                const sessionData = JSON.parse(localStorage.getItem('contabilidad_session') || '{}');
+                const authHeaders = { 'Content-Type': 'application/json' };
+                if (sessionData.token) authHeaders['Authorization'] = `Bearer ${sessionData.token}`;
+
                 const response = await fetch('/api/transactions/upload-invoice', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: authHeaders,
                     body: JSON.stringify({
                         providerName: safeProviderName,
                         year: year,
@@ -3396,8 +3404,13 @@ const UI = {
         if (!(await this.confirmModal('¿Estás seguro de que quieres eliminar la factura asociada?'))) return;
 
         try {
+            const sessionData = JSON.parse(localStorage.getItem('contabilidad_session') || '{}');
+            const authHeaders = {};
+            if (sessionData.token) authHeaders['Authorization'] = `Bearer ${sessionData.token}`;
+
             const response = await fetch(`/api/debtors/${id}/invoice`, {
-                method: 'DELETE'
+                method: 'DELETE',
+                headers: authHeaders
             });
             const result = await response.json();
             if (result.success) {
@@ -3417,8 +3430,13 @@ const UI = {
         if (!(await this.confirmModal('¿Estás seguro de que quieres eliminar el comprobante asociado?'))) return;
 
         try {
+            const sessionData = JSON.parse(localStorage.getItem('contabilidad_session') || '{}');
+            const authHeaders = {};
+            if (sessionData.token) authHeaders['Authorization'] = `Bearer ${sessionData.token}`;
+
             const response = await fetch(`/api/transactions/${id}/invoice`, {
-                method: 'DELETE'
+                method: 'DELETE',
+                headers: authHeaders
             });
             const result = await response.json();
             if (result.success) {
@@ -3434,6 +3452,142 @@ const UI = {
         }
     },
 
+    uploadProjectPO(projectId) {
+        const project = state.projects.find(p => p.id === projectId);
+        if (!project) return;
+
+        // Crear input de archivo oculto
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = '.pdf,.jpg,.jpeg,.png';
+        input.style.display = 'none';
+        document.body.appendChild(input);
+
+        input.onchange = () => {
+            const file = input.files[0];
+            document.body.removeChild(input);
+            if (!file) return;
+
+            this.uploadProjectPOFile(project, file);
+        };
+
+        input.click();
+    },
+
+    async uploadProjectPOFile(project, file) {
+        if (!project || !file) return;
+
+        let clientName = 'SinCliente';
+        if (project.clientId) {
+            const client = state.clients.find(c => c.id === project.clientId);
+            if (client) {
+                clientName = client.nombreFantasia || client.razonSocial || client.name || clientName;
+            }
+        }
+        const safeClientName = clientName.replace(/[^a-zA-Z0-9 \-]/g, '').trim();
+        const year = project.createdAt ? new Date(project.createdAt).getFullYear() : new Date().getFullYear();
+
+        let uploadBanner = document.getElementById('project-upload-banner');
+        if (!uploadBanner) {
+            uploadBanner = document.createElement('div');
+            uploadBanner.id = 'project-upload-banner';
+            uploadBanner.style.cssText = `
+                position: fixed; bottom: 24px; right: 24px; z-index: 99999;
+                background: #1e3a5f; color: #fff; border-radius: 10px;
+                padding: 14px 20px; font-size: 14px; font-weight: 500;
+                display: flex; align-items: center; gap: 12px;
+                box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+                border-left: 4px solid #3b82f6;
+                min-width: 300px; max-width: 420px;
+            `;
+            document.body.appendChild(uploadBanner);
+        }
+        uploadBanner.innerHTML = `
+            <i class="fa-solid fa-cloud-arrow-up fa-beat" style="color:#60a5fa;font-size:18px;"></i>
+            <span>Subiendo documento… <br><small style="opacity:0.7">Puedes seguir navegando, esto ocurre en segundo plano.</small></span>
+        `;
+
+        const reader = new FileReader();
+        reader.onload = async (e) => {
+            const pdfBase64 = e.target.result;
+
+            const sessionData = JSON.parse(localStorage.getItem('contabilidad_session') || '{}');
+            const authHeaders = { 'Content-Type': 'application/json' };
+            if (sessionData.token) authHeaders['Authorization'] = `Bearer ${sessionData.token}`;
+
+            try {
+                const response = await fetch('/api/projects/upload-po', {
+                    method: 'POST',
+                    headers: authHeaders,
+                    body: JSON.stringify({
+                        clientName: safeClientName,
+                        year: year,
+                        projectId: project.id,
+                        pdfBase64: pdfBase64,
+                        originalFileName: file.name
+                    })
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    uploadBanner.style.borderLeftColor = '#22c55e';
+                    uploadBanner.innerHTML = `
+                        <i class="fa-solid fa-circle-check" style="color:#22c55e;font-size:18px;"></i>
+                        <span>✅ OC cargada</span>
+                    `;
+                    setTimeout(() => { if (uploadBanner.parentNode) uploadBanner.parentNode.removeChild(uploadBanner); }, 4000);
+                    this.recordActivity('Carga', 'Proyecto', `Orden de Compra adjuntada al proyecto de ${clientName}`);
+                    await this.loadData();
+                } else {
+                    uploadBanner.style.borderLeftColor = '#ef4444';
+                    uploadBanner.innerHTML = `
+                        <i class="fa-solid fa-triangle-exclamation" style="color:#ef4444;font-size:18px;"></i>
+                        <span>Error al cargar OC: ${result.error}</span>
+                    `;
+                    setTimeout(() => { if (uploadBanner.parentNode) uploadBanner.parentNode.removeChild(uploadBanner); }, 6000);
+                }
+            } catch (err) {
+                console.error('Error al subir OC:', err);
+                if (uploadBanner.parentNode) {
+                    uploadBanner.style.borderLeftColor = '#ef4444';
+                    uploadBanner.innerHTML = `
+                        <i class="fa-solid fa-triangle-exclamation" style="color:#ef4444;font-size:18px;"></i>
+                        <span>Error de conexión al cargar OC</span>
+                    `;
+                    setTimeout(() => { if (uploadBanner.parentNode) uploadBanner.parentNode.removeChild(uploadBanner); }, 6000);
+                }
+            }
+        };
+        reader.readAsDataURL(file);
+    },
+
+    async deleteProjectPO(id) {
+        if (!(await this.confirmModal('¿Estás seguro de que quieres eliminar la Orden de Compra asociada al proyecto?'))) return;
+
+        const sessionData = JSON.parse(localStorage.getItem('contabilidad_session') || '{}');
+        const authHeaders = {};
+        if (sessionData.token) authHeaders['Authorization'] = `Bearer ${sessionData.token}`;
+
+        try {
+            const response = await fetch(`/api/projects/${id}/po`, {
+                method: 'DELETE',
+                headers: authHeaders
+            });
+            const result = await response.json();
+            if (result.success) {
+                this.showToast('Orden de Compra eliminada con éxito', 'success');
+                this.recordActivity('Baja', 'Proyecto', `Orden de Compra de proyecto eliminada`);
+                await this.loadData();
+            } else {
+                this.showToast('Error al eliminar OC: ' + result.error, 'danger');
+            }
+        } catch (err) {
+            console.error('Error al eliminar OC:', err);
+            this.showToast('Error de conexión al eliminar OC', 'danger');
+        }
+    },
+
     async deleteTransactionInvoiceFromForm() {
         const id = document.getElementById('transaction-id').value;
         if (!id) return;
@@ -3441,8 +3595,13 @@ const UI = {
         if (!(await this.confirmModal('¿Estás seguro de que quieres eliminar el comprobante asociado?'))) return;
 
         try {
+            const sessionData = JSON.parse(localStorage.getItem('contabilidad_session') || '{}');
+            const authHeaders = {};
+            if (sessionData.token) authHeaders['Authorization'] = `Bearer ${sessionData.token}`;
+
             const response = await fetch(`/api/transactions/${id}/invoice`, {
-                method: 'DELETE'
+                method: 'DELETE',
+                headers: authHeaders
             });
             const result = await response.json();
             if (result.success) {
@@ -5259,6 +5418,18 @@ const UI = {
                     </div>
                 </td>
                 <td class="actions">
+                    ${p.purchaseOrderPath ? `
+                    <a class="btn-icon text-primary" title="Descargar OC" href="/api/projects/${p.id}/download-po" target="_blank">
+                        <i class="fa-solid fa-file-pdf"></i>
+                    </a>
+                    <button class="btn-icon text-danger" title="Eliminar OC" onclick="UI.deleteProjectPO('${p.id}')">
+                        <i class="fa-solid fa-file-circle-xmark"></i>
+                    </button>
+                    ` : `
+                    <button class="btn-icon" title="Adjuntar OC" onclick="UI.uploadProjectPO('${p.id}')">
+                        <i class="fa-solid fa-file-arrow-up"></i>
+                    </button>
+                    `}
                     <button class="btn-icon text-success" title="Cerrar Proyecto (Listo)" onclick="UI.closeProject('${p.id}')">
                          <i class="fa-solid fa-check-circle"></i>
                     </button>

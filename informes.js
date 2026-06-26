@@ -181,6 +181,35 @@ const ReportsApp = () => {
         return showCustomDialog({ type: 'confirm', title, message });
     };
 
+    // Auto-formato para Alcance del Proyecto
+    const handleScopeKeyDown = (e) => {
+        if (e.key === 'Enter') {
+            const cursorPosition = e.target.selectionStart;
+            const textBeforeCursor = scope.substring(0, cursorPosition);
+            
+            if (textBeforeCursor.trim().endsWith('.')) {
+                e.preventDefault();
+                const newScope = textBeforeCursor + '\n- ' + scope.substring(cursorPosition);
+                setScope(newScope);
+                
+                setTimeout(() => {
+                    if (e.target) {
+                        e.target.selectionStart = cursorPosition + 3;
+                        e.target.selectionEnd = cursorPosition + 3;
+                    }
+                }, 0);
+            }
+        }
+    };
+
+    const handleScopeChange = (e) => {
+        let val = e.target.value;
+        if (val.length > 0 && !val.startsWith('- ') && scope === '') {
+            val = '- ' + val;
+        }
+        setScope(val);
+    };
+
     // Manejar tabla de materiales
     const handleMaterialChange = (id, field, value) => {
         setMaterials(materials.map(item => item.id === id ? { ...item, [field]: value } : item));
@@ -747,7 +776,8 @@ const ReportsApp = () => {
                                             rows="3"
                                             placeholder="Detalle de las tareas y límites del proyecto realizado..."
                                             value={scope}
-                                            onChange={(e) => setScope(e.target.value)}
+                                            onChange={handleScopeChange}
+                                            onKeyDown={handleScopeKeyDown}
                                         ></textarea>
                                     </div>
                                 </div>
