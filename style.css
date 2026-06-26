@@ -2186,5 +2186,7 @@ body.is-mobile-device main.main-content {
         padding-bottom: 120px !important;
     }
 }
-
+body.login-pending .bottom-nav {
+    filter: blur(10px);
+    pointer-events: none;
 }
