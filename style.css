@@ -2169,4 +2169,4 @@ body.dark-mode .notas-search-container {
 
 body.dark-mode .notas-search-input {
     background-color: transparent !important;
-}
+}body.is-mobile-device .bottom-nav { display: flex !important; }
