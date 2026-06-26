@@ -2187,19 +2187,4 @@ body.is-mobile-device main.main-content {
     }
 }
 
-/* Ensure bottom-nav is fixed and ready for mobile, but hidden by default on desktop */
-.bottom-nav {
-    position: fixed !important;
-    bottom: 0 !important;
-    left: 0 !important;
-    right: 0 !important;
-    z-index: 2147483647 !important;
-    transform: translateZ(0);
-    display: none; /* Base state: Hidden */
 }
-
-/* Base state for buttons inside bottom-nav */
-.bottom-nav .nav-btn { 
-    display: flex; 
-}
-
