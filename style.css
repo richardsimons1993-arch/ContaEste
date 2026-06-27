@@ -1471,7 +1471,8 @@ body.dark-mode .bottom-nav .nav-btn.active {
         display: none !important;
     }
 
-    .nav-btn {
+    .sidebar .nav-btn,
+    aside.sidebar .nav-btn {
         padding: 1rem 1.25rem !important;
         font-size: 1.1rem !important;
         min-height: 54px;
