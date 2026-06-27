@@ -1724,11 +1724,11 @@ app.post('/api/contracts/:id/upload-document', uploadDocument.single('document')
         const pool = await getDbPool();
         const contractId = req.params.id;
         
-        // Obtener el cliente para saber el nombre de la carpeta
+        // Obtener el cliente y fecha de inicio para saber el nombre de la carpeta y año
         const contractRes = await pool.request()
             .input('id', sql.VarChar(50), contractId)
             .query(`
-                SELECT c.clientId, cl.name as clientName 
+                SELECT c.clientId, c.startDate, cl.name as clientName 
                 FROM Contracts c 
                 JOIN Clients cl ON c.clientId = cl.id 
                 WHERE c.id = @id
@@ -1738,7 +1738,18 @@ app.post('/api/contracts/:id/upload-document', uploadDocument.single('document')
             return res.status(404).json({ error: 'Contrato no encontrado' });
         }
         
-        const clientName = contractRes.recordset[0].clientName || 'SinCliente';
+        const contract = contractRes.recordset[0];
+        const clientName = contract.clientName || 'SinCliente';
+        const safeClientName = clientName.replace(/[^a-zA-Z0-9 -]/g, '');
+        const startDate = contract.startDate;
+        
+        let year = new Date().getFullYear();
+        if (startDate) {
+            const dateObj = new Date(startDate);
+            if (!isNaN(dateObj.getTime())) {
+                year = dateObj.getFullYear();
+            }
+        }
         
         const fileName = req.file.originalname;
         
@@ -1750,7 +1761,7 @@ app.post('/api/contracts/:id/upload-document', uploadDocument.single('document')
         // Renombramos el archivo temporal para que tenga el nombre correcto
         fs.renameSync(uploadedFilePath, localFilePath);
         
-        const remoteDestDir = `onedrive_backup:Simons SPA/Clientes/Contratos APP/${clientName}`;
+        const remoteDestDir = `onedrive_backup:Simons SPA/Clientes/Contratos APP/${year}/${safeClientName}`;
         const finalRemotePath = `${remoteDestDir}/${safeFileName}`;
         
         const rcloneArgs = ['copy', localFilePath, remoteDestDir];
