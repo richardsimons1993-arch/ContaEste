@@ -570,7 +570,7 @@
             <!-- VISTA INFORMES (React Container) -->
             <section id="reports" class="view-section scrollable">
                 <div id="reports-root"></div>
-            </section>            <section id="dashboard" class="view-section">
+            </section>            <section id="dashboard" class="view-section scrollable">
                 <div class="stats-grid">
                     <div class="stat-card balance" onclick="UI.switchView('debts');" title="Ver Deudas">
                         <h3>Deuda Total</h3>
@@ -660,7 +660,7 @@
             </section>
 
             <!-- VISTA FORMULARIO DE TRANSACCIÓN -->
-            <section id="transaction-form" class="view-section active">
+            <section id="transaction-form" class="view-section scrollable active">
                 <!-- El formulario se inyectará aquí -->
                 <div class="card form-card">
                     <h2 id="transaction-form-title">Registrar Movimiento</h2>
@@ -735,7 +735,7 @@
             </section>
 
             <!-- VISTA LISTADO DE TRANSACCIONES -->
-            <section id="transactions" class="view-section">
+            <section id="transactions" class="view-section scrollable">
                 <div class="card">
                     <div class="card-header"
                         style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
@@ -828,7 +828,7 @@
             </section>
 
             <!-- VISTA CONCEPTOS -->
-            <section id="concepts" class="view-section">
+            <section id="concepts" class="view-section scrollable">
                 <div class="card form-card">
                     <h2 id="concept-form-title">Crear Concepto</h2>
                     <form id="add-concept-form">
@@ -877,7 +877,7 @@
             </section>
 
             <!-- VISTA CLIENTES -->
-            <section id="clients" class="view-section">
+            <section id="clients" class="view-section scrollable">
                 <div class="card form-card">
                     <h2 id="client-form-title">Crear Cliente</h2>
                     <form id="add-client-form">
@@ -947,7 +947,7 @@
             </section>
 
             <!-- VISTA PROVEEDORES -->
-            <section id="suppliers" class="view-section">
+            <section id="suppliers" class="view-section scrollable">
                 <div class="card form-card">
                     <h2 id="supplier-form-title">Registrar Proveedor</h2>
                     <form id="add-supplier-form">
@@ -1014,7 +1014,7 @@
             </section>
 
             <!-- VISTA DEUDAS (Lo que debo) -->
-            <section id="debts" class="view-section">
+            <section id="debts" class="view-section scrollable">
                 <div class="card form-card">
                     <h2 id="debt-form-title">Registrar Deuda</h2>
                     <form id="add-debt-form">
@@ -1097,7 +1097,7 @@
             </section>
 
             <!-- VISTA DEUDORES (Quien me debe) -->
-            <section id="debtors" class="view-section">
+            <section id="debtors" class="view-section scrollable">
                 <div class="card form-card">
                     <h2 id="debtor-form-title">Registrar Deudor</h2>
                     <form id="add-debtor-form">
@@ -1173,7 +1173,7 @@
             </section>
 
             <!-- VISTA GESTIÓN DE DISPONIBLE -->
-            <section id="available-funds" class="view-section">
+            <section id="available-funds" class="view-section scrollable">
                 <div class="card form-card">
                     <h2 id="available-form-title">Gestionar Activos Disponibles</h2>
                     <form id="add-available-form">
@@ -1268,7 +1268,7 @@
             </section>
 
             <!-- VISTA PROYECTOS (Gestión de Ventas y Proyectos) -->
-            <section id="projects" class="view-section">
+            <section id="projects" class="view-section scrollable">
                 <div class="card form-card">
                     <h2 id="project-form-title">Nueva Solicitud / Proyecto</h2>
                     <form id="add-project-form">
@@ -1400,7 +1400,7 @@
             </section>
 
             <!-- VISTA CONTRATOS RECURRENTES -->
-            <section id="contracts" class="view-section">
+            <section id="contracts" class="view-section scrollable">
                 <div class="card form-card">
                     <h2 id="contract-form-title">Registrar Contrato</h2>
                     <form id="add-contract-form">
@@ -1487,7 +1487,7 @@
             </section>
 
             <!-- VISTA INVENTARIO -->
-            <section id="inventory" class="view-section">
+            <section id="inventory" class="view-section scrollable">
                 <div class="card">
                     <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem; margin-bottom: 1.5rem;">
                         <h2>Inventario de Materiales</h2>
@@ -1569,7 +1569,7 @@
             </section>
 
             <!-- VISTA GASTOS OPERACIONALES RECURRENTES -->
-            <section id="operational-expenses" class="view-section">
+            <section id="operational-expenses" class="view-section scrollable">
                 <div class="card form-card">
                     <h2 id="operational-form-title">Registrar Gasto Operacional Recurrente</h2>
                     <form id="add-operational-form">
@@ -1626,7 +1626,7 @@
             </section>
 
             <!-- VISTA ALERTAS (Contratos y Deudores) -->
-            <section id="alerts" class="view-section">
+            <section id="alerts" class="view-section scrollable">
                 <div class="card">
                     <div
                         style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
@@ -1732,7 +1732,7 @@
 
 
             <!-- VISTA ACTIVIDAD -->
-            <section id="activity" class="view-section">
+            <section id="activity" class="view-section scrollable">
                 <div class="card">
                     <div
                         style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;">
@@ -1746,7 +1746,7 @@
             </section>
 
             <!-- VISTA USUARIOS -->
-            <section id="users" class="view-section">
+            <section id="users" class="view-section scrollable">
                 <div class="card form-card">
                     <h2>Administrar Usuarios</h2>
                     <form id="add-user-form">
@@ -1816,7 +1816,7 @@
             </section>
 
             <!-- VISTA CRM: GESTIÓN DE PROSPECTOS -->
-            <section id="crm-leads" class="view-section">
+            <section id="crm-leads" class="view-section scrollable">
                 <div class="card form-card">
                     <h2 id="crm-lead-form-title">Registrar Nuevo Prospecto (Lead)</h2>
                     <form id="crm-lead-form">
@@ -1910,7 +1910,7 @@
             </section>
 
             <!-- VISTA CRM: EMAIL MASIVO -->
-            <section id="crm-emails" class="view-section">
+            <section id="crm-emails" class="view-section scrollable">
                 <div class="card">
                     <h2>Módulo de Email Masivo (Office 365)</h2>
                     <p class="text-muted mb-4">Envíe propuestas o información a sus prospectos filtrados por estado.</p>
