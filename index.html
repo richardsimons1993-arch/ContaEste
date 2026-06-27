@@ -2328,8 +2328,8 @@
     </div>
 
     <!-- NAVEGACIÓN INFERIOR (MÓVIL) -->
-    <nav class="bottom-nav">
-        <button class="nav-btn active" data-target="mobile-dashboard" onclick="UI.switchView('mobile-dashboard')">
+    <nav class="bottom-nav" onclick="UI.switchView('mobile-dashboard')" style="cursor: pointer;">
+        <button class="nav-btn active" data-target="mobile-dashboard" style="pointer-events: none;">
             <img src="icono_old.svg" alt="Inicio" style="width: 28px; height: 28px; object-fit: contain;">
             <span>Inicio</span>
         </button>

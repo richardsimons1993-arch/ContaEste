@@ -1321,6 +1321,7 @@ body:not(.login-pending) .login-overlay {
     box-shadow: 0 -2px 10px rgba(0,0,0,0.05);
     transform: none !important;
     will-change: auto;
+    cursor: pointer;
 }
 
 body.dark-mode .bottom-nav {
