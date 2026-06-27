@@ -144,11 +144,11 @@ h3,
 .app-container {
     display: flex;
     min-height: 100vh;
-    transition: filter 0.3s ease;
+    transition: opacity 0.3s ease;
 }
 
 body.login-pending .app-container {
-    filter: blur(10px);
+    opacity: 0.3;
     pointer-events: none;
 }
 
