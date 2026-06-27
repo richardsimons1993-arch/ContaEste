@@ -1309,6 +1309,7 @@ body:not(.login-pending) .login-overlay {
     left: 0 !important;
     right: 0 !important;
     height: 75px;
+    flex-direction: row !important;
     background: rgba(255, 255, 255, 0.85);
     backdrop-filter: blur(15px);
     -webkit-backdrop-filter: blur(15px);
