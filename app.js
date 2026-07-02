@@ -2163,6 +2163,12 @@ const UI = {
             displayedTransactions = displayedTransactions.filter(t => t.clientId && selectedClients.includes(t.clientId));
         }
 
+        // 5. Filtro Proveedores (Checkboxes)
+        const selectedSuppliers = Array.from(document.querySelectorAll('#menu-dropdown-supplier input:checked')).map(cb => cb.value);
+        if (selectedSuppliers.length > 0) {
+            displayedTransactions = displayedTransactions.filter(t => t.supplierId && selectedSuppliers.includes(t.supplierId));
+        }
+
         return displayedTransactions;
     },
     // --- Paginación Client-Side ---
@@ -2345,8 +2351,14 @@ const UI = {
             const nameB = this.getClientName(b.id);
             return nameA.localeCompare(nameB, 'es', { sensitivity: 'base' });
         });
+        const sortedSuppliersForFilter = [...state.suppliers].sort((a, b) => {
+            const nameA = a.name || 'Sin Nombre';
+            const nameB = b.name || 'Sin Nombre';
+            return nameA.localeCompare(nameB, 'es', { sensitivity: 'base' });
+        });
         this.renderCustomDropdownOptions('concept', sortedConceptsForFilter, 'name');
         this.renderCustomDropdownOptions('client', sortedClientsForFilter, 'nombreFantasia');
+        this.renderCustomDropdownOptions('supplier', sortedSuppliersForFilter, 'name');
     },
 
     updateTransactionPersonDropdown() {
@@ -2414,7 +2426,7 @@ const UI = {
 
     setupCustomDropdowns() {
         // Oyentes de alternancia
-        ['concept', 'client'].forEach(type => {
+        ['concept', 'client', 'supplier'].forEach(type => {
             const btn = document.getElementById(`btn-dropdown-${type}`);
             const menu = document.getElementById(`menu-dropdown-${type}`);
 
@@ -2510,7 +2522,7 @@ const UI = {
         if (!btn || !menu) return;
 
         const count = menu.querySelectorAll('input:checked').length;
-        const baseTitle = type === 'concept' ? 'Conceptos' : 'Clientes';
+        const baseTitle = type === 'concept' ? 'Conceptos' : (type === 'client' ? 'Clientes' : 'Proveedores');
 
         if (count === 0) {
             btn.innerHTML = baseTitle; // Resetear al valor por defecto
@@ -4485,13 +4497,19 @@ const UI = {
             // Mapear datos a formato amigable
             const exportData = dataToExport.map(t => {
                 const conceptName = state.concepts.find(c => c.id === t.conceptId)?.name || 'Desconocido';
-                const client = state.clients.find(c => c.id === t.clientId);
-                const clientName = client ? (client.razonSocial || client.name) : '-';
+                let titularName = '-';
+                if (t.clientId) {
+                    const client = state.clients.find(c => c.id === t.clientId);
+                    titularName = client ? (client.razonSocial || client.name) : '-';
+                } else if (t.supplierId) {
+                    const supplier = state.suppliers.find(s => s.id === t.supplierId);
+                    titularName = supplier ? supplier.name : '-';
+                }
                 return {
                     Fecha: formatDate(t.date),
                     Tipo: t.type === 'income' ? 'Ingreso' : 'Egreso',
                     Concepto: conceptName,
-                    Cliente: clientName,
+                    Titular: titularName,
                     Observacion: t.observation || '',
                     Monto: parseFloat(t.amount)
                 };
@@ -4507,7 +4525,7 @@ const UI = {
                 { wch: 12 }, // Fecha
                 { wch: 10 }, // Tipo
                 { wch: 25 }, // Concepto
-                { wch: 25 }, // Cliente
+                { wch: 25 }, // Titular
                 { wch: 30 }, // Obs
                 { wch: 15 }  // Monto
             ];
@@ -4546,13 +4564,19 @@ const UI = {
         // Datos para tabla
         const tableBody = dataToExport.map(t => {
             const conceptName = state.concepts.find(c => c.id === t.conceptId)?.name || 'Desconocido';
-            const client = state.clients.find(c => c.id === t.clientId);
-            const clientName = client ? (client.razonSocial || client.name) : '-';
+            let titularName = '-';
+            if (t.clientId) {
+                const client = state.clients.find(c => c.id === t.clientId);
+                titularName = client ? (client.razonSocial || client.name) : '-';
+            } else if (t.supplierId) {
+                const supplier = state.suppliers.find(s => s.id === t.supplierId);
+                titularName = supplier ? supplier.name : '-';
+            }
             return [
                 formatDate(t.date),
                 t.type === 'income' ? 'Ingreso' : 'Egreso',
                 conceptName,
-                clientName,
+                titularName,
                 formatCurrency(t.amount)
             ];
 
@@ -4560,7 +4584,7 @@ const UI = {
 
         doc.autoTable({
             startY: 40,
-            head: [['Fecha', 'Tipo', 'Concepto', 'Cliente', 'Monto']],
+            head: [['Fecha', 'Tipo', 'Concepto', 'Titular', 'Monto']],
             body: tableBody,
             theme: 'grid',
             headStyles: { fillColor: [66, 66, 66] },
