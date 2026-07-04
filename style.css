@@ -431,6 +431,12 @@ main {
     gap: 1.5rem;
 }
 
+.grid-3 {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 1.5rem;
+}
+
 .form-group {
     display: flex;
     flex-direction: column;
@@ -1497,7 +1503,8 @@ body.dark-mode .bottom-nav .nav-btn.active {
     }
 
     /* Formularios (1 columna) */
-    .grid-2 {
+    .grid-2,
+    .grid-3 {
         grid-template-columns: 1fr;
         gap: 0; /* Margin-bottom interno de form-group ya aplica */
     }

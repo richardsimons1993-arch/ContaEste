@@ -2119,6 +2119,206 @@ const UI = {
                 });
             }
         }
+
+        // --- NUEVOS GRÁFICOS DE DISTRIBUCIÓN (Deudas, Deudores, Disponible) ---
+
+        // Colores y bordes reutilizables para segmentos
+        const chartColors = [
+            'rgba(46, 204, 113, 0.85)', // Verde Esmeralda
+            'rgba(52, 152, 219, 0.85)', // Azul Peter River
+            'rgba(155, 89, 182, 0.85)', // Morado Amatista
+            'rgba(241, 196, 15, 0.85)', // Amarillo Girasol
+            'rgba(230, 126, 34, 0.85)', // Naranja Zanahoria
+            'rgba(231, 76, 60, 0.85)',  // Rojo Alizarina
+            'rgba(26, 188, 156, 0.85)', // Turquesa
+            'rgba(52, 73, 94, 0.85)',   // Gris Asfalto
+            'rgba(243, 156, 18, 0.85)', // Naranja Claro
+            'rgba(142, 68, 173, 0.85)', // Violeta
+            'rgba(41, 128, 185, 0.85)', // Azul Oscuro
+            'rgba(39, 174, 96, 0.85)'   // Verde Oscuro
+        ];
+        const chartBorders = [
+            'rgba(46, 204, 113, 1)',
+            'rgba(52, 152, 219, 1)',
+            'rgba(155, 89, 182, 1)',
+            'rgba(241, 196, 15, 1)',
+            'rgba(230, 126, 34, 1)',
+            'rgba(231, 76, 60, 1)',
+            'rgba(26, 188, 156, 1)',
+            'rgba(52, 73, 94, 1)',
+            'rgba(243, 156, 18, 1)',
+            'rgba(142, 68, 173, 1)',
+            'rgba(41, 128, 185, 1)',
+            'rgba(39, 174, 96, 1)'
+        ];
+
+        const tooltipCallback = function(context) {
+            let label = context.label || '';
+            if (label) label += ': ';
+            if (context.parsed !== null) {
+                const value = context.parsed;
+                const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                const percentage = total > 0 ? ((value / total) * 100).toFixed(1) : 0;
+                label += new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', maximumFractionDigits: 0 }).format(value);
+                label += ` (${percentage}%)`;
+            }
+            return label;
+        };
+
+        // 1. Gráfico Deudas por Acreedor
+        if (window.debtsChartInstance) {
+            window.debtsChartInstance.destroy();
+        }
+
+        const debtsGroup = {};
+        let totalDebtsSum = 0;
+        for (let d of state.debts) {
+            const amount = parseFloat(d.amount) || 0;
+            if (amount <= 0) continue;
+            const supplier = state.suppliers.find(s => s.id === d.supplierId);
+            const name = supplier ? supplier.name : (d.titular || d.creditor || 'Otros');
+            debtsGroup[name] = (debtsGroup[name] || 0) + amount;
+            totalDebtsSum += amount;
+        }
+
+        const debtsContainer = document.getElementById('debts-chart-container');
+        const debtsPlaceholder = document.getElementById('debts-chart-placeholder');
+        const ctxDebts = document.getElementById('debts-distribution-chart');
+
+        if (totalDebtsSum > 0) {
+            if (debtsContainer) debtsContainer.style.display = 'block';
+            if (debtsPlaceholder) debtsPlaceholder.style.display = 'none';
+
+            const sortedDebts = Object.entries(debtsGroup).sort((a, b) => b[1] - a[1]);
+            if (ctxDebts && window.Chart) {
+                window.debtsChartInstance = new Chart(ctxDebts, {
+                    type: 'doughnut',
+                    data: {
+                        labels: sortedDebts.map(item => item[0]),
+                        datasets: [{
+                            data: sortedDebts.map(item => item[1]),
+                            backgroundColor: chartColors.slice(0, sortedDebts.length),
+                            borderColor: chartBorders.slice(0, sortedDebts.length),
+                            borderWidth: 1
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: true,
+                        plugins: {
+                            legend: { position: 'bottom', labels: { boxWidth: 12 } },
+                            tooltip: { callbacks: { label: tooltipCallback } }
+                        }
+                    }
+                });
+            }
+        } else {
+            if (debtsContainer) debtsContainer.style.display = 'none';
+            if (debtsPlaceholder) debtsPlaceholder.style.display = 'flex';
+        }
+
+        // 2. Gráfico Deudores
+        if (window.debtorsChartInstance) {
+            window.debtorsChartInstance.destroy();
+        }
+
+        const debtorsGroup = {};
+        let totalDebtorsSum = 0;
+        for (let d of state.debtors) {
+            const amount = parseFloat(d.amount) || 0;
+            if (amount <= 0) continue;
+            const client = state.clients.find(c => c.name === d.titular || c.razonSocial === d.titular || c.nombreFantasia === d.titular);
+            const name = client ? (client.nombreFantasia || client.name) : (d.titular || 'Otros');
+            debtorsGroup[name] = (debtorsGroup[name] || 0) + amount;
+            totalDebtorsSum += amount;
+        }
+
+        const debtorsContainer = document.getElementById('debtors-chart-container');
+        const debtorsPlaceholder = document.getElementById('debtors-chart-placeholder');
+        const ctxDebtors = document.getElementById('debtors-distribution-chart');
+
+        if (totalDebtorsSum > 0) {
+            if (debtorsContainer) debtorsContainer.style.display = 'block';
+            if (debtorsPlaceholder) debtorsPlaceholder.style.display = 'none';
+
+            const sortedDebtors = Object.entries(debtorsGroup).sort((a, b) => b[1] - a[1]);
+            if (ctxDebtors && window.Chart) {
+                window.debtorsChartInstance = new Chart(ctxDebtors, {
+                    type: 'doughnut',
+                    data: {
+                        labels: sortedDebtors.map(item => item[0]),
+                        datasets: [{
+                            data: sortedDebtors.map(item => item[1]),
+                            backgroundColor: chartColors.slice(0, sortedDebtors.length),
+                            borderColor: chartBorders.slice(0, sortedDebtors.length),
+                            borderWidth: 1
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: true,
+                        plugins: {
+                            legend: { position: 'bottom', labels: { boxWidth: 12 } },
+                            tooltip: { callbacks: { label: tooltipCallback } }
+                        }
+                    }
+                });
+            }
+        } else {
+            if (debtorsContainer) debtorsContainer.style.display = 'none';
+            if (debtorsPlaceholder) debtorsPlaceholder.style.display = 'flex';
+        }
+
+        // 3. Gráfico Disponible por Ubicación
+        if (window.availableChartInstance) {
+            window.availableChartInstance.destroy();
+        }
+
+        const availableGroup = {};
+        let totalAvailableSum = 0;
+        for (let a of state.availables) {
+            const amount = parseFloat(a.amount || 0);
+            if (amount <= 0) continue;
+            const name = a.location || 'Otros';
+            availableGroup[name] = (availableGroup[name] || 0) + amount;
+            totalAvailableSum += amount;
+        }
+
+        const availableContainer = document.getElementById('available-chart-container');
+        const availablePlaceholder = document.getElementById('available-chart-placeholder');
+        const ctxAvailable = document.getElementById('available-distribution-chart');
+
+        if (totalAvailableSum > 0) {
+            if (availableContainer) availableContainer.style.display = 'block';
+            if (availablePlaceholder) availablePlaceholder.style.display = 'none';
+
+            const sortedAvailable = Object.entries(availableGroup).sort((a, b) => b[1] - a[1]);
+            if (ctxAvailable && window.Chart) {
+                window.availableChartInstance = new Chart(ctxAvailable, {
+                    type: 'doughnut',
+                    data: {
+                        labels: sortedAvailable.map(item => item[0]),
+                        datasets: [{
+                            data: sortedAvailable.map(item => item[1]),
+                            backgroundColor: chartColors.slice(0, sortedAvailable.length),
+                            borderColor: chartBorders.slice(0, sortedAvailable.length),
+                            borderWidth: 1
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: true,
+                        plugins: {
+                            legend: { position: 'bottom', labels: { boxWidth: 12 } },
+                            tooltip: { callbacks: { label: tooltipCallback } }
+                        }
+                    }
+                });
+            }
+        } else {
+            if (availableContainer) availableContainer.style.display = 'none';
+            if (availablePlaceholder) availablePlaceholder.style.display = 'flex';
+        }
     },
 
     getFilteredTransactions() {

@@ -622,6 +622,43 @@
                     </div>
                 </div>
 
+                <!-- Nuevos Gráficos de Distribución de Deudas, Deudores y Disponible -->
+                <div class="grid-3 mt-4">
+                    <!-- Gráfico Deudas -->
+                    <div class="card" style="display: flex; flex-direction: column; align-items: center; min-height: 380px;">
+                        <h3 style="align-self: flex-start;">Deudas por Acreedor</h3>
+                        <div id="debts-chart-container" style="width: 100%; max-width: 320px; margin: auto;">
+                            <canvas id="debts-distribution-chart"></canvas>
+                        </div>
+                        <div id="debts-chart-placeholder" style="display: none; margin: auto; text-align: center; color: var(--text-muted); padding: 2rem 0;">
+                            <i class="fa-solid fa-folder-open" style="font-size: 3rem; margin-bottom: 12px; opacity: 0.4;"></i>
+                            <p style="font-weight: 500;">No hay deudas registradas</p>
+                        </div>
+                    </div>
+                    <!-- Gráfico Deudores -->
+                    <div class="card" style="display: flex; flex-direction: column; align-items: center; min-height: 380px;">
+                        <h3 style="align-self: flex-start;">Distribución de Deudores</h3>
+                        <div id="debtors-chart-container" style="width: 100%; max-width: 320px; margin: auto;">
+                            <canvas id="debtors-distribution-chart"></canvas>
+                        </div>
+                        <div id="debtors-chart-placeholder" style="display: none; margin: auto; text-align: center; color: var(--text-muted); padding: 2rem 0;">
+                            <i class="fa-solid fa-folder-open" style="font-size: 3rem; margin-bottom: 12px; opacity: 0.4;"></i>
+                            <p style="font-weight: 500;">No hay deudores registrados</p>
+                        </div>
+                    </div>
+                    <!-- Gráfico Disponible -->
+                    <div class="card" style="display: flex; flex-direction: column; align-items: center; min-height: 380px;">
+                        <h3 style="align-self: flex-start;">Disponible por Ubicación</h3>
+                        <div id="available-chart-container" style="width: 100%; max-width: 320px; margin: auto;">
+                            <canvas id="available-distribution-chart"></canvas>
+                        </div>
+                        <div id="available-chart-placeholder" style="display: none; margin: auto; text-align: center; color: var(--text-muted); padding: 2rem 0;">
+                            <i class="fa-solid fa-folder-open" style="font-size: 3rem; margin-bottom: 12px; opacity: 0.4;"></i>
+                            <p style="font-weight: 500;">No hay disponible registrado</p>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Tabla Resumen Anual -->
                 <div class="card mt-4">
                     <div
