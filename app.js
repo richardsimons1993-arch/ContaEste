@@ -1944,11 +1944,7 @@ const UI = {
             window.circulatingChart = new Chart(ctx, {
                 type: 'doughnut',
                 data: {
-                    labels: [
-                        `Activo Disponible: ${formatCurrency(totalAvailableFunds)} (${pAvailable}%)`,
-                        `Inventario: ${formatCurrency(totalInventoryValue)} (${pInventory}%)`,
-                        `Deudores: ${formatCurrency(totalDebtors)} (${pDebtors}%)`
-                    ],
+                    labels: ['Activo Disponible', 'Inventario', 'Deudores'],
                     datasets: [{
                         data: [totalAvailableFunds, totalInventoryValue, totalDebtors],
                         backgroundColor: [
@@ -1968,7 +1964,7 @@ const UI = {
                     responsive: true,
                     maintainAspectRatio: false,
                     plugins: {
-                        legend: { position: 'bottom' },
+                        legend: { display: false },
                         tooltip: {
                             callbacks: {
                                 label: function(context) {
@@ -1979,7 +1975,7 @@ const UI = {
                                         const dataset = context.dataset.data;
                                         const total = dataset.reduce((a, b) => a + b, 0);
                                         const percentage = total > 0 ? ((value / total) * 100).toFixed(1) : 0;
-                                        label += new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP' }).format(value);
+                                        label += new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', maximumFractionDigits: 0 }).format(value);
                                         label += ` (${percentage}%)`;
                                     }
                                     return label;
@@ -1989,6 +1985,31 @@ const UI = {
                     }
                 }
             });
+        }
+
+        const circulatingLegend = document.getElementById('circulating-legend-container');
+        if (circulatingLegend) {
+            if (totalCirculating > 0) {
+                const items = [
+                    { name: 'Activo Disponible', value: totalAvailableFunds, percentage: pAvailable, color: 'rgba(46, 204, 113, 0.8)' },
+                    { name: 'Inventario', value: totalInventoryValue, percentage: pInventory, color: 'rgba(52, 152, 219, 0.8)' },
+                    { name: 'Deudores', value: totalDebtors, percentage: pDebtors, color: 'rgba(241, 196, 15, 0.8)' }
+                ];
+                circulatingLegend.innerHTML = items.map(item => `
+                    <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.85rem; padding: 2px 0;">
+                        <div style="display: flex; align-items: center; gap: 8px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 60%;">
+                            <span style="display: inline-block; width: 10px; height: 10px; background-color: ${item.color}; border-radius: 50%; flex-shrink: 0;"></span>
+                            <span title="${item.name}" style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${item.name}</span>
+                        </div>
+                        <div style="font-weight: 600; text-align: right; flex-shrink: 0;">
+                            <span>${formatCurrency(item.value)}</span>
+                            <span style="color: var(--text-muted); font-size: 0.75rem; margin-left: 6px;">(${item.percentage}%)</span>
+                        </div>
+                    </div>
+                `).join('');
+            } else {
+                circulatingLegend.innerHTML = '';
+            }
         }
 
         // --- Tabla Resumen Anual ---
@@ -2198,12 +2219,7 @@ const UI = {
                 window.debtsChartInstance = new Chart(ctxDebts, {
                     type: 'doughnut',
                     data: {
-                        labels: sortedDebts.map(item => {
-                            const name = item[0];
-                            const value = item[1];
-                            const percentage = totalDebtsSum > 0 ? ((value / totalDebtsSum) * 100).toFixed(1) : 0;
-                            return `${name}: ${formatCurrency(value)} (${percentage}%)`;
-                        }),
+                        labels: sortedDebts.map(item => item[0]),
                         datasets: [{
                             data: sortedDebts.map(item => item[1]),
                             backgroundColor: chartColors.slice(0, sortedDebts.length),
@@ -2215,15 +2231,39 @@ const UI = {
                         responsive: true,
                         maintainAspectRatio: true,
                         plugins: {
-                            legend: { position: 'bottom', labels: { boxWidth: 12 } },
+                            legend: { display: false },
                             tooltip: { callbacks: { label: tooltipCallback } }
                         }
                     }
                 });
             }
+
+            const debtsLegend = document.getElementById('debts-legend-container');
+            if (debtsLegend) {
+                debtsLegend.innerHTML = sortedDebts.map((item, index) => {
+                    const name = item[0];
+                    const value = item[1];
+                    const percentage = totalDebtsSum > 0 ? ((value / totalDebtsSum) * 100).toFixed(1) : 0;
+                    const color = chartColors[index % chartColors.length];
+                    return `
+                        <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.85rem; padding: 2px 0;">
+                            <div style="display: flex; align-items: center; gap: 8px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 60%;">
+                                <span style="display: inline-block; width: 10px; height: 10px; background-color: ${color}; border-radius: 50%; flex-shrink: 0;"></span>
+                                <span title="${name}" style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${name}</span>
+                            </div>
+                            <div style="font-weight: 600; text-align: right; flex-shrink: 0;">
+                                <span>${formatCurrency(value)}</span>
+                                <span style="color: var(--text-muted); font-size: 0.75rem; margin-left: 6px;">(${percentage}%)</span>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+            }
         } else {
             if (debtsContainer) debtsContainer.style.display = 'none';
             if (debtsPlaceholder) debtsPlaceholder.style.display = 'flex';
+            const debtsLegend = document.getElementById('debts-legend-container');
+            if (debtsLegend) debtsLegend.innerHTML = '';
         }
 
         // 2. Gráfico Deudores
@@ -2255,12 +2295,7 @@ const UI = {
                 window.debtorsChartInstance = new Chart(ctxDebtors, {
                     type: 'doughnut',
                     data: {
-                        labels: sortedDebtors.map(item => {
-                            const name = item[0];
-                            const value = item[1];
-                            const percentage = totalDebtorsSum > 0 ? ((value / totalDebtorsSum) * 100).toFixed(1) : 0;
-                            return `${name}: ${formatCurrency(value)} (${percentage}%)`;
-                        }),
+                        labels: sortedDebtors.map(item => item[0]),
                         datasets: [{
                             data: sortedDebtors.map(item => item[1]),
                             backgroundColor: chartColors.slice(0, sortedDebtors.length),
@@ -2272,15 +2307,39 @@ const UI = {
                         responsive: true,
                         maintainAspectRatio: true,
                         plugins: {
-                            legend: { position: 'bottom', labels: { boxWidth: 12 } },
+                            legend: { display: false },
                             tooltip: { callbacks: { label: tooltipCallback } }
                         }
                     }
                 });
             }
+
+            const debtorsLegend = document.getElementById('debtors-legend-container');
+            if (debtorsLegend) {
+                debtorsLegend.innerHTML = sortedDebtors.map((item, index) => {
+                    const name = item[0];
+                    const value = item[1];
+                    const percentage = totalDebtorsSum > 0 ? ((value / totalDebtorsSum) * 100).toFixed(1) : 0;
+                    const color = chartColors[index % chartColors.length];
+                    return `
+                        <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.85rem; padding: 2px 0;">
+                            <div style="display: flex; align-items: center; gap: 8px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 60%;">
+                                <span style="display: inline-block; width: 10px; height: 10px; background-color: ${color}; border-radius: 50%; flex-shrink: 0;"></span>
+                                <span title="${name}" style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${name}</span>
+                            </div>
+                            <div style="font-weight: 600; text-align: right; flex-shrink: 0;">
+                                <span>${formatCurrency(value)}</span>
+                                <span style="color: var(--text-muted); font-size: 0.75rem; margin-left: 6px;">(${percentage}%)</span>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+            }
         } else {
             if (debtorsContainer) debtorsContainer.style.display = 'none';
             if (debtorsPlaceholder) debtorsPlaceholder.style.display = 'flex';
+            const debtorsLegend = document.getElementById('debtors-legend-container');
+            if (debtorsLegend) debtorsLegend.innerHTML = '';
         }
 
         // 3. Gráfico Disponible por Ubicación
@@ -2311,12 +2370,7 @@ const UI = {
                 window.availableChartInstance = new Chart(ctxAvailable, {
                     type: 'doughnut',
                     data: {
-                        labels: sortedAvailable.map(item => {
-                            const name = item[0];
-                            const value = item[1];
-                            const percentage = totalAvailableSum > 0 ? ((value / totalAvailableSum) * 100).toFixed(1) : 0;
-                            return `${name}: ${formatCurrency(value)} (${percentage}%)`;
-                        }),
+                        labels: sortedAvailable.map(item => item[0]),
                         datasets: [{
                             data: sortedAvailable.map(item => item[1]),
                             backgroundColor: chartColors.slice(0, sortedAvailable.length),
@@ -2328,15 +2382,39 @@ const UI = {
                         responsive: true,
                         maintainAspectRatio: true,
                         plugins: {
-                            legend: { position: 'bottom', labels: { boxWidth: 12 } },
+                            legend: { display: false },
                             tooltip: { callbacks: { label: tooltipCallback } }
                         }
                     }
                 });
             }
+
+            const availableLegend = document.getElementById('available-legend-container');
+            if (availableLegend) {
+                availableLegend.innerHTML = sortedAvailable.map((item, index) => {
+                    const name = item[0];
+                    const value = item[1];
+                    const percentage = totalAvailableSum > 0 ? ((value / totalAvailableSum) * 100).toFixed(1) : 0;
+                    const color = chartColors[index % chartColors.length];
+                    return `
+                        <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.85rem; padding: 2px 0;">
+                            <div style="display: flex; align-items: center; gap: 8px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 60%;">
+                                <span style="display: inline-block; width: 10px; height: 10px; background-color: ${color}; border-radius: 50%; flex-shrink: 0;"></span>
+                                <span title="${name}" style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${name}</span>
+                            </div>
+                            <div style="font-weight: 600; text-align: right; flex-shrink: 0;">
+                                <span>${formatCurrency(value)}</span>
+                                <span style="color: var(--text-muted); font-size: 0.75rem; margin-left: 6px;">(${percentage}%)</span>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+            }
         } else {
             if (availableContainer) availableContainer.style.display = 'none';
             if (availablePlaceholder) availablePlaceholder.style.display = 'flex';
+            const availableLegend = document.getElementById('available-legend-container');
+            if (availableLegend) availableLegend.innerHTML = '';
         }
     },
 
