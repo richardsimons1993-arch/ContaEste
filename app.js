@@ -1944,7 +1944,11 @@ const UI = {
             window.circulatingChart = new Chart(ctx, {
                 type: 'doughnut',
                 data: {
-                    labels: [`Activo Disponible (${pAvailable}%)`, `Inventario (${pInventory}%)`, `Deudores (${pDebtors}%)`],
+                    labels: [
+                        `Activo Disponible: ${formatCurrency(totalAvailableFunds)} (${pAvailable}%)`,
+                        `Inventario: ${formatCurrency(totalInventoryValue)} (${pInventory}%)`,
+                        `Deudores: ${formatCurrency(totalDebtors)} (${pDebtors}%)`
+                    ],
                     datasets: [{
                         data: [totalAvailableFunds, totalInventoryValue, totalDebtors],
                         backgroundColor: [
@@ -2194,7 +2198,12 @@ const UI = {
                 window.debtsChartInstance = new Chart(ctxDebts, {
                     type: 'doughnut',
                     data: {
-                        labels: sortedDebts.map(item => item[0]),
+                        labels: sortedDebts.map(item => {
+                            const name = item[0];
+                            const value = item[1];
+                            const percentage = totalDebtsSum > 0 ? ((value / totalDebtsSum) * 100).toFixed(1) : 0;
+                            return `${name}: ${formatCurrency(value)} (${percentage}%)`;
+                        }),
                         datasets: [{
                             data: sortedDebts.map(item => item[1]),
                             backgroundColor: chartColors.slice(0, sortedDebts.length),
@@ -2246,7 +2255,12 @@ const UI = {
                 window.debtorsChartInstance = new Chart(ctxDebtors, {
                     type: 'doughnut',
                     data: {
-                        labels: sortedDebtors.map(item => item[0]),
+                        labels: sortedDebtors.map(item => {
+                            const name = item[0];
+                            const value = item[1];
+                            const percentage = totalDebtorsSum > 0 ? ((value / totalDebtorsSum) * 100).toFixed(1) : 0;
+                            return `${name}: ${formatCurrency(value)} (${percentage}%)`;
+                        }),
                         datasets: [{
                             data: sortedDebtors.map(item => item[1]),
                             backgroundColor: chartColors.slice(0, sortedDebtors.length),
@@ -2297,7 +2311,12 @@ const UI = {
                 window.availableChartInstance = new Chart(ctxAvailable, {
                     type: 'doughnut',
                     data: {
-                        labels: sortedAvailable.map(item => item[0]),
+                        labels: sortedAvailable.map(item => {
+                            const name = item[0];
+                            const value = item[1];
+                            const percentage = totalAvailableSum > 0 ? ((value / totalAvailableSum) * 100).toFixed(1) : 0;
+                            return `${name}: ${formatCurrency(value)} (${percentage}%)`;
+                        }),
                         datasets: [{
                             data: sortedAvailable.map(item => item[1]),
                             backgroundColor: chartColors.slice(0, sortedAvailable.length),
