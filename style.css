@@ -2202,3 +2202,30 @@ body.login-pending .bottom-nav {
     filter: blur(10px);
     pointer-events: none;
 }
+
+.chart-legend-list {
+    width: 100%;
+    max-width: 320px;
+    margin-top: 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    max-height: 150px;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    padding-right: 4px;
+}
+/* Estilo del scrollbar para navegadores Webkit (Chrome, Safari, Edge) */
+.chart-legend-list::-webkit-scrollbar {
+    width: 6px;
+}
+.chart-legend-list::-webkit-scrollbar-track {
+    background: transparent;
+}
+.chart-legend-list::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.15);
+    border-radius: 3px;
+}
+body.dark-mode .chart-legend-list::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.15);
+}
