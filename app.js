@@ -4079,21 +4079,290 @@ const UI = {
         }
 
         container.innerHTML = '';
-        state.logs.forEach(log => {
+
+        // 1. Clonar logs para no mutar el estado global directamente
+        const rawLogs = state.logs.map(l => ({ ...l }));
+        
+        // 2. Ordenar por timestamp descendente
+        rawLogs.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+        
+        // Mapeo de módulos para identificar correspondencias
+        const moduleMap = {
+            'transactions': 'Movimiento',
+            'concepts': 'Concepto',
+            'clients': 'Cliente',
+            'debts': 'Deuda',
+            'debtors': 'Deudor',
+            'suppliers': 'Proveedor',
+            'operational-expenses': 'Gasto Op.',
+            'availables': 'Disponible',
+            'projects': 'Proyecto',
+            'inventory': 'Inventario',
+            'crm': 'CRM',
+            'contracts': 'Contrato',
+            'quotations': 'Cotización',
+            'reports': 'Informe',
+            'users': 'Usuario',
+            'app-locations': 'Ubicación',
+            'notes': 'Nota'
+        };
+
+        const getCanonicalUser = (name) => {
+            if (!name) return 'Sistema';
+            const lower = name.toLowerCase();
+            if (lower.includes('richard') || lower.includes('admin')) return 'Admin Simons';
+            if (lower.includes('operador')) return 'Operador Ventas';
+            if (lower.includes('lector') || lower.includes('invitado')) return 'Invitado';
+            return name;
+        };
+
+        const processedLogs = [];
+        const skippedIds = new Set();
+
+        for (let i = 0; i < rawLogs.length; i++) {
+            const current = rawLogs[i];
+            if (skippedIds.has(current.id)) continue;
+
+            // Si es un log automático (POST/PUT/DELETE)
+            if (['POST', 'PUT', 'DELETE'].includes(current.action)) {
+                // Buscar si existe un log manual (Alta/Baja/Modificación/Carga) correspondiente dentro de 10s
+                const currentTs = new Date(current.timestamp).getTime();
+                const currentModule = current.module ? current.module.toLowerCase() : '';
+                const currentCanonicalUser = getCanonicalUser(current.userName);
+
+                const match = rawLogs.find(other => {
+                    if (other.id === current.id || skippedIds.has(other.id)) return false;
+                    if (!['Alta', 'Baja', 'Modificación', 'Restauración', 'Carga'].includes(other.action)) return false;
+                    
+                    // Verificar módulo
+                    const otherModule = (other.module || other.category || '').toLowerCase();
+                    const mappedModule = moduleMap[currentModule] ? moduleMap[currentModule].toLowerCase() : currentModule;
+                    if (otherModule !== mappedModule && otherModule !== currentModule) return false;
+
+                    // Verificar usuario
+                    const otherCanonicalUser = getCanonicalUser(other.userName);
+                    if (currentCanonicalUser !== otherCanonicalUser) return false;
+
+                    // Verificar rango de tiempo (10 segundos)
+                    const otherTs = new Date(other.timestamp).getTime();
+                    return Math.abs(currentTs - otherTs) < 10000;
+                });
+
+                if (match) {
+                    // Consolidar la información
+                    if (current.userName && current.userName.includes('@') && !match.userName.includes('@')) {
+                        match.userName = `${match.userName} (${current.userName})`;
+                    }
+                    skippedIds.add(current.id);
+                    continue;
+                }
+            }
+            
+            processedLogs.push(current);
+        }
+
+        // 3. Renderizar cada log procesado
+        processedLogs.forEach(log => {
             const date = new Date(log.timestamp);
             const timeStr = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-            // Usar formatDate para consistencia (DD-MM-YYYY)
             const dateStr = formatDate(log.timestamp);
 
-            const logEntry = document.createElement('div');
-            logEntry.className = 'activity-item';
-
+            // Traducir y formatear el log para visualización amigable
+            let action = log.action;
+            let module = log.module || log.category || 'Varios';
+            let details = log.details;
             let icon = 'fa-circle-info';
             let color = '#70a0a0';
 
-            if (log.action === 'Alta') { icon = 'fa-circle-plus'; color = '#10b981'; }
-            if (log.action === 'Baja') { icon = 'fa-trash-can'; color = '#ef4444'; }
-            if (log.action === 'Modificación') { icon = 'fa-pen-to-square'; color = '#008080'; }
+            // Mapear Acción e Iconos
+            if (action === 'Alta' || action === 'POST') {
+                action = 'Alta';
+                icon = 'fa-circle-plus';
+                color = '#10b981';
+            } else if (action === 'Baja' || action === 'DELETE') {
+                action = 'Baja';
+                icon = 'fa-trash-can';
+                color = '#ef4444';
+            } else if (action === 'Modificación' || action === 'PUT') {
+                action = 'Modificación';
+                icon = 'fa-pen-to-square';
+                color = '#008080';
+            } else if (action === 'Ajuste') {
+                icon = 'fa-sliders';
+                color = '#3498db';
+            } else if (action === 'Logout') {
+                icon = 'fa-right-from-bracket';
+                color = '#e74c3c';
+            } else if (action === 'Restauración') {
+                icon = 'fa-rotate-left';
+                color = '#2ecc71';
+            } else if (action === 'Carga') {
+                icon = 'fa-cloud-arrow-up';
+                color = '#9b59b6';
+            } else if (action === 'Limpieza' || action === 'Sincronización') {
+                icon = 'fa-wand-magic-sparkles';
+                color = '#9b59b6';
+            }
+
+            // Traducir Módulo
+            const moduleTranslations = {
+                'transactions': 'Movimiento',
+                'concepts': 'Concepto',
+                'clients': 'Cliente',
+                'debts': 'Deuda',
+                'debtors': 'Deudor',
+                'suppliers': 'Proveedor',
+                'operational-expenses': 'Gasto Op.',
+                'availables': 'Disponible',
+                'projects': 'Proyecto',
+                'inventory': 'Inventario',
+                'crm': 'CRM',
+                'contracts': 'Contrato',
+                'quotations': 'Cotización',
+                'reports': 'Informe',
+                'users': 'Usuario',
+                'app-locations': 'Ubicación',
+                'notes': 'Nota'
+            };
+
+            if (moduleTranslations[module.toLowerCase()]) {
+                module = moduleTranslations[module.toLowerCase()];
+            }
+
+            // Traducir detalles técnicos del Backend si es necesario
+            if (details && details.startsWith('Path:')) {
+                const path = details.replace('Path: ', '');
+                const body = log.extraData ? (log.extraData.body || {}) : {};
+
+                if (path.includes('/api/transactions')) {
+                    if (log.action === 'DELETE') {
+                        details = `Eliminado movimiento`;
+                    } else {
+                        const typeStr = body.type === 'ingreso' ? 'Ingreso' : 'Gasto';
+                        const amountStr = body.amount ? formatCurrency(body.amount) : '';
+                        details = `${log.action === 'PUT' ? 'Actualizado' : 'Registrado'}: ${typeStr} por ${amountStr}`;
+                    }
+                } else if (path.includes('/api/debtors')) {
+                    if (path.endsWith('/pay')) {
+                        details = `Cobro registrado para deudor`;
+                        action = 'Cobro';
+                        icon = 'fa-hand-holding-dollar';
+                        color = '#f1c40f';
+                    } else if (log.action === 'DELETE') {
+                        details = `Eliminado deudor`;
+                    } else {
+                        details = `${log.action === 'PUT' ? 'Actualizado' : 'Registrado'} deudor ${body.titular || ''} por ${body.amount ? formatCurrency(body.amount) : ''}`;
+                    }
+                } else if (path.includes('/api/debts')) {
+                    if (path.endsWith('/pay')) {
+                        details = `Pago registrado para deuda`;
+                        action = 'Pago';
+                        icon = 'fa-money-bill-transfer';
+                        color = '#e67e22';
+                    } else if (log.action === 'DELETE') {
+                        details = `Eliminada deuda`;
+                    } else {
+                        details = `${log.action === 'PUT' ? 'Actualizada' : 'Registrada'} deuda de ${body.titular || ''} por ${body.amount ? formatCurrency(body.amount) : ''}`;
+                    }
+                } else if (path.includes('/api/operational-expenses')) {
+                    if (path.endsWith('/pay')) {
+                        details = `Pago de Gasto Operacional registrado`;
+                        action = 'Pago';
+                        icon = 'fa-money-bill-transfer';
+                        color = '#e67e22';
+                    } else if (log.action === 'DELETE') {
+                        details = `Eliminado Gasto Operacional`;
+                    } else {
+                        details = `Registrado Gasto Operacional: ${body.description || ''} por ${body.amount ? formatCurrency(body.amount) : ''}`;
+                    }
+                } else if (path.includes('/api/contracts')) {
+                    if (path.endsWith('/invoice')) {
+                        details = `Contrato facturado`;
+                        action = 'Facturación';
+                        icon = 'fa-file-invoice-dollar';
+                        color = '#9b59b6';
+                    } else if (path.endsWith('/undo')) {
+                        details = `Facturación revertida para contrato`;
+                        action = 'Reversión';
+                        icon = 'fa-rotate-left';
+                        color = '#34495e';
+                    } else if (log.action === 'DELETE') {
+                        details = `Eliminado contrato`;
+                    } else {
+                        details = `Registrado contrato para cliente`;
+                    }
+                } else if (path.includes('/api/crm/prospectos')) {
+                    if (log.action === 'DELETE') {
+                        details = `Eliminado prospecto CRM`;
+                    } else {
+                        details = `Guardado prospecto CRM: ${body.empresa || body.nombre || ''}`;
+                    }
+                } else if (path.includes('/api/crm/calls')) {
+                    details = `Registrada llamada/actividad CRM para prospecto`;
+                } else if (path.includes('/api/crm/send-emails')) {
+                    details = `Envío de correos masivos CRM`;
+                    action = 'Envío';
+                    icon = 'fa-paper-plane';
+                    color = '#3498db';
+                } else if (path.includes('/api/quotations')) {
+                    if (log.action === 'DELETE') {
+                        details = `Eliminada cotización`;
+                    } else {
+                        details = `Guardada cotización ${body.id || ''} (v${body.version || 1}) para ${body.clientName || ''}`;
+                    }
+                } else if (path.includes('/api/reports')) {
+                    if (log.action === 'DELETE') {
+                        details = `Eliminado informe`;
+                    } else {
+                        details = `Guardado informe ${body.id || ''} (v${body.version || 1}) para ${body.clientName || ''}`;
+                    }
+                } else if (path.includes('/api/availables')) {
+                    if (log.action === 'DELETE') {
+                        details = `Eliminado registro disponible`;
+                    } else {
+                        details = `Registrado saldo en ${body.location || ''} por ${body.amount ? formatCurrency(body.amount) : ''}`;
+                    }
+                } else if (path.includes('/api/projects')) {
+                    if (path.includes('/history')) {
+                        if (log.action === 'DELETE') {
+                            details = `Eliminado hito de proyecto`;
+                        } else {
+                            details = `Actualizada bitácora de proyecto: de ${body.previousStatus || ''} a ${body.newStatus || ''}`;
+                        }
+                    } else if (log.action === 'DELETE') {
+                        details = `Eliminado proyecto`;
+                    } else {
+                        details = `Guardado proyecto de ${body.projectName || ''}`;
+                    }
+                } else if (path.includes('/api/inventory')) {
+                    if (log.action === 'DELETE') {
+                        details = `Eliminado ítem de inventario`;
+                    } else {
+                        details = `Guardado ítem de inventario: ${body.name || ''} (${body.quantity || 0} unidades)`;
+                    }
+                } else if (path.includes('/api/users')) {
+                    if (log.action === 'DELETE') {
+                        details = `Eliminado usuario`;
+                    } else {
+                        details = `Guardado usuario: ${body.username || ''}`;
+                    }
+                } else if (path.includes('/api/app-locations')) {
+                    if (log.action === 'DELETE') {
+                        details = `Eliminada ubicación`;
+                    } else {
+                        details = `Guardada ubicación: ${body.name || ''}`;
+                    }
+                } else if (path.includes('/api/notes')) {
+                    if (log.action === 'DELETE') {
+                        details = `Eliminada nota`;
+                    } else {
+                        details = `Guardada nota: ${body.title || ''}`;
+                    }
+                }
+            }
+
+            const logEntry = document.createElement('div');
+            logEntry.className = 'activity-item';
 
             logEntry.innerHTML = `
                 <div class="activity-icon" style="color: ${color}">
@@ -4101,14 +4370,14 @@ const UI = {
                 </div>
                 <div class="activity-content">
                     <div class="activity-header">
-                        <span class="activity-action">${log.action}</span>
-                        <span class="activity-category">${log.module || log.category || 'Varios'}</span>
+                        <span class="activity-action" style="background-color: ${color}20; color: ${color};">${action}</span>
+                        <span class="activity-category">${module}</span>
                         <span class="activity-user" style="color: var(--text-muted); font-size: 0.85rem; margin-right: auto; margin-left: 10px;">
                             <i class="fa-solid fa-user"></i> ${log.userName || 'Sistema'}
                         </span>
                         <span class="activity-time">${dateStr} ${timeStr}</span>
                     </div>
-                    <div class="activity-details">${log.details}</div>
+                    <div class="activity-details">${details}</div>
                     ${log.action === 'Baja' && log.extraData && state.currentUser.role === 'administrador' ? `
                         <button class="btn-text text-primary mt-2" onclick="UI.handleUndoFromLog('${log.id}')">
                             <i class="fa-solid fa-rotate-left"></i> Deshacer Eliminación

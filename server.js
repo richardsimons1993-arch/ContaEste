@@ -1291,6 +1291,14 @@ async function deleteExpiredNotes() {
         
         if (result.rowsAffected[0] > 0) {
             console.log(`🧹 Limpieza: ${result.rowsAffected[0]} notas antiguas eliminadas permanentemente.`);
+            await pool.request()
+                .input('id', sql.VarChar(50), Date.now().toString() + Math.floor(Math.random() * 1000).toString())
+                .input('action', sql.VarChar(50), 'Limpieza')
+                .input('module', sql.VarChar(50), 'notes')
+                .input('userName', sql.VarChar(100), 'Sistema')
+                .input('details', sql.VarChar(sql.MAX), `${result.rowsAffected[0]} notas antiguas en la papelera eliminadas permanentemente`)
+                .input('timestamp', sql.DateTime, new Date())
+                .query(`INSERT INTO Logs (id, action, module, userName, details, timestamp) VALUES (@id, @action, @module, @userName, @details, @timestamp)`);
         }
     } catch (err) {
         console.error('⚠️ Error en limpieza de notas:', err.message);
@@ -2452,6 +2460,14 @@ async function cleanOldQuotations() {
         const result = await pool.request().query('DELETE FROM Quotations WHERE createdAt < DATEADD(day, -90, GETDATE())');
         if (result.rowsAffected[0] > 0) {
             console.log(`🧹 Limpieza: Se eliminaron ${result.rowsAffected[0]} cotizaciones antiguas de la BD.`);
+            await pool.request()
+                .input('id', sql.VarChar(50), Date.now().toString() + Math.floor(Math.random() * 1000).toString())
+                .input('action', sql.VarChar(50), 'Limpieza')
+                .input('module', sql.VarChar(50), 'quotations')
+                .input('userName', sql.VarChar(100), 'Sistema')
+                .input('details', sql.VarChar(sql.MAX), `${result.rowsAffected[0]} cotizaciones antiguas (>90 días) eliminadas permanentemente`)
+                .input('timestamp', sql.DateTime, new Date())
+                .query(`INSERT INTO Logs (id, action, module, userName, details, timestamp) VALUES (@id, @action, @module, @userName, @details, @timestamp)`);
         }
     } catch (err) {
         console.error('Error en limpieza de cotizaciones:', err);
@@ -2519,6 +2535,16 @@ async function syncQuotationsToProjects() {
                         INSERT INTO ProjectHistory (projectId, previousStatus, newStatus, note, changeDate) 
                         VALUES (@projectId, NULL, @newStatus, @note, GETDATE())
                     `);
+
+                // Registrar en la tabla de logs global
+                await pool.request()
+                    .input('id', sql.VarChar(50), Date.now().toString() + Math.floor(Math.random() * 1000).toString())
+                    .input('action', sql.VarChar(50), 'Sincronización')
+                    .input('module', sql.VarChar(50), 'projects')
+                    .input('userName', sql.VarChar(100), 'Sistema')
+                    .input('details', sql.VarChar(sql.MAX), `Proyecto ${projectId} creado automáticamente por sincronización de Cotización N° ${q.id}`)
+                    .input('timestamp', sql.DateTime, new Date())
+                    .query(`INSERT INTO Logs (id, action, module, userName, details, timestamp) VALUES (@id, @action, @module, @userName, @details, @timestamp)`);
             }
         }
         console.log('✅ Sincronización de Cotizaciones a Proyectos completada.');
