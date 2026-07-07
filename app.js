@@ -5045,11 +5045,11 @@ const UI = {
 
     // --- EXPORTACIÓN ---
 
-    exportTransactionsToExcel() {
+    async exportTransactionsToExcel() {
         if (!window.XLSX) {
-            this.showToast('Error: Librería Excel no cargada. Verifique su conexión internet.', 'error');
-            return;
+            try { await window._loadExportLibs(); } catch(e) { this.showToast('Error cargando librería Excel', 'error'); return; }
         }
+
 
         try {
             // Usar método centralizado de filtrado
@@ -5106,10 +5106,9 @@ const UI = {
         }
     },
 
-    exportTransactionsToPDF() {
+    async exportTransactionsToPDF() {
         if (!window.jspdf) {
-            this.showToast('Error cargando librería PDF', 'error');
-            return;
+            try { await window._loadExportLibs(); } catch(e) { this.showToast('Error cargando librería PDF', 'error'); return; }
         }
 
         // Usar método centralizado de filtrado
@@ -5160,10 +5159,9 @@ const UI = {
         this.showToast('Exportación a PDF completada', 'success');
     },
 
-    exportBalanceToExcel() {
+    async exportBalanceToExcel() {
         if (!window.XLSX) {
-            this.showToast('Error: Librería Excel no cargada. Verifique su conexión internet.', 'error');
-            return;
+            try { await window._loadExportLibs(); } catch(e) { this.showToast('Error cargando librería Excel', 'error'); return; }
         }
 
         // Recalcular datos del Resumen Anual (logica duplicada de renderDashboard por necesidad de datos puros)
@@ -5220,10 +5218,9 @@ const UI = {
         this.showToast('Exportación a Excel completada', 'success');
     },
 
-    exportBalanceToPDF() {
+    async exportBalanceToPDF() {
         if (!window.jspdf) {
-            this.showToast('Error cargando librería PDF', 'error');
-            return;
+            try { await window._loadExportLibs(); } catch(e) { this.showToast('Error cargando librería PDF', 'error'); return; }
         }
 
         const transactions = state.transactions;
@@ -5283,8 +5280,10 @@ const UI = {
 
     // --- EXPORTAR DEUDAS ---
 
-    exportDebtsToExcel() {
-        if (!window.XLSX) return this.showToast('Librería Excel no disponible', 'error');
+    async exportDebtsToExcel() {
+        if (!window.XLSX) {
+            try { await window._loadExportLibs(); } catch(e) { return this.showToast('Librería Excel no disponible', 'error'); }
+        }
 
         if (state.debts.length === 0) return this.showToast('No hay deudas para exportar', 'warning');
 
@@ -5305,8 +5304,10 @@ const UI = {
         this.showToast('Deudas exportadas a Excel', 'success');
     },
 
-    exportDebtsToPDF() {
-        if (!window.jspdf) return this.showToast('Librería PDF no disponible', 'error');
+    async exportDebtsToPDF() {
+        if (!window.jspdf) {
+            try { await window._loadExportLibs(); } catch(e) { return this.showToast('Librería PDF no disponible', 'error'); }
+        }
         if (state.debts.length === 0) return this.showToast('No hay deudas para exportar', 'warning');
 
         const { jsPDF } = window.jspdf;
@@ -5339,8 +5340,10 @@ const UI = {
 
     // --- EXPORTAR DEUDORES ---
 
-    exportDebtorsToExcel() {
-        if (!window.XLSX) return this.showToast('Librería Excel no disponible', 'error');
+    async exportDebtorsToExcel() {
+        if (!window.XLSX) {
+            try { await window._loadExportLibs(); } catch(e) { return this.showToast('Librería Excel no disponible', 'error'); }
+        }
 
         if (state.debtors.length === 0) return this.showToast('No hay deudores para exportar', 'warning');
 
@@ -5361,8 +5364,10 @@ const UI = {
         this.showToast('Deudores exportados a Excel', 'success');
     },
 
-    exportDebtorsToPDF() {
-        if (!window.jspdf) return this.showToast('Librería PDF no disponible', 'error');
+    async exportDebtorsToPDF() {
+        if (!window.jspdf) {
+            try { await window._loadExportLibs(); } catch(e) { return this.showToast('Librería PDF no disponible', 'error'); }
+        }
         if (state.debtors.length === 0) return this.showToast('No hay deudores para exportar', 'warning');
 
         const { jsPDF } = window.jspdf;
@@ -7586,8 +7591,10 @@ const UI = {
 
     // --- EXPORTAR INVENTARIO ---
 
-    exportInventoryToExcel() {
-        if (!window.XLSX) return this.showToast('Librería Excel no disponible', 'error');
+    async exportInventoryToExcel() {
+        if (!window.XLSX) {
+            try { await window._loadExportLibs(); } catch(e) { return this.showToast('Librería Excel no disponible', 'error'); }
+        }
         const inventory = state.inventory || [];
         if (inventory.length === 0) return this.showToast('No hay materiales para exportar', 'warning');
 
@@ -7610,8 +7617,10 @@ const UI = {
         this.showToast('Inventario exportado a Excel', 'success');
     },
 
-    exportInventoryToPDF() {
-        if (!window.jspdf) return this.showToast('Librería PDF no disponible', 'error');
+    async exportInventoryToPDF() {
+        if (!window.jspdf) {
+            try { await window._loadExportLibs(); } catch(e) { return this.showToast('Librería PDF no disponible', 'error'); }
+        }
         const inventory = state.inventory || [];
         if (inventory.length === 0) return this.showToast('No hay materiales para exportar', 'warning');
 
@@ -7867,8 +7876,10 @@ const UI = {
 
     // --- EXPORTAR CRM ---
 
-    exportCRMLeadsToExcel() {
-        if (!window.XLSX) return this.showToast('Librería Excel no disponible', 'error');
+    async exportCRMLeadsToExcel() {
+        if (!window.XLSX) {
+            try { await window._loadExportLibs(); } catch(e) { return this.showToast('Librería Excel no disponible', 'error'); }
+        }
         const leads = this._lastFilteredCRMLeads || state.crmProspectos || [];
         if (leads.length === 0) return this.showToast('No hay prospectos para exportar', 'warning');
 
@@ -7893,8 +7904,10 @@ const UI = {
         this.showToast('Prospectos exportados a Excel', 'success');
     },
 
-    exportCRMLeadsToPDF() {
-        if (!window.jspdf) return this.showToast('Librería PDF no disponible', 'error');
+    async exportCRMLeadsToPDF() {
+        if (!window.jspdf) {
+            try { await window._loadExportLibs(); } catch(e) { return this.showToast('Librería PDF no disponible', 'error'); }
+        }
         const leads = this._lastFilteredCRMLeads || state.crmProspectos || [];
         if (leads.length === 0) return this.showToast('No hay prospectos para exportar', 'warning');
 

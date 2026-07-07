@@ -517,6 +517,9 @@ const QuotationsApp = () => {
     };
 
     const handleDownloadFromHistory = async (q) => {
+        if (!window.pdfMake) {
+            try { await window._loadPdfMake(); } catch(e) { await customAlert('Error cargando librería PDF. Verifique su conexión.'); return; }
+        }
         try {
             const docDefinition = buildDocDefinitionForHistory(q);
             const versionSuffix = q.version > 1 ? `_v${q.version}` : '';
@@ -559,6 +562,10 @@ const QuotationsApp = () => {
     }, [selectedClient, projectName, requirements, techConditions, commercialConditions, items, optionals, activeTab, logoData, currency]);
 
     const handleGenerate = async () => {
+        if (!window.pdfMake) {
+            try { await window._loadPdfMake(); } catch(e) { await customAlert('Error cargando librería PDF. Verifique su conexión.'); return; }
+        }
+
         if (!selectedClient) {
             await customAlert("Debe seleccionar un cliente.", "Falta Información");
             return;

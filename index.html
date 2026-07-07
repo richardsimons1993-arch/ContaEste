@@ -26,11 +26,9 @@
     <!-- Flatpickr (Calendario) -->
     <link rel="stylesheet" href="vendor/flatpickr.min.css">
     <link rel="stylesheet" href="vendor/flatpickr-monthSelect.css">
-    <!-- SheetJS (Excel) -->
-    <script data-cfasync="false" src="vendor/xlsx.full.min.js"></script>
-    <!-- jsPDF & AutoTable (PDF) -->
-    <script data-cfasync="false" src="vendor/jspdf.umd.min.js"></script>
-    <script data-cfasync="false" src="vendor/jspdf.plugin.autotable.min.js"></script>
+    <!-- Export Libraries: carga diferida (se descargan al primer click en Exportar o al generar cotización) -->
+    <!-- xlsx, jsPDF, pdfmake y vfs_fonts se inyectan dinámicamente cuando el usuario los necesita -->
+
     
     <!-- React & ReactDOM (UMD) -->
     <script data-cfasync="false" src="vendor/react.production.min.js"></script>
@@ -51,9 +49,9 @@
           }
         }
     </script>
-    <!-- pdfmake for Cotizaciones -->
-    <script data-cfasync="false" src="vendor/pdfmake.min.js"></script>
-    <script data-cfasync="false" src="vendor/vfs_fonts.js"></script>
+    <!-- pdfmake para Cotizaciones: carga diferida -->
+    <!-- pdfmake.min.js y vfs_fonts.js se inyectan dinámicamente al generar la primera cotización -->
+
     <!-- Babel for JSX -->
     <script data-cfasync="false" src="vendor/babel.min.js"></script>
     <script data-cfasync="false">
@@ -71,7 +69,54 @@
         window.onerror = function (msg, url, line, col, error) {
             console.error("Error: " + msg + "\nEn: " + url + ":" + line);
         };
+
+        // --- Carga diferida de librerías de exportación ---
+        // Ahorra ~3 MB de descarga sincronica en cada Ctrl+F5.
+        // Se llama antes de cualquier operación de exportación Excel/PDF o generación de cotización.
+        let _contaesteExportLibsPromise = null;
+        let _contaestePdfMakePromise = null;
+
+        // Carga xlsx + jsPDF + autotable (para exportaciones de finanzas)
+        window._loadExportLibs = function() {
+            if (_contaesteExportLibsPromise) return _contaesteExportLibsPromise;
+            _contaesteExportLibsPromise = new Promise(function(resolve, reject) {
+                function loadScript(src, onDone) {
+                    if (document.querySelector('script[src="' + src + '"]')) { onDone(); return; }
+                    var s = document.createElement('script');
+                    s.src = src;
+                    s.onload = onDone;
+                    s.onerror = function() { reject(new Error('Error cargando ' + src)); };
+                    document.head.appendChild(s);
+                }
+                loadScript('vendor/xlsx.full.min.js', function() {
+                    loadScript('vendor/jspdf.umd.min.js', function() {
+                        loadScript('vendor/jspdf.plugin.autotable.min.js', resolve);
+                    });
+                });
+            });
+            return _contaesteExportLibsPromise;
+        };
+
+        // Carga pdfmake + vfs_fonts (para generación de cotizaciones)
+        window._loadPdfMake = function() {
+            if (_contaestePdfMakePromise) return _contaestePdfMakePromise;
+            _contaestePdfMakePromise = new Promise(function(resolve, reject) {
+                function loadScript(src, onDone) {
+                    if (document.querySelector('script[src="' + src + '"]')) { onDone(); return; }
+                    var s = document.createElement('script');
+                    s.src = src;
+                    s.onload = onDone;
+                    s.onerror = function() { reject(new Error('Error cargando ' + src)); };
+                    document.head.appendChild(s);
+                }
+                loadScript('vendor/pdfmake.min.js', function() {
+                    loadScript('vendor/vfs_fonts.js', resolve);
+                });
+            });
+            return _contaestePdfMakePromise;
+        };
     </script>
+
 </head>
 
 <body class="login-pending">
