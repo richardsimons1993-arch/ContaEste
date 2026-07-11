@@ -44,7 +44,7 @@ const QuotationsApp = () => {
                 setClients(prev => {
                     // Solo actualizar si hay una diferencia en la cantidad para evitar re-renders innecesarios
                     if (prev.length !== window.state.clients.length) {
-                        return window.state.clients;
+                        return [...window.state.clients];
                     }
                     return prev;
                 });
