@@ -6990,9 +6990,6 @@ const UI = {
             const month = parseInt(parts[1], 10) - 1;
             const day = parseInt(parts[2], 10);
             
-            if (e.frequency === 'monthly') {
-                return new Date(year, month + 1, 0);
-            }
             return new Date(year, month, day);
         };
 
@@ -7087,9 +7084,6 @@ const UI = {
             const month = parseInt(parts[1], 10) - 1;
             const day = parseInt(parts[2], 10);
             
-            if (e.frequency === 'monthly') {
-                return new Date(year, month + 1, 0);
-            }
             return new Date(year, month, day);
         };
 
