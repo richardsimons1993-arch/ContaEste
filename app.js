@@ -7000,7 +7000,10 @@ const UI = {
         const pendingExpenses = state.operationalExpenses.filter(e => {
             const effectiveDate = getEffectiveDueDate(e);
             if (!effectiveDate) return false;
-            return today >= effectiveDate; // Avisa solo el día exacto o si está vencido
+            
+            const diffTime = effectiveDate - today;
+            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+            return diffDays <= 3;
         });
 
         if (pendingExpenses.length === 0) {
@@ -7018,7 +7021,7 @@ const UI = {
                 <td>${e.name}</td>
                 <td>
                     <span style="color: ${isOverdue ? 'var(--danger-color)' : 'var(--warning-color)'}; font-weight: bold;">
-                        ${formattedDate} ${isOverdue ? '(VENCIDO)' : ''}
+                        ${formattedDate} ${isOverdue ? '(VENCIDO)' : '(POR VENCER)'}
                     </span>
                 </td>
                 <td class="action-cell">
@@ -7093,11 +7096,13 @@ const UI = {
         // 1. Contratos pendientes de facturar
         const contractsCount = state.pendingContracts ? state.pendingContracts.length : 0;
 
-        // 2. Gastos operacionales pendientes (avisa el mismo día exacto)
+        // 2. Gastos operacionales pendientes (avisa con 3 días de anticipación)
         const expensesCount = state.operationalExpenses ? state.operationalExpenses.filter(e => {
             const effectiveDate = getEffectiveDueDate(e);
             if (!effectiveDate) return false;
-            return today >= effectiveDate;
+            const diffTime = effectiveDate - today;
+            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+            return diffDays <= 3;
         }).length : 0;
 
         // 3. Deudas pendientes (Removido del conteo por solicitud, pero mantiene la campana visible si existen)
