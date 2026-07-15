@@ -11,7 +11,7 @@ const BCRYPT_ROUNDS = 10;
 router.get('/users', async (req, res) => {
     try {
         const pool = await getDbPool();
-        const result = await pool.request().query('SELECT id, username, role, name, modules, Email FROM Users');
+        const result = await pool.request().query('SELECT id, username, role, name, modules, Email, ReceiveOpExpenseAlerts, ReceiveContractAlerts FROM Users');
         const users = result.recordset.map(u => ({
             ...u,
             modules: u.modules ? JSON.parse(u.modules) : []
@@ -40,6 +40,9 @@ router.post('/users', async (req, res) => {
         }
 
         const modulesJson = JSON.stringify(u.modules || []);
+        
+        const receiveOpExpenseAlerts = u.receiveOpExpenseAlerts ? 1 : 0;
+        const receiveContractAlerts = u.receiveContractAlerts ? 1 : 0;
 
         if (check.recordset.length > 0) {
             await pool.request()
@@ -50,7 +53,9 @@ router.post('/users', async (req, res) => {
                 .input('name', sql.VarChar(100), u.name)
                 .input('Email', sql.NVarChar(255), u.email || null)
                 .input('modules', sql.VarChar(sql.MAX), modulesJson)
-                .query(`UPDATE Users SET username=@username, password=@password, role=@role, name=@name, Email=@Email, modules=@modules WHERE id=@id`);
+                .input('ReceiveOpExpenseAlerts', sql.Bit, receiveOpExpenseAlerts)
+                .input('ReceiveContractAlerts', sql.Bit, receiveContractAlerts)
+                .query(`UPDATE Users SET username=@username, password=@password, role=@role, name=@name, Email=@Email, modules=@modules, ReceiveOpExpenseAlerts=@ReceiveOpExpenseAlerts, ReceiveContractAlerts=@ReceiveContractAlerts WHERE id=@id`);
         } else {
             await pool.request()
                 .input('id', sql.VarChar(50), u.id)
@@ -60,9 +65,20 @@ router.post('/users', async (req, res) => {
                 .input('name', sql.VarChar(100), u.name)
                 .input('Email', sql.NVarChar(255), u.email || null)
                 .input('modules', sql.VarChar(sql.MAX), modulesJson)
-                .query(`INSERT INTO Users (id, username, password, role, name, Email, modules) VALUES (@id, @username, @password, @role, @name, @Email, @modules)`);
+                .input('ReceiveOpExpenseAlerts', sql.Bit, receiveOpExpenseAlerts)
+                .input('ReceiveContractAlerts', sql.Bit, receiveContractAlerts)
+                .query(`INSERT INTO Users (id, username, password, role, name, Email, modules, ReceiveOpExpenseAlerts, ReceiveContractAlerts) VALUES (@id, @username, @password, @role, @name, @Email, @modules, @ReceiveOpExpenseAlerts, @ReceiveContractAlerts)`);
         }
-        res.json({ id: u.id, username: u.username, role: u.role, name: u.name, email: u.email, modules: u.modules || [] });
+        res.json({ 
+            id: u.id, 
+            username: u.username, 
+            role: u.role, 
+            name: u.name, 
+            email: u.email, 
+            modules: u.modules || [],
+            ReceiveOpExpenseAlerts: receiveOpExpenseAlerts,
+            ReceiveContractAlerts: receiveContractAlerts
+        });
     } catch (err) {
         console.error('Error in POST /api/users:', err);
         res.status(500).json({ error: err.message });

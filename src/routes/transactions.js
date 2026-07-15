@@ -4,6 +4,7 @@ const fs = require('fs');
 const path = require('path');
 const { getDbPool, sql, getApi } = require('../config/db');
 const { deleteRemoteFile } = require('../services/fileStorage');
+const debtsRouter = require('./debts');
 
 // GET
 router.get('/', (req, res) => getApi(req, res, 'Transactions'));
@@ -115,6 +116,15 @@ router.post('/', async (req, res) => {
                 .input('invoicePath', sql.VarChar(sql.MAX), t.invoicePath || null)
                 .query(`INSERT INTO Transactions (id, date, type, conceptId, clientId, supplierId, amount, observation, invoicePath) VALUES (@id, @date, @type, @conceptId, @clientId, @supplierId, @amount, @observation, @invoicePath)`);
         }
+        
+        // Evaluar alertas si es un egreso de Caja Chica
+        const isCajaChica = finalType === 'expense' && 
+                            (t.conceptId === '1774961310024' || 
+                            (t.observation && t.observation.toLowerCase().includes('caja chica')));
+        if (isCajaChica && !check.recordset.length) { // Solo en inserción nueva
+            await debtsRouter.checkCajaChicaAlert(pool, parseFloat(t.amount));
+        }
+
         console.log('✅ Operación exitosa');
         res.json({ ...t, type: finalType, clientId: cleanClientId, supplierId: cleanSupplierId, invoicePath: t.invoicePath || null });
     } catch (err) {

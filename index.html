@@ -1873,6 +1873,23 @@
                                 <option value="visualización">Visualización (Lectura)</option>
                             </select>
                         </div>
+                        <div class="grid-2 mt-2 mb-3" style="grid-column: span 2; border: 1px solid var(--border-color); padding: 1rem; border-radius: 8px; background: var(--bg-hover); display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                            <h4 style="grid-column: span 2; margin: 0 0 0.5rem 0; font-size: 0.9rem; color: var(--primary-color);">Alertas Diarias por Correo</h4>
+                            <div style="display: flex; align-items: center; gap: 10px; margin: 0;">
+                                <label class="perm-toggle">
+                                    <input type="checkbox" id="user-alert-op" name="receiveOpExpenseAlerts">
+                                    <span class="perm-slider"></span>
+                                </label>
+                                <label for="user-alert-op" style="margin: 0; cursor: pointer; font-size: 0.85rem; font-weight: normal; user-select: none;">Notificar Gastos Operacionales</label>
+                            </div>
+                            <div style="display: flex; align-items: center; gap: 10px; margin: 0;">
+                                <label class="perm-toggle">
+                                    <input type="checkbox" id="user-alert-contracts" name="receiveContractAlerts">
+                                    <span class="perm-slider"></span>
+                                </label>
+                                <label for="user-alert-contracts" style="margin: 0; cursor: pointer; font-size: 0.85rem; font-weight: normal; user-select: none;">Notificar Vencimiento de Contratos</label>
+                            </div>
+                        </div>
                         <div class="form-group" style="grid-column: span 2;">
                             <label style="display: flex; justify-content: space-between; align-items: center;">
                                 <span>Permisos Detallados por Módulo</span>
@@ -1901,6 +1918,7 @@
                                     <th>Correo</th>
                                     <th>Rol</th>
                                     <th>Módulos</th>
+                                    <th>Alertas</th>
                                     <th>Acciones</th>
                                 </tr>
                             </thead>

@@ -4878,12 +4878,24 @@ const UI = {
                 permSummary = `<small style="color: var(--text-muted);">${(u.modules || []).join(', ') || 'Ninguno'}</small>`;
             }
 
+            let alertSummary = '';
+            if (u.ReceiveOpExpenseAlerts) {
+                alertSummary += '<span class="tag warning" style="font-size:0.75rem; margin-right:4px;" title="Alertas de Gastos"><i class="fa-solid fa-money-bill-transfer"></i> Gastos</span>';
+            }
+            if (u.ReceiveContractAlerts) {
+                alertSummary += '<span class="tag info" style="font-size:0.75rem;" title="Alertas de Contratos"><i class="fa-solid fa-file-contract"></i> Contratos</span>';
+            }
+            if (!alertSummary) {
+                alertSummary = '<small style="color: var(--text-muted);">Sin alertas</small>';
+            }
+
             tr.innerHTML = `
                 <td>${u.name}</td>
                 <td>${u.username}</td>
                 <td>${u.email || '-'}</td>
                 <td><span class="tag ${u.role === 'administrador' ? 'income' : 'expense'}">${u.role}</span></td>
                 <td>${permSummary}</td>
+                <td>${alertSummary}</td>
                 <td>
                     <button class="btn-icon" onclick="UI.editUser('${u.id}')"><i class="fa-solid fa-pen"></i></button>
                     ${u.username !== 'administrador' ? `<button class="btn-icon text-danger" onclick="UI.deleteUser('${u.id}')"><i class="fa-solid fa-trash"></i></button>` : ''}
@@ -4928,6 +4940,9 @@ const UI = {
             }
         });
 
+        const expAlert = document.getElementById('user-alert-expenses');
+        const contrAlert = document.getElementById('user-alert-contracts');
+
         const userId = id || Date.now().toString();
         const user = {
             id: userId,
@@ -4935,7 +4950,9 @@ const UI = {
             username: username,
             email: formData.get('email'),
             role: formData.get('role'),
-            modules: permissions // Ahora es un objeto
+            modules: permissions, // Ahora es un objeto
+            ReceiveOpExpenseAlerts: expAlert ? expAlert.checked : false,
+            ReceiveContractAlerts: contrAlert ? contrAlert.checked : false
         };
 
         const submitBtn = document.getElementById('btn-save-user');
@@ -4994,6 +5011,11 @@ const UI = {
 
         // Renderizar permisos granulares
         this.renderGranularPermissions(user.modules || {});
+
+        const expAlert = document.getElementById('user-alert-expenses');
+        if (expAlert) expAlert.checked = !!user.ReceiveOpExpenseAlerts;
+        const contrAlert = document.getElementById('user-alert-contracts');
+        if (contrAlert) contrAlert.checked = !!user.ReceiveContractAlerts;
 
         document.getElementById('btn-save-user').textContent = 'Actualizar Usuario';
         document.getElementById('cancel-user-edit').style.display = 'inline-block';
