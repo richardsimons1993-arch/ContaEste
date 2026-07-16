@@ -27,6 +27,17 @@
 
     --radius: 12px;
     --transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+
+    /* Consola de Logs (Modo Claro) */
+    --console-bg: #f1f5f9;
+    --console-text: #1e293b;
+    --console-border: #cbd5e1;
+    --console-timestamp: #64748b;
+    --console-action-default: #0f766e;
+    --console-action-error: #dc2626;
+    --console-action-email: #1d4ed8;
+    --console-action-cron: #4b5563;
+    --console-shadow: inset 0 1px 3px 0 rgba(0,0,0,0.06);
 }
 
 /* Modo Oscuro Premium */
@@ -42,6 +53,17 @@ body.dark-mode {
     --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.3);
     --shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.3), 0 4px 6px -2px rgba(0, 0, 0, 0.1);
     --shadow-lg: 0 20px 25px -5px rgba(0, 0, 0, 0.4), 0 10px 10px -5px rgba(0, 0, 0, 0.2);
+
+    /* Consola de Logs (Modo Oscuro) */
+    --console-bg: #0f172a;
+    --console-text: #f1f5f9;
+    --console-border: #334155;
+    --console-timestamp: #94a3b8;
+    --console-action-default: #a3e635;
+    --console-action-error: #f87171;
+    --console-action-email: #60a5fa;
+    --console-action-cron: #9ca3af;
+    --console-shadow: inset 0 2px 4px 0 rgba(0,0,0,0.6);
 }
 
 /* Asegurar visibilidad del logo en modo oscuro */

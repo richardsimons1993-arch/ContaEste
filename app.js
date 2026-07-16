@@ -1763,7 +1763,8 @@ const UI = {
             'crm-leads': 'Prospectos (CRM)',
             'crm-emails': 'CRM - Marketing',
             'crm-smtp-config': 'CRM - Configuración SMTP',
-            'locations': 'Ubicaciones'
+            'locations': 'Ubicaciones',
+            'system-logs': 'Logs del Sistema'
         };
 
         const pageTitle = document.getElementById('page-title');
@@ -4878,10 +4879,10 @@ const UI = {
         };
 
         const getActionBadge = (l) => {
-            if (isError(l))  return `<span style="color:#f87171; font-weight:700;">${l.action}</span>`;
-            if (isEmail(l))  return `<span style="color:#60a5fa; font-weight:700;">${l.action}</span>`;
-            if (isCron(l))   return `<span style="color:#9ca3af; font-weight:700;">${l.action}</span>`;
-            return `<span style="color:#a3e635;">${l.action}</span>`;
+            if (isError(l))  return `<span style="color:var(--console-action-error); font-weight:700;">${l.action}</span>`;
+            if (isEmail(l))  return `<span style="color:var(--console-action-email); font-weight:700;">${l.action}</span>`;
+            if (isCron(l))   return `<span style="color:var(--console-action-cron); font-weight:700;">${l.action}</span>`;
+            return `<span style="color:var(--console-action-default); font-weight:700;">${l.action}</span>`;
         };
 
         const escHtml = (s) => (s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
@@ -4897,19 +4898,19 @@ const UI = {
 
             const extraBtn = l.extraData
                 ? `<button title="Ver datos extra"
-                       style="background:none; border:1px solid #475569; color:#94a3b8; border-radius:4px; padding:2px 6px; cursor:pointer; font-size:0.75rem;"
+                       style="background:none; border:1px solid var(--console-timestamp); color:var(--console-timestamp); border-radius:4px; padding:2px 6px; cursor:pointer; font-size:0.75rem;"
                        onclick='UI._showSysLogExtra(${JSON.stringify(JSON.stringify(l.extraData))})'
                    ><i class="fa-solid fa-code"></i></button>`
-                : '<span style="color:#475569;">—</span>';
+                : '<span style="color:var(--console-timestamp);">—</span>';
 
             return `
                 <tr style="${getRowStyle(l)}">
-                    <td style="padding: 8px 10px; white-space: nowrap; color: #94a3b8; font-size: 0.8rem;">${ts}</td>
+                    <td style="padding: 8px 10px; white-space: nowrap; color: var(--console-timestamp); font-size: 0.8rem;">${ts}</td>
                     <td style="padding: 8px 10px; font-size: 0.82rem;">${mod}</td>
                     <td style="padding: 8px 10px; font-size: 0.82rem;">${getActionBadge(l)}<br>
-                        <span style="color:#64748b; font-size:0.75rem;"><i class="fa-solid fa-user" style="font-size:0.65rem;"></i> ${usr}</span>
+                        <span style="color:var(--console-timestamp); font-size:0.75rem;"><i class="fa-solid fa-user" style="font-size:0.65rem;"></i> ${usr}</span>
                     </td>
-                    <td style="padding: 8px 10px; color: #cbd5e1; font-size: 0.82rem; word-break: break-word; max-width: 400px;">${det}</td>
+                    <td style="padding: 8px 10px; color: var(--console-text); font-size: 0.82rem; word-break: break-word; max-width: 400px;">${det}</td>
                     <td style="padding: 8px 10px; text-align: center;">${extraBtn}</td>
                 </tr>`;
         }).join('');
