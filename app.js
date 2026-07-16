@@ -8511,6 +8511,10 @@ const UI = {
             }
 
             this.showToast(`Envío masivo finalizado. Éxitos: ${result.sent}`, 'success');
+
+            // Limpiar el asunto y el editor de contenido tras el envío exitoso
+            document.getElementById('crm-email-subject').value = '';
+            document.getElementById('crm-email-editor').innerHTML = '<p>Escriba su mensaje aquí...</p>';
         } catch (err) {
             logContent.innerHTML += `❌ ERROR FATAL: ${err.message}\n`;
             this.showToast('Error del Servidor: ' + err.message, 'error');

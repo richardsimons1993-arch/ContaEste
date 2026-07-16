@@ -6,7 +6,8 @@ const axios = require('axios');
 const multer = require('multer');
 const { getDbPool, sql, getApi, deleteApi } = require('../config/db');
 
-const UPLOADS_DIR = path.join(process.cwd(), 'uploads');
+const PROJECT_ROOT = path.join(__dirname, '../..');
+const UPLOADS_DIR = path.join(PROJECT_ROOT, 'uploads');
 if (!fs.existsSync(UPLOADS_DIR)) {
     fs.mkdirSync(UPLOADS_DIR, { recursive: true });
 }
@@ -37,7 +38,7 @@ let GRAPH_CONFIG = {
 };
 
 try {
-    const configPath = path.join(process.cwd(), 'config_crm.json');
+    const configPath = path.join(PROJECT_ROOT, 'config_crm.json');
     if (fs.existsSync(configPath)) {
         GRAPH_CONFIG = JSON.parse(fs.readFileSync(configPath, 'utf8'));
         console.log("✅ Configuración CRM cargada desde config_crm.json");
@@ -63,7 +64,18 @@ async function getGraphAccessToken() {
         });
         return response.data.access_token;
     } catch (error) {
-        console.error('❌ Error obteniendo token de Graph:', error.response ? error.response.data : error.message);
+        console.error('❌ Error obteniendo token de Graph. Config actual:', {
+            tenantId: GRAPH_CONFIG.tenantId,
+            clientId: GRAPH_CONFIG.clientId,
+            senderEmail: GRAPH_CONFIG.senderEmail,
+            secretLength: GRAPH_CONFIG.clientSecret ? GRAPH_CONFIG.clientSecret.length : 0
+        });
+        if (error.response) {
+            console.error('Status:', error.response.status);
+            console.error('Data:', JSON.stringify(error.response.data));
+        } else {
+            console.error('Message:', error.message);
+        }
         throw new Error('No se pudo autenticar con Microsoft Graph');
     }
 }
