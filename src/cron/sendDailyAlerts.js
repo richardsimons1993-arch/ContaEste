@@ -5,12 +5,31 @@ require('dotenv').config({ path: path.join(__dirname, '../../.env') });
 const { getDbPool, sql } = require('../config/db');
 const { sendEmail } = require('../services/email');
 
+async function logCronEvent(pool, action, moduleName, details, extraData = null) {
+    try {
+        await pool.request()
+            .input('id', sql.VarChar(50), Date.now().toString() + Math.floor(Math.random() * 1000).toString())
+            .input('action', sql.VarChar(50), action)
+            .input('module', sql.VarChar(50), moduleName)
+            .input('userName', sql.VarChar(100), 'Sistema')
+            .input('details', sql.VarChar(sql.MAX), details)
+            .input('timestamp', sql.DateTime, new Date())
+            .input('extraData', sql.VarChar(sql.MAX), extraData ? JSON.stringify(extraData) : null)
+            .query(`INSERT INTO Logs (id, action, module, userName, details, timestamp, extraData) VALUES (@id, @action, @module, @userName, @details, @timestamp, @extraData)`);
+    } catch (err) {
+        console.error('[Cron Alerts Log Error]', err);
+    }
+}
+
 async function run() {
     console.log(`[Cron Alerts] Inicio de ejecución a las: ${new Date().toISOString()}`);
     let pool;
     try {
         pool = await getDbPool();
         
+        // Registrar inicio de ejecución en Logs de Sistema
+        await logCronEvent(pool, 'Inicio Cron', 'System', 'Inicio de ejecución diaria de alertas cron');
+
         // 1. Obtener usuarios con alertas configuradas
         const usersRes = await pool.request()
             .query("SELECT name, Email, ReceiveOpExpenseAlerts, ReceiveContractAlerts FROM Users WHERE (ReceiveOpExpenseAlerts = 1 OR ReceiveContractAlerts = 1) AND Email IS NOT NULL");
@@ -18,6 +37,7 @@ async function run() {
         const users = usersRes.recordset;
         if (users.length === 0) {
             console.log("[Cron Alerts] No hay usuarios configurados para recibir alertas por correo.");
+            await logCronEvent(pool, 'Ejecución Cron', 'System', 'Ejecución de alertas diarias completada: No hay usuarios configurados con alertas activas.');
             return;
         }
 
@@ -88,7 +108,7 @@ async function run() {
                         `;
                     }).join('');
 
-                    const emailSubject = `📋 Resumen de Gastos Operacionales Pendientes`;
+                    const emailSubject = `Pago Pendiente`;
                     const emailHtml = `
                         <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; border: 1px solid #e2e8f0; border-radius: 12px; background-color: #ffffff; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
                             <div style="text-align: center; border-bottom: 3px solid #1a73e8; padding-bottom: 16px; margin-bottom: 24px;">
@@ -123,7 +143,13 @@ async function run() {
                         </div>
                     `;
 
-                    emailPromises.push(sendEmail({ to: user.Email, subject: emailSubject, html: emailHtml }));
+                    emailPromises.push((async () => {
+                        const success = await sendEmail({ to: user.Email, subject: emailSubject, html: emailHtml });
+                        if (success) {
+                            await logCronEvent(pool, 'Envío Alerta', 'Alertas', `Se envió resumen de gastos operacionales por correo a ${user.Email}`, { type: 'gasto-operacional', email: user.Email });
+                        }
+                        return success;
+                    })());
                 }
             } else {
                 console.log("[Cron Alerts] No hay gastos operacionales vencidos o por vencer en <= 3 días.");
@@ -172,7 +198,7 @@ async function run() {
                         `;
                     }).join('');
 
-                    const emailSubject = `📋 Resumen de Contratos Pendientes de Facturación`;
+                    const emailSubject = `Cobro Pendiente`;
                     const emailHtml = `
                         <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; border: 1px solid #e2e8f0; border-radius: 12px; background-color: #ffffff; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
                             <div style="text-align: center; border-bottom: 3px solid #e28743; padding-bottom: 16px; margin-bottom: 24px;">
@@ -207,7 +233,13 @@ async function run() {
                         </div>
                     `;
 
-                    emailPromises.push(sendEmail({ to: user.Email, subject: emailSubject, html: emailHtml }));
+                    emailPromises.push((async () => {
+                        const success = await sendEmail({ to: user.Email, subject: emailSubject, html: emailHtml });
+                        if (success) {
+                            await logCronEvent(pool, 'Envío Alerta', 'Alertas', `Se envió resumen de contratos pendientes de facturar por correo a ${user.Email}`, { type: 'contrato-pendiente', email: user.Email });
+                        }
+                        return success;
+                    })());
                 }
             } else {
                 console.log("[Cron Alerts] No hay contratos activos pendientes de facturar en el mes corriente.");
@@ -220,12 +252,22 @@ async function run() {
             const results = await Promise.all(emailPromises);
             const sentCount = results.filter(r => r === true).length;
             console.log(`[Cron Alerts] Finalizado. Envíos exitosos: ${sentCount}/${results.length}`);
-        } else {
-            console.log("[Cron Alerts] No se generaron correos para enviar el día de hoy.");
+            await logCronEvent(pool, 'Ejecución Cron', 'System', `Ejecución de alertas diarias completada. Correos enviados: ${sentCount}/${results.length}`);
         }
+
+        // 5. Limpieza automática de logs antiguos (de más de 30 días)
+        console.log("[Cron Alerts] Iniciando limpieza de logs antiguos (>30 días)...");
+        const purgeRes = await pool.request()
+            .query("DELETE FROM Logs WHERE timestamp < DATEADD(day, -30, GETDATE())");
+        const deletedCount = purgeRes.rowsAffected[0];
+        console.log(`[Cron Alerts] Limpieza completada. Registros eliminados: ${deletedCount}`);
+        await logCronEvent(pool, 'Limpieza Automática', 'System', `Se eliminaron automáticamente ${deletedCount} registros de logs antiguos (>30 días).`);
 
     } catch (err) {
         console.error("[Cron Alerts] Error fatal ejecutando las alertas de Cron:", err);
+        if (pool) {
+            await logCronEvent(pool, 'Error', 'System', `Error fatal ejecutando las alertas de Cron: ${err.message}`, { error: err.message, stack: err.stack });
+        }
     } finally {
         if (pool) {
             try {

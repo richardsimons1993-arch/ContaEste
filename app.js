@@ -47,6 +47,7 @@ const MODULE_VIEW_MAP = {
     'crm-smtp-config': 'crm',
     'users': 'usuarios',
     'locations': 'usuarios',
+    'system-logs': 'usuarios',
     'notas': 'notas'
 };
 
@@ -1025,9 +1026,11 @@ const UI = {
         const roleSelect = document.getElementById('user-role');
         if (roleSelect) {
             roleSelect.addEventListener('change', (e) => {
-                // Podríamos implementar lógica para auto-seleccionar módulos comunes por rol aquí
-                // Por ahora solo aseguramos que el contenedor de permisos esté visible
                 console.log("Cambio de rol detectado:", e.target.value);
+                // Si el rol cambia a administrador, re-renderizar permisos para que se marquen todos
+                if (e.target.value === 'administrador') {
+                    this.renderGranularPermissions({});
+                }
             });
         }
 
@@ -4202,6 +4205,18 @@ const UI = {
             } else if (action === 'Limpieza' || action === 'Sincronización') {
                 icon = 'fa-wand-magic-sparkles';
                 color = '#9b59b6';
+            } else if (action === 'Envío Alerta') {
+                icon = 'fa-envelope-open-text';
+                color = '#3b82f6';
+            } else if (action === 'Alerta Caja Chica') {
+                icon = 'fa-circle-exclamation';
+                color = '#f59e0b';
+            } else if (action === 'Inicio Cron' || action === 'Ejecución Cron') {
+                icon = 'fa-robot';
+                color = '#6b7280';
+            } else if (action === 'Error' || action.startsWith('Error')) {
+                icon = 'fa-triangle-exclamation';
+                color = '#dc2626';
             }
 
             // Traducir Módulo
@@ -4222,7 +4237,9 @@ const UI = {
                 'reports': 'Informe',
                 'users': 'Usuario',
                 'app-locations': 'Ubicación',
-                'notes': 'Nota'
+                'notes': 'Nota',
+                'alertas': 'Alertas',
+                'system': 'Sistema'
             };
 
             if (moduleTranslations[module.toLowerCase()]) {
@@ -4743,6 +4760,183 @@ const UI = {
         this.showToast('Elemento restaurado exitosamente', 'success');
     },
 
+    // --- LOGS DEL SISTEMA ---
+
+    /** Carga logs desde la API y los renderiza en la tabla de consola. */
+    async refreshSystemLogs() {
+        const tbody = document.getElementById('sys-logs-body');
+        if (!tbody) return;
+
+        // Estado de carga
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="5" style="text-align:center; padding: 30px; color: #64748b;">
+                    <i class="fa-solid fa-spinner fa-spin" style="margin-right: 8px;"></i>Cargando logs…
+                </td>
+            </tr>`;
+
+        try {
+            const logs = await window.StorageAPI.async.getLogs();
+            // Guardar en estado para filtrado posterior
+            state._systemLogs = logs || [];
+            this._renderSystemLogsTable(state._systemLogs);
+        } catch (err) {
+            console.error('Error al cargar system logs:', err);
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="5" style="text-align:center; padding: 20px; color: #f87171;">
+                        <i class="fa-solid fa-circle-exclamation" style="margin-right: 8px;"></i>
+                        Error al cargar logs: ${err.message}
+                    </td>
+                </tr>`;
+        }
+    },
+
+    /** Filtra la lista ya cargada sin volver a llamar a la API. */
+    filterSystemLogs() {
+        if (!state._systemLogs) return;
+
+        const searchVal  = (document.getElementById('sys-log-search')?.value || '').toLowerCase();
+        const moduleVal  = document.getElementById('sys-log-module-filter')?.value || 'all';
+        const typeVal    = document.getElementById('sys-log-type-filter')?.value   || 'all';
+
+        let filtered = state._systemLogs;
+
+        if (moduleVal !== 'all') {
+            filtered = filtered.filter(l =>
+                (l.module || '').toLowerCase() === moduleVal.toLowerCase()
+            );
+        }
+
+        if (typeVal === 'error') {
+            filtered = filtered.filter(l =>
+                (l.action || '').toLowerCase().includes('error') ||
+                (l.details || '').toLowerCase().includes('error')
+            );
+        } else if (typeVal === 'email') {
+            filtered = filtered.filter(l =>
+                (l.module || '').toLowerCase() === 'email' ||
+                (l.action || '').toLowerCase().includes('email') ||
+                (l.action || '').toLowerCase().includes('envío')
+            );
+        } else if (typeVal === 'alerta') {
+            filtered = filtered.filter(l =>
+                (l.module || '').toLowerCase().includes('alert') ||
+                (l.action || '').toLowerCase().includes('alerta')
+            );
+        }
+
+        if (searchVal) {
+            filtered = filtered.filter(l =>
+                (l.action  || '').toLowerCase().includes(searchVal) ||
+                (l.details || '').toLowerCase().includes(searchVal) ||
+                (l.module  || '').toLowerCase().includes(searchVal) ||
+                (l.userName || '').toLowerCase().includes(searchVal)
+            );
+        }
+
+        this._renderSystemLogsTable(filtered);
+    },
+
+    /** Renderiza filas en la tabla de consola de logs del sistema. */
+    _renderSystemLogsTable(logs) {
+        const tbody = document.getElementById('sys-logs-body');
+        if (!tbody) return;
+
+        if (!logs || logs.length === 0) {
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="5" style="text-align:center; padding: 20px; color: #64748b;">
+                        No se encontraron logs con los filtros aplicados.
+                    </td>
+                </tr>`;
+            return;
+        }
+
+        const isError = (l) =>
+            (l.action || '').toLowerCase().includes('error') ||
+            (l.details || '').toLowerCase().includes('error');
+
+        const isEmail = (l) =>
+            (l.module || '').toLowerCase() === 'email' ||
+            (l.action || '').toLowerCase().includes('envío alerta') ||
+            (l.action || '').toLowerCase().includes('envío');
+
+        const isCron = (l) =>
+            (l.action || '').toLowerCase().includes('cron') ||
+            (l.action || '').toLowerCase().includes('limpieza') ||
+            (l.action || '').toLowerCase().includes('sincronización');
+
+        const getRowStyle = (l) => {
+            if (isError(l))  return 'background: rgba(239,68,68,0.12); border-left: 3px solid #ef4444;';
+            if (isEmail(l))  return 'background: rgba(59,130,246,0.10); border-left: 3px solid #3b82f6;';
+            if (isCron(l))   return 'background: rgba(107,114,128,0.10); border-left: 3px solid #6b7280;';
+            return 'border-left: 3px solid transparent;';
+        };
+
+        const getActionBadge = (l) => {
+            if (isError(l))  return `<span style="color:#f87171; font-weight:700;">${l.action}</span>`;
+            if (isEmail(l))  return `<span style="color:#60a5fa; font-weight:700;">${l.action}</span>`;
+            if (isCron(l))   return `<span style="color:#9ca3af; font-weight:700;">${l.action}</span>`;
+            return `<span style="color:#a3e635;">${l.action}</span>`;
+        };
+
+        const escHtml = (s) => (s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+
+        tbody.innerHTML = logs.map(l => {
+            const ts  = l.timestamp ? new Date(l.timestamp).toLocaleString('es-CL', {
+                year: 'numeric', month: '2-digit', day: '2-digit',
+                hour: '2-digit', minute: '2-digit', second: '2-digit'
+            }) : '—';
+            const mod = escHtml(l.module || '—');
+            const det = escHtml(l.details || '—');
+            const usr = escHtml(l.userName || 'Sistema');
+
+            const extraBtn = l.extraData
+                ? `<button title="Ver datos extra"
+                       style="background:none; border:1px solid #475569; color:#94a3b8; border-radius:4px; padding:2px 6px; cursor:pointer; font-size:0.75rem;"
+                       onclick='UI._showSysLogExtra(${JSON.stringify(JSON.stringify(l.extraData))})'
+                   ><i class="fa-solid fa-code"></i></button>`
+                : '<span style="color:#475569;">—</span>';
+
+            return `
+                <tr style="${getRowStyle(l)}">
+                    <td style="padding: 8px 10px; white-space: nowrap; color: #94a3b8; font-size: 0.8rem;">${ts}</td>
+                    <td style="padding: 8px 10px; font-size: 0.82rem;">${mod}</td>
+                    <td style="padding: 8px 10px; font-size: 0.82rem;">${getActionBadge(l)}<br>
+                        <span style="color:#64748b; font-size:0.75rem;"><i class="fa-solid fa-user" style="font-size:0.65rem;"></i> ${usr}</span>
+                    </td>
+                    <td style="padding: 8px 10px; color: #cbd5e1; font-size: 0.82rem; word-break: break-word; max-width: 400px;">${det}</td>
+                    <td style="padding: 8px 10px; text-align: center;">${extraBtn}</td>
+                </tr>`;
+        }).join('');
+    },
+
+    /** Muestra un modal con los extraData de un log del sistema. */
+    _showSysLogExtra(rawJson) {
+        try {
+            const data = JSON.parse(rawJson);
+            const pretty = JSON.stringify(data, null, 2);
+            const modal = document.getElementById('confirm-modal');
+            if (!modal) { alert(pretty); return; }
+
+            // Reutilizar el modal de confirmación para mostrar el JSON
+            const modalTitle = modal.querySelector('#confirm-modal-title');
+            const modalMsg   = modal.querySelector('#confirm-modal-message');
+            const btnOk      = modal.querySelector('#confirm-modal-ok');
+            const btnCancel  = modal.querySelector('#confirm-modal-cancel');
+
+            if (modalTitle) modalTitle.textContent = 'Datos Extra del Log';
+            if (modalMsg) modalMsg.innerHTML = `<pre style="font-size:0.8rem; text-align:left; white-space:pre-wrap; word-break:break-all; max-height:60vh; overflow-y:auto; background:#0f172a; color:#a3e635; padding:1rem; border-radius:6px;">${pretty.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}</pre>`;
+            if (btnOk)     { btnOk.textContent = 'Cerrar'; btnOk.onclick = () => modal.style.display = 'none'; }
+            if (btnCancel) btnCancel.style.display = 'none';
+
+            modal.style.display = 'flex';
+        } catch(e) {
+            console.error('Error al parsear extraData:', e);
+        }
+    },
+
     // --- GESTIÓN DE USUARIOS ---
     
     renderGranularPermissions(userPermissions = {}) {
@@ -4752,9 +4946,29 @@ const UI = {
         container.innerHTML = '';
         
         // El formato puede ser el viejo (array) o el nuevo (objeto)
-        const perms = (!Array.isArray(userPermissions) && typeof userPermissions === 'object') 
+        let perms = (!Array.isArray(userPermissions) && typeof userPermissions === 'object') 
             ? userPermissions 
             : this._convertLegacyPermissions(userPermissions);
+
+        // Si el rol es administrador, forzar todos los permisos a true
+        const roleSelect = document.getElementById('user-role');
+        const usernameInput = document.getElementById('user-username');
+        const isEditingAdmin = (roleSelect && roleSelect.value === 'administrador') || 
+                               (usernameInput && usernameInput.value === 'administrador');
+                               
+        if (isEditingAdmin) {
+            perms = {};
+            MODULES_CONFIG.forEach(module => {
+                perms[module.id] = {
+                    view: true,
+                    sub: {},
+                    actions: { edit: true, delete: true }
+                };
+                module.submodules.forEach(sub => {
+                    perms[module.id].sub[sub.id] = true;
+                });
+            });
+        }
 
         MODULES_CONFIG.forEach(module => {
             const moduleData = perms[module.id] || { view: false, sub: {}, actions: { edit: false, delete: false } };
@@ -4940,7 +5154,7 @@ const UI = {
             }
         });
 
-        const expAlert = document.getElementById('user-alert-expenses');
+        const expAlert = document.getElementById('user-alert-op');
         const contrAlert = document.getElementById('user-alert-contracts');
 
         const userId = id || Date.now().toString();
@@ -5012,7 +5226,7 @@ const UI = {
         // Renderizar permisos granulares
         this.renderGranularPermissions(user.modules || {});
 
-        const expAlert = document.getElementById('user-alert-expenses');
+        const expAlert = document.getElementById('user-alert-op');
         if (expAlert) expAlert.checked = !!user.ReceiveOpExpenseAlerts;
         const contrAlert = document.getElementById('user-alert-contracts');
         if (contrAlert) contrAlert.checked = !!user.ReceiveContractAlerts;

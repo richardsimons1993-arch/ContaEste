@@ -50,8 +50,16 @@ app.use(express.urlencoded({ limit: '50mb', extended: true }));
 // Servir archivos estáticos del frontend
 app.use(express.static(__dirname, {
     setHeaders: (res, filePath) => {
-        if (filePath.endsWith('.html') || filePath.endsWith('.js') || filePath.endsWith('.css')) {
+        const normalizedPath = filePath.replace(/\\/g, '/');
+        if (normalizedPath.includes('/vendor/')) {
+            // Librerías de terceros: nunca cambian → caché agresivo de 1 año
+            res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+        } else if (filePath.endsWith('.html')) {
+            // HTML: siempre revalidar para detectar cambios de versión
             res.setHeader('Cache-Control', 'no-cache, must-revalidate');
+        } else if (filePath.endsWith('.js') || filePath.endsWith('.css')) {
+            // Código propio (usa ?v= en query string): no-cache, ETag sigue activo
+            res.setHeader('Cache-Control', 'no-cache');
         }
     }
 }));
@@ -110,6 +118,41 @@ app.use('/api/logs', logsRouter);
 app.use('/api', miscRouter);
 app.use('/api/crm', crmRouter);
 
+const { getDbPool, sql } = require('./src/config/db');
+
+async function logSystemError(action, details, extraData = null) {
+    try {
+        const pool = await getDbPool();
+        await pool.request()
+            .input('id', sql.VarChar(50), Date.now().toString() + Math.floor(Math.random() * 1000).toString())
+            .input('action', sql.VarChar(50), action)
+            .input('module', sql.VarChar(50), 'System')
+            .input('userName', sql.VarChar(100), 'Sistema')
+            .input('details', sql.VarChar(sql.MAX), details)
+            .input('timestamp', sql.DateTime, new Date())
+            .input('extraData', sql.VarChar(sql.MAX), extraData ? JSON.stringify(extraData) : null)
+            .query(`INSERT INTO Logs (id, action, module, userName, details, timestamp, extraData) VALUES (@id, @action, @module, @userName, @details, @timestamp, @extraData)`);
+    } catch (dbErr) {
+        console.error('Failed to log system error to DB:', dbErr.message);
+    }
+}
+
+// Middleware de captura de errores global de Express
+app.use((err, req, res, next) => {
+    console.error('❌ Error capturado en Express:', err);
+    
+    // Registrar el error en la base de datos de manera asíncrona
+    logSystemError('Error Express', `Error en la ruta ${req.method} ${req.originalUrl}: ${err.message}`, {
+        method: req.method,
+        url: req.originalUrl,
+        body: req.body,
+        query: req.query,
+        stack: err.stack
+    });
+
+    res.status(500).json({ error: 'Error interno del servidor: ' + err.message });
+});
+
 // --- SERVIDORES Y TAREAS DE MANTENIMIENTO ---
 const HTTP_PORT  = parseInt(process.env.PORT)        || 3000;
 const HTTPS_PORT = parseInt(process.env.HTTPS_PORT)  || 3443;
@@ -132,6 +175,12 @@ async function runMaintenanceTasks() {
         await deleteExpiredNotes();
         await cleanOldQuotations();
         await syncQuotationsToProjects();
+        
+        // Limpieza automática de logs antiguos
+        console.log('--- Iniciando Limpieza de Logs Antiguos (>30 días) ---');
+        const pool = await getDbPool();
+        const purgeRes = await pool.request().query('DELETE FROM Logs WHERE timestamp < DATEADD(day, -30, GETDATE())');
+        console.log(`✅ Limpieza de logs completada. Registros eliminados: ${purgeRes.rowsAffected[0]}`);
     } catch (mErr) {
         console.error('⚠️ Error en tareas de mantenimiento iniciales:', mErr.message);
     }
@@ -193,10 +242,30 @@ httpApp.listen(HTTP_PORT, '0.0.0.0', () => {
 });
 
 // Manejo global de errores
-process.on('unhandledRejection', (reason, promise) => {
+process.on('unhandledRejection', async (reason, promise) => {
     console.error('❌ Unhandled Rejection at:', promise, 'reason:', reason);
+    const reasonStr = reason instanceof Error ? reason.message : String(reason);
+    const stack = reason instanceof Error ? reason.stack : null;
+    try {
+        await logSystemError('Error UnhandledRejection', `Promesa rechazada no manejada: ${reasonStr}`, {
+            reason: reasonStr,
+            stack
+        });
+    } catch (e) {
+        console.error('Error logging unhandled rejection:', e);
+    }
 });
 
-process.on('uncaughtException', (err) => {
+process.on('uncaughtException', async (err) => {
     console.error('❌ Uncaught Exception:', err);
+    try {
+        await logSystemError('Error UncaughtException', `Excepción no capturada en el proceso: ${err.message}`, {
+            error: err.message,
+            stack: err.stack
+        });
+    } catch (e) {
+        console.error('Error writing uncaughtException log:', e);
+    } finally {
+        process.exit(1);
+    }
 });

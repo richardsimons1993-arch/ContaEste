@@ -225,6 +225,21 @@ router.post('/send-emails', async (req, res) => {
                 sentCount++;
                 results.push({ email, success: true });
                 console.log(`✅ [Graph] Email enviado a: ${email} (${sentCount}/${recipients.length})`);
+
+                // Registrar en la base de datos
+                try {
+                    await pool.request()
+                        .input('logId', sql.VarChar(50), Date.now().toString() + Math.floor(Math.random() * 1000).toString())
+                        .input('action', sql.VarChar(50), 'Envío Email CRM')
+                        .input('module', sql.VarChar(50), 'CRM')
+                        .input('userName', sql.VarChar(100), req.user ? req.user.email : 'Sistema')
+                        .input('details', sql.VarChar(sql.MAX), `Correo masivo CRM enviado a: ${email} (Asunto: ${subject})`)
+                        .input('timestamp', sql.DateTime, new Date())
+                        .input('extraData', sql.VarChar(sql.MAX), JSON.stringify({ email, subject, success: true }))
+                        .query(`INSERT INTO Logs (id, action, module, userName, details, timestamp, extraData) VALUES (@logId, @action, @module, @userName, @details, @timestamp, @extraData)`);
+                } catch (logErr) {
+                    console.error('Error logging CRM email success to DB:', logErr.message);
+                }
                 
                 if (sentCount < recipients.length) {
                     await delay(1500); 
@@ -233,6 +248,21 @@ router.post('/send-emails', async (req, res) => {
                 const errorDetail = err.response ? JSON.stringify(err.response.data) : err.message;
                 console.error(`❌ [Graph] Error enviando a ${email}:`, errorDetail);
                 results.push({ email, success: false, error: errorDetail });
+
+                // Registrar el error en la base de datos
+                try {
+                    await pool.request()
+                        .input('logId', sql.VarChar(50), Date.now().toString() + Math.floor(Math.random() * 1000).toString())
+                        .input('action', sql.VarChar(50), 'Error Email CRM')
+                        .input('module', sql.VarChar(50), 'CRM')
+                        .input('userName', sql.VarChar(100), req.user ? req.user.email : 'Sistema')
+                        .input('details', sql.VarChar(sql.MAX), `Error al enviar correo masivo CRM a: ${email} (Asunto: ${subject}) - Error: ${errorDetail}`)
+                        .input('timestamp', sql.DateTime, new Date())
+                        .input('extraData', sql.VarChar(sql.MAX), JSON.stringify({ email, subject, success: false, error: errorDetail }))
+                        .query(`INSERT INTO Logs (id, action, module, userName, details, timestamp, extraData) VALUES (@logId, @action, @module, @userName, @details, @timestamp, @extraData)`);
+                } catch (logErr) {
+                    console.error('Error logging CRM email error to DB:', logErr.message);
+                }
             }
         }
 
