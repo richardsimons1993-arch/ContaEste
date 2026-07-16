@@ -4887,6 +4887,9 @@ const UI = {
 
         const escHtml = (s) => (s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 
+        // Inicializar el cache de datos extra para evitar romper el HTML con comillas
+        state._extraDataCache = {};
+
         tbody.innerHTML = logs.map(l => {
             const ts  = l.timestamp ? new Date(l.timestamp).toLocaleString('es-CL', {
                 year: 'numeric', month: '2-digit', day: '2-digit',
@@ -4896,10 +4899,18 @@ const UI = {
             const det = escHtml(l.details || '—');
             const usr = escHtml(l.userName || 'Sistema');
 
+            if (l.extraData) {
+                let parsedData = l.extraData;
+                if (typeof l.extraData === 'string') {
+                    try { parsedData = JSON.parse(l.extraData); } catch (e) {}
+                }
+                state._extraDataCache[l.id] = parsedData;
+            }
+
             const extraBtn = l.extraData
                 ? `<button title="Ver datos extra"
                        style="background:none; border:1px solid var(--console-timestamp); color:var(--console-timestamp); border-radius:4px; padding:2px 6px; cursor:pointer; font-size:0.75rem;"
-                       onclick='UI._showSysLogExtra(${JSON.stringify(JSON.stringify(l.extraData))})'
+                       onclick="UI._showSysLogExtra('${l.id}')"
                    ><i class="fa-solid fa-code"></i></button>`
                 : '<span style="color:var(--console-timestamp);">—</span>';
 
@@ -4917,9 +4928,10 @@ const UI = {
     },
 
     /** Muestra un modal con los extraData de un log del sistema. */
-    _showSysLogExtra(rawJson) {
+    _showSysLogExtra(logId) {
         try {
-            const data = JSON.parse(rawJson);
+            const data = state._extraDataCache ? state._extraDataCache[logId] : null;
+            if (!data) return;
             const pretty = JSON.stringify(data, null, 2);
             const modal = document.getElementById('confirm-modal');
             if (!modal) { alert(pretty); return; }
@@ -4931,13 +4943,13 @@ const UI = {
             const btnCancel  = modal.querySelector('#confirm-modal-cancel');
 
             if (modalTitle) modalTitle.textContent = 'Datos Extra del Log';
-            if (modalMsg) modalMsg.innerHTML = `<pre style="font-size:0.8rem; text-align:left; white-space:pre-wrap; word-break:break-all; max-height:60vh; overflow-y:auto; background:#0f172a; color:#a3e635; padding:1rem; border-radius:6px;">${pretty.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}</pre>`;
+            if (modalMsg) modalMsg.innerHTML = `<pre style="font-size:0.8rem; text-align:left; white-space:pre-wrap; word-break:break-all; max-height:60vh; overflow-y:auto; background:var(--console-bg); color:var(--console-text); border:1px solid var(--console-border); padding:1rem; border-radius:6px;">${pretty.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}</pre>`;
             if (btnOk)     { btnOk.textContent = 'Cerrar'; btnOk.onclick = () => modal.style.display = 'none'; }
             if (btnCancel) btnCancel.style.display = 'none';
 
             modal.style.display = 'flex';
         } catch(e) {
-            console.error('Error al parsear extraData:', e);
+            console.error('Error al mostrar extraData:', e);
         }
     },
 
