@@ -1246,6 +1246,9 @@ const UI = {
                     modules: sessionData.modules || []
                 };
 
+                // Asegurar que state.token tenga el JWT Token para peticiones directas de fetch
+                state.token = sessionData.token;
+
                 // Renovar lastActivity
                 sessionData.lastActivity = Date.now();
                 localStorage.setItem('contabilidad_session', JSON.stringify(sessionData));
@@ -8248,6 +8251,7 @@ const UI = {
         try {
             const resp = await fetch('/api/crm/upload-image', {
                 method: 'POST',
+                headers: { 'Authorization': `Bearer ${state.token || ''}` },
                 body: formData
             });
             const data = await resp.json();
@@ -8282,6 +8286,7 @@ const UI = {
         try {
             const resp = await fetch('/api/crm/upload-image', {
                 method: 'POST',
+                headers: { 'Authorization': `Bearer ${state.token || ''}` },
                 body: formData
             });
             const data = await resp.json();
