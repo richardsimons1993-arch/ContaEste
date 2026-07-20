@@ -5,7 +5,8 @@ const path = require('path');
 const multer = require('multer');
 const { getDbPool, sql } = require('../config/db');
 
-const UPLOADS_DIR = path.join(process.cwd(), 'uploads');
+const PROJECT_ROOT = path.join(__dirname, '../..');
+const UPLOADS_DIR = path.join(PROJECT_ROOT, 'uploads');
 if (!fs.existsSync(UPLOADS_DIR)) {
     fs.mkdirSync(UPLOADS_DIR, { recursive: true });
 }
@@ -106,6 +107,7 @@ router.post('/', async (req, res) => {
             .input('results', sql.VarChar(sql.MAX), r.results || '')
             .input('conclusions', sql.VarChar(sql.MAX), r.conclusions || '')
             .input('images', sql.VarChar(sql.MAX), JSON.stringify(r.images || []))
+            .input('status', sql.VarChar(50), r.status || 'Emitido')
             .query(`
                 MERGE Reports AS target
                 USING (SELECT @id AS id, @version AS version) AS source
@@ -116,10 +118,10 @@ router.post('/', async (req, res) => {
                         clientName = @clientName, projectName = @projectName,
                         generalData = @generalData, scope = @scope,
                         materials = @materials, results = @results, conclusions = @conclusions,
-                        images = @images
+                        images = @images, status = @status
                 WHEN NOT MATCHED THEN
-                    INSERT (id, correlative, year, version, clientId, clientName, projectName, generalData, scope, materials, results, conclusions, images, createdAt)
-                    VALUES (@id, @correlative, @year, @version, @clientId, @clientName, @projectName, @generalData, @scope, @materials, @results, @conclusions, @images, GETDATE());
+                    INSERT (id, correlative, year, version, clientId, clientName, projectName, generalData, scope, materials, results, conclusions, images, status, createdAt)
+                    VALUES (@id, @correlative, @year, @version, @clientId, @clientName, @projectName, @generalData, @scope, @materials, @results, @conclusions, @images, @status, GETDATE());
             `);
         res.json({ success: true });
     } catch (err) {
@@ -167,7 +169,7 @@ router.post('/save-pdf', async (req, res) => {
             console.log(`✅ PDF informe guardado localmente (Windows): ${filePath}`);
             res.json({ success: true, filePath });
         } else {
-            const localTempDir = path.join(process.cwd(), 'temp_pdfs');
+            const localTempDir = path.join(PROJECT_ROOT, 'temp_pdfs');
             if (!fs.existsSync(localTempDir)) {
                 fs.mkdirSync(localTempDir, { recursive: true });
             }

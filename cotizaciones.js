@@ -17,10 +17,11 @@ const QuotationsApp = () => {
     const [nextId, setNextId] = useState(1);
     const [currentVersion, setCurrentVersion] = useState(1);
     const [isGenerating, setIsGenerating] = useState(false);
+    const [isSavingDraft, setIsSavingDraft] = useState(false);
     
     // Moneda y tipo de cambio
     const [currency, setCurrency] = useState('CLP');
-    const [mode, setMode] = useState('new'); // 'new' | 'copy' | 'edit'
+    const [mode, setMode] = useState('new'); // 'new' | 'copy' | 'edit' | 'edit-draft'
     const [dialog, setDialog] = useState(null); // { type: 'alert'|'confirm'|'prompt', title, message, defaultValue, resolve }
     const [lastExchangeRate, setLastExchangeRate] = useState(null);
     
@@ -106,7 +107,7 @@ const QuotationsApp = () => {
             return;
         }
 
-        if (mode === 'edit') {
+        if (mode === 'edit' || mode === 'edit-draft') {
             return;
         }
 
@@ -636,7 +637,8 @@ const QuotationsApp = () => {
                                 iva: iva,
                                 total: total,
                                 currency: currency,
-                                exchangeRate: exchangeRateToSave
+                                exchangeRate: exchangeRateToSave,
+                                status: 'Emitida'
                             };
                             
                             await window.StorageAPI.async.saveQuotation(qData);
@@ -678,10 +680,53 @@ const QuotationsApp = () => {
         }
     };
 
+    const handleSaveDraft = async () => {
+        if (!selectedClient) {
+            await customAlert("Debe seleccionar un cliente para poder guardar el borrador.", "Falta Información");
+            return;
+        }
+
+        setIsSavingDraft(true);
+
+        try {
+            const clientName = activeClient ? (activeClient.nombreFantasia || activeClient.razonSocial || 'Cliente_Desconocido') : 'Cliente_Desconocido';
+            
+            const qData = {
+                id: displayId,
+                correlative: nextId,
+                year: currentYear,
+                version: currentVersion,
+                clientId: selectedClient,
+                clientName: clientName,
+                projectName: projectName,
+                requirements: requirements,
+                technicalConditions: techConditions,
+                commercialConditions: commercialConditions,
+                items1: items,
+                itemsOptional: optionals,
+                subtotal: subtotalMains,
+                iva: iva,
+                total: total,
+                currency: currency,
+                exchangeRate: null,
+                status: 'Borrador'
+            };
+            
+            await window.StorageAPI.async.saveQuotation(qData);
+            
+            await customAlert(`Borrador de Cotización ${displayId} guardado con éxito.`, "Borrador Guardado");
+            fetchHistory();
+        } catch (error) {
+            console.error("Error al guardar borrador:", error);
+            await customAlert("Error al guardar borrador: " + (error.message || JSON.stringify(error)));
+        } finally {
+            setIsSavingDraft(false);
+        }
+    };
+
     const handleEditFromHistory = async (q) => {
         try {
             // Cargar datos
-            setMode('edit');
             setSelectedClient(q.clientId);
             setProjectName(q.projectName || '');
             setRequirements(q.requirements || '');
@@ -691,16 +736,23 @@ const QuotationsApp = () => {
             setOptionals(JSON.parse(q.itemsOptional || '[]'));
             setCurrency(q.currency || 'CLP');
             
-            // Calcular siguiente versión para este ID exacto
-            const vData = await window.StorageAPI.async.getQuotationNextVersion(q.id);
-            setCurrentVersion(vData.nextVersion);
-            
             // No cambiar el correlativo visual ni el año
             setNextId(q.correlative);
             setCurrentYear(q.year);
 
-            setActiveTab('generator');
-            await customAlert(`Editando Cotización ${q.id}. Se guardará como versión ${vData.nextVersion}.`, "Edición Iniciada");
+            if (q.status === 'Borrador') {
+                setMode('edit-draft');
+                setCurrentVersion(q.version || 1);
+                setActiveTab('generator');
+                await customAlert(`Editando Borrador de Cotización ${q.id}.`, "Edición de Borrador");
+            } else {
+                setMode('edit');
+                // Calcular siguiente versión para este ID exacto
+                const vData = await window.StorageAPI.async.getQuotationNextVersion(q.id);
+                setCurrentVersion(vData.nextVersion);
+                setActiveTab('generator');
+                await customAlert(`Editando Cotización ${q.id}. Se guardará como versión ${vData.nextVersion}.`, "Edición Iniciada");
+            }
         } catch (err) {
             await customAlert("Error al cargar para edición.");
         }
@@ -999,11 +1051,18 @@ const QuotationsApp = () => {
                                 {renderTableInput(optionals, setOptionals, "Items Opcionales / Adicionales")}
 
                                 {/* Acciones */}
-                                <div className="tw-pt-6 tw-pb-12">
+                                <div className="tw-pt-6 tw-pb-12 tw-grid tw-grid-cols-1 md:tw-grid-cols-2 tw-gap-4">
+                                    <button 
+                                        onClick={handleSaveDraft}
+                                        disabled={isGenerating || isSavingDraft}
+                                        className={`tw-w-full tw-py-4 tw-rounded-xl tw-text-lg tw-font-bold tw-text-slate-700 tw-border tw-border-slate-300 tw-bg-white hover:tw-bg-slate-50 hover:-tw-translate-y-1 tw-shadow-md tw-transition-all ${(isGenerating || isSavingDraft) ? 'tw-opacity-50 tw-cursor-not-allowed' : ''}`}
+                                    >
+                                        {isSavingDraft ? <span><i className="fa-solid fa-spinner fa-spin tw-mr-3"></i> Guardando...</span> : <span><i className="fa-solid fa-floppy-disk tw-mr-3"></i> Guardar Borrador</span>}
+                                    </button>
                                     <button 
                                         onClick={handleGenerate}
-                                        disabled={isGenerating}
-                                        className={`tw-w-full tw-py-4 tw-rounded-xl tw-text-lg tw-font-bold tw-text-white tw-shadow-lg tw-transition-all ${isGenerating ? 'tw-bg-slate-400 tw-cursor-not-allowed' : 'tw-bg-googleBlue hover:tw-bg-blue-700 hover:-tw-translate-y-1 hover:tw-shadow-xl'}`}
+                                        disabled={isGenerating || isSavingDraft}
+                                        className={`tw-w-full tw-py-4 tw-rounded-xl tw-text-lg tw-font-bold tw-text-white tw-shadow-lg tw-transition-all ${(isGenerating || isSavingDraft) ? 'tw-bg-slate-400 tw-cursor-not-allowed' : 'tw-bg-googleBlue hover:tw-bg-blue-700 hover:-tw-translate-y-1 hover:tw-shadow-xl'}`}
                                     >
                                         {isGenerating ? <span><i className="fa-solid fa-circle-notch fa-spin tw-mr-3"></i> Generando PDF...</span> : <span><i className="fa-solid fa-file-pdf tw-mr-3"></i> Generar y Descargar Cotización PDF</span>}
                                     </button>
@@ -1081,6 +1140,7 @@ const QuotationsApp = () => {
                                         <tr>
                                             <th className="tw-px-6 tw-py-4">ID</th>
                                             <th className="tw-px-6 tw-py-4">Versión</th>
+                                            <th className="tw-px-6 tw-py-4">Estado</th>
                                             <th className="tw-px-6 tw-py-4">Cliente</th>
                                             <th className="tw-px-6 tw-py-4">Proyecto</th>
                                             <th className="tw-px-6 tw-py-4">Fecha</th>
@@ -1102,6 +1162,13 @@ const QuotationsApp = () => {
                                                     <td className="tw-px-6 tw-py-4 tw-font-bold tw-text-slate-700 tw-whitespace-nowrap">{q.id}</td>
                                                     <td className="tw-px-6 tw-py-4">
                                                         <span className="tw-px-2 tw-py-0.5 tw-bg-slate-100 tw-text-slate-600 tw-rounded tw-text-xs tw-font-bold">v{q.version}</span>
+                                                    </td>
+                                                    <td className="tw-px-6 tw-py-4">
+                                                        {q.status === 'Borrador' ? (
+                                                            <span className="tw-px-2 tw-py-1 tw-bg-amber-100 tw-text-amber-800 tw-rounded-lg tw-text-xs tw-font-bold tw-shadow-sm">Borrador 📝</span>
+                                                        ) : (
+                                                            <span className="tw-px-2 tw-py-1 tw-bg-emerald-100 tw-text-emerald-800 tw-rounded-lg tw-text-xs tw-font-bold tw-shadow-sm">Emitida 📄</span>
+                                                        )}
                                                     </td>
                                                     <td className="tw-px-6 tw-py-4 tw-text-slate-600 tw-whitespace-nowrap">{q.clientName}</td>
                                                     <td className="tw-px-6 tw-py-4 tw-text-slate-600 tw-max-w-xs tw-truncate">{q.projectName || '---'}</td>

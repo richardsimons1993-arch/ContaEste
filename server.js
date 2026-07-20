@@ -169,9 +169,41 @@ function getNetworkIp() {
     return '127.0.0.1';
 }
 
+async function runDatabaseMigrations() {
+    try {
+        const pool = await getDbPool();
+        console.log('--- Ejecutando Migraciones de Base de Datos ---');
+        
+        await pool.request().query(`
+            IF NOT EXISTS (
+                SELECT * FROM INFORMATION_SCHEMA.COLUMNS 
+                WHERE TABLE_NAME = 'Quotations' AND COLUMN_NAME = 'status'
+            )
+            BEGIN
+                ALTER TABLE Quotations ADD status VARCHAR(50) NOT NULL DEFAULT 'Emitida';
+            END
+        `);
+        
+        await pool.request().query(`
+            IF NOT EXISTS (
+                SELECT * FROM INFORMATION_SCHEMA.COLUMNS 
+                WHERE TABLE_NAME = 'Reports' AND COLUMN_NAME = 'status'
+            )
+            BEGIN
+                ALTER TABLE Reports ADD status VARCHAR(50) NOT NULL DEFAULT 'Emitido';
+            END
+        `);
+        
+        console.log('✅ Migraciones de base de datos finalizadas con éxito.');
+    } catch (err) {
+        console.error('❌ Error ejecutando migraciones de base de datos:', err.message);
+    }
+}
+
 async function runMaintenanceTasks() {
     try {
         console.log('--- Ejecutando Tareas de Mantenimiento Iniciales ---');
+        await runDatabaseMigrations();
         await deleteExpiredNotes();
         await cleanOldQuotations();
         await syncQuotationsToProjects();

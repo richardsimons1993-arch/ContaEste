@@ -109,6 +109,7 @@ router.post('/', async (req, res) => {
             .input('iva', sql.Decimal(18,2), q.iva)
             .input('total', sql.Decimal(18,2), q.total)
             .input('currency', sql.VarChar(10), q.currency || 'CLP')
+            .input('status', sql.VarChar(50), q.status || 'Emitida')
             .query(`
                 MERGE Quotations AS target
                 USING (SELECT @id AS id, @version AS version) AS source
@@ -120,74 +121,76 @@ router.post('/', async (req, res) => {
                         requirements = @requirements, technicalConditions = @technicalConditions,
                         commercialConditions = @commercialConditions, items1 = @items1,
                         itemsOptional = @itemsOptional, subtotal = @subtotal, iva = @iva, total = @total,
-                        currency = @currency
+                        currency = @currency, status = @status
                 WHEN NOT MATCHED THEN
-                    INSERT (id, correlative, year, version, clientId, clientName, projectName, requirements, technicalConditions, commercialConditions, items1, itemsOptional, subtotal, iva, total, currency, createdAt)
-                    VALUES (@id, @correlative, @year, @version, @clientId, @clientName, @projectName, @requirements, @technicalConditions, @commercialConditions, @items1, @itemsOptional, @subtotal, @iva, @total, @currency, GETDATE());
+                    INSERT (id, correlative, year, version, clientId, clientName, projectName, requirements, technicalConditions, commercialConditions, items1, itemsOptional, subtotal, iva, total, currency, status, createdAt)
+                    VALUES (@id, @correlative, @year, @version, @clientId, @clientName, @projectName, @requirements, @technicalConditions, @commercialConditions, @items1, @itemsOptional, @subtotal, @iva, @total, @currency, @status, GETDATE());
             `);
 
-        try {
-            const projectId = 'PROJ-' + q.id;
-            const versionSuffix = (q.version && q.version > 1) ? ' v' + q.version : '';
-            const finalProjectName = (q.projectName || 'Proyecto sin nombre') + versionSuffix;
-            const projectStatus = 'Cotizado';
+        if (q.status === 'Emitida') {
+            try {
+                const projectId = 'PROJ-' + q.id;
+                const versionSuffix = (q.version && q.version > 1) ? ' v' + q.version : '';
+                const finalProjectName = (q.projectName || 'Proyecto sin nombre') + versionSuffix;
+                const projectStatus = 'Cotizado';
 
-            let estimatedAmountClp = q.total;
-            let conversionNote = '';
-            if (q.currency === 'USD') {
-                const rateUSD = q.exchangeRate || await fetchDolar();
-                if (rateUSD) {
-                    estimatedAmountClp = q.total * rateUSD;
-                    conversionNote = ` (${q.total} USD a tasa de $${rateUSD} CLP)`;
+                let estimatedAmountClp = q.total;
+                let conversionNote = '';
+                if (q.currency === 'USD') {
+                    const rateUSD = q.exchangeRate || await fetchDolar();
+                    if (rateUSD) {
+                        estimatedAmountClp = q.total * rateUSD;
+                        conversionNote = ` (${q.total} USD a tasa de $${rateUSD} CLP)`;
+                    }
+                } else if (q.currency === 'UF') {
+                    const rateUF = q.exchangeRate || await fetchUF();
+                    if (rateUF) {
+                        estimatedAmountClp = q.total * rateUF;
+                        conversionNote = ` (${q.total} UF a tasa de $${rateUF} CLP)`;
+                    }
                 }
-            } else if (q.currency === 'UF') {
-                const rateUF = q.exchangeRate || await fetchUF();
-                if (rateUF) {
-                    estimatedAmountClp = q.total * rateUF;
-                    conversionNote = ` (${q.total} UF a tasa de $${rateUF} CLP)`;
+                estimatedAmountClp = Math.round(estimatedAmountClp);
+
+                const projectCheck = await pool.request()
+                    .input('id', sql.VarChar(50), projectId)
+                    .query('SELECT id, status FROM Projects WHERE id = @id');
+
+                if (projectCheck.recordset.length === 0) {
+                    await pool.request()
+                        .input('id', sql.VarChar(50), projectId)
+                        .input('projectName', sql.VarChar(255), finalProjectName)
+                        .input('clientId', sql.VarChar(50), q.clientId)
+                        .input('status', sql.VarChar(50), projectStatus)
+                        .input('observations', sql.VarChar(sql.MAX), 'Creado automáticamente desde Cotización N° ' + q.id + conversionNote)
+                        .input('estimatedAmount', sql.Decimal(18, 2), estimatedAmountClp)
+                        .query(`
+                            INSERT INTO Projects (id, projectName, clientId, status, observations, estimatedAmount, visitDate) 
+                            VALUES (@id, @projectName, @clientId, @status, @observations, @estimatedAmount, GETDATE())
+                        `);
+
+                    await pool.request()
+                        .input('projectId', sql.VarChar(50), projectId)
+                        .input('newStatus', sql.VarChar(50), projectStatus)
+                        .input('note', sql.VarChar(sql.MAX), 'Creado automáticamente desde Cotización N° ' + q.id + versionSuffix + conversionNote)
+                        .query(`
+                            INSERT INTO ProjectHistory (projectId, previousStatus, newStatus, note, changeDate) 
+                            VALUES (@projectId, NULL, @newStatus, @note, GETDATE())
+                        `);
+                } else {
+                    const currentStatus = projectCheck.recordset[0].status;
+                    await pool.request()
+                        .input('id', sql.VarChar(50), projectId)
+                        .input('projectName', sql.VarChar(255), finalProjectName)
+                        .input('estimatedAmount', sql.Decimal(18, 2), estimatedAmountClp)
+                        .query(`
+                            UPDATE Projects 
+                            SET projectName = @projectName, estimatedAmount = @estimatedAmount 
+                            WHERE id = @id
+                        `);
                 }
+            } catch (projErr) {
+                console.error('Error al sincronizar cotización con proyectos:', projErr);
             }
-            estimatedAmountClp = Math.round(estimatedAmountClp);
-
-            const projectCheck = await pool.request()
-                .input('id', sql.VarChar(50), projectId)
-                .query('SELECT id, status FROM Projects WHERE id = @id');
-
-            if (projectCheck.recordset.length === 0) {
-                await pool.request()
-                    .input('id', sql.VarChar(50), projectId)
-                    .input('projectName', sql.VarChar(255), finalProjectName)
-                    .input('clientId', sql.VarChar(50), q.clientId)
-                    .input('status', sql.VarChar(50), projectStatus)
-                    .input('observations', sql.VarChar(sql.MAX), 'Creado automáticamente desde Cotización N° ' + q.id + conversionNote)
-                    .input('estimatedAmount', sql.Decimal(18, 2), estimatedAmountClp)
-                    .query(`
-                        INSERT INTO Projects (id, projectName, clientId, status, observations, estimatedAmount, visitDate) 
-                        VALUES (@id, @projectName, @clientId, @status, @observations, @estimatedAmount, GETDATE())
-                    `);
-
-                await pool.request()
-                    .input('projectId', sql.VarChar(50), projectId)
-                    .input('newStatus', sql.VarChar(50), projectStatus)
-                    .input('note', sql.VarChar(sql.MAX), 'Creado automáticamente desde Cotización N° ' + q.id + versionSuffix + conversionNote)
-                    .query(`
-                        INSERT INTO ProjectHistory (projectId, previousStatus, newStatus, note, changeDate) 
-                        VALUES (@projectId, NULL, @newStatus, @note, GETDATE())
-                    `);
-            } else {
-                const currentStatus = projectCheck.recordset[0].status;
-                await pool.request()
-                    .input('id', sql.VarChar(50), projectId)
-                    .input('projectName', sql.VarChar(255), finalProjectName)
-                    .input('estimatedAmount', sql.Decimal(18, 2), estimatedAmountClp)
-                    .query(`
-                        UPDATE Projects 
-                        SET projectName = @projectName, estimatedAmount = @estimatedAmount 
-                        WHERE id = @id
-                    `);
-            }
-        } catch (projErr) {
-            console.error('Error al sincronizar cotización con proyectos:', projErr);
         }
 
         res.json({ success: true });

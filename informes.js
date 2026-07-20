@@ -28,6 +28,8 @@ const ReportsApp = () => {
     const [previewUrl, setPreviewUrl] = useState(null);
     const [logoData, setLogoData] = useState({ svg: null, base64: null });
     const [isGenerating, setIsGenerating] = useState(false);
+    const [isSavingDraft, setIsSavingDraft] = useState(false);
+    const [mode, setMode] = useState('new'); // 'new' | 'edit' | 'edit-draft'
     const [dialog, setDialog] = useState(null); // { type: 'alert'|'confirm', title, message, resolve }
     const previewTimeoutRef = useRef(null);
 
@@ -112,8 +114,11 @@ const ReportsApp = () => {
         }
     };
 
-    // Calcular próximo ID correlativo al cambiar de cliente o año
+    // Calcular próximo ID correlativo al cambiar de cliente o año o modo
     useEffect(() => {
+        if (mode === 'edit' || mode === 'edit-draft') {
+            return;
+        }
         if (!selectedClient) {
             setNextId(1);
             setCurrentVersion(1);
@@ -135,7 +140,20 @@ const ReportsApp = () => {
             }
         };
         fetchNextIdVal();
-    }, [selectedClient, currentYear]);
+    }, [selectedClient, currentYear, mode]);
+
+    const handleResetToNewReport = () => {
+        setSelectedClient('');
+        setProjectName('');
+        setGeneralData('');
+        setScope('');
+        setMaterials([{ id: Date.now(), desc: '', notes: '' }]);
+        setResults('');
+        setConclusions('');
+        setImages([]);
+        setCurrentVersion(1);
+        setMode('new');
+    };
 
     // Recalcular previsualización
     useEffect(() => {
@@ -619,7 +637,8 @@ const ReportsApp = () => {
                                 materials: materials,
                                 results: results,
                                 conclusions: conclusions,
-                                images: images
+                                images: images,
+                                status: 'Emitido'
                             };
                             
                             // Guardar en la base de datos
@@ -637,19 +656,11 @@ const ReportsApp = () => {
                             fetchHistory();
                             if (currentVersion <= 1) setNextId(nextId + 1);
                              
-                             // Limpiar formulario tras generar informe
-                             setSelectedClient('');
-                             setProjectName('');
-                             setGeneralData('');
-                             setScope('');
-                             setMaterials([{ id: Date.now(), desc: '', notes: '' }]);
-                             setResults('');
-                             setConclusions('');
-                             setImages([]);
-                             setCurrentVersion(1);
+                            // Limpiar formulario tras generar informe
+                            handleResetToNewReport();
 
-                             await customAlert("Informe generado, descargado y guardado en tu OneDrive con éxito.", "Éxito");
-                             resolve();
+                            await customAlert("Informe generado, descargado y guardado en tu OneDrive con éxito.", "Éxito");
+                            resolve();
                         } catch (saveErr) {
                             reject(saveErr);
                         }
@@ -660,10 +671,50 @@ const ReportsApp = () => {
             });
 
         } catch (error) {
-            console.error("Fallo al generar el PDF del informe:", error);
+            console.error(error);
             await customAlert("Error al generar PDF: " + (error.message || JSON.stringify(error)));
         } finally {
             setIsGenerating(false);
+        }
+    };
+
+    const handleSaveDraft = async () => {
+        if (!selectedClient) {
+            await customAlert("Debe seleccionar un cliente para poder guardar el borrador.", "Falta Información");
+            return;
+        }
+
+        setIsSavingDraft(true);
+
+        try {
+            const clientName = activeClient ? (activeClient.nombreFantasia || activeClient.razonSocial || 'Cliente_Desconocido') : 'Cliente_Desconocido';
+            
+            const rData = {
+                id: displayId,
+                correlative: nextId,
+                year: currentYear,
+                version: currentVersion,
+                clientId: selectedClient,
+                clientName: clientName,
+                projectName: projectName,
+                generalData: generalData,
+                scope: scope,
+                materials: materials,
+                results: results,
+                conclusions: conclusions,
+                images: images,
+                status: 'Borrador'
+            };
+            
+            await window.StorageAPI.async.saveReport(rData);
+            
+            await customAlert(`Borrador de Informe ${displayId} guardado con éxito.`, "Borrador Guardado");
+            fetchHistory();
+        } catch (error) {
+            console.error("Error al guardar borrador:", error);
+            await customAlert("Error al guardar borrador: " + (error.message || JSON.stringify(error)));
+        } finally {
+            setIsSavingDraft(false);
         }
     };
 
@@ -679,14 +730,21 @@ const ReportsApp = () => {
             setConclusions(r.conclusions || '');
             setImages(JSON.parse(r.images || '[]'));
             
-            const vData = await window.StorageAPI.async.getReportNextVersion(r.id);
-            setCurrentVersion(vData.nextVersion);
-            
             setNextId(r.correlative);
             setCurrentYear(r.year);
 
-            setActiveTab('generator');
-            await customAlert(`Editando Informe ${r.id}. Se guardará como versión ${vData.nextVersion}.`, "Edición Iniciada");
+            if (r.status === 'Borrador') {
+                setMode('edit-draft');
+                setCurrentVersion(r.version || 1);
+                setActiveTab('generator');
+                await customAlert(`Editando Borrador de Informe ${r.id}.`, "Edición de Borrador");
+            } else {
+                setMode('edit');
+                const vData = await window.StorageAPI.async.getReportNextVersion(r.id);
+                setCurrentVersion(vData.nextVersion);
+                setActiveTab('generator');
+                await customAlert(`Editando Informe ${r.id}. Se guardará como versión ${vData.nextVersion}.`, "Edición Iniciada");
+            }
         } catch (err) {
             console.error(err);
             await customAlert("Error al cargar informe para edición.");
@@ -914,11 +972,18 @@ const ReportsApp = () => {
                                 </div>
 
                                 {/* Acción de Generar */}
-                                <div className="tw-pt-6 tw-pb-12">
+                                <div className="tw-pt-6 tw-pb-12 tw-grid tw-grid-cols-1 md:tw-grid-cols-2 tw-gap-4">
+                                    <button 
+                                        onClick={handleSaveDraft}
+                                        disabled={isGenerating || isSavingDraft}
+                                        className={`tw-w-full tw-py-4 tw-rounded-xl tw-text-lg tw-font-bold tw-text-slate-700 tw-border tw-border-slate-300 tw-bg-white hover:tw-bg-slate-50 hover:-tw-translate-y-1 tw-shadow-md tw-transition-all ${(isGenerating || isSavingDraft) ? 'tw-opacity-50 tw-cursor-not-allowed' : ''}`}
+                                    >
+                                        {isSavingDraft ? <span><i className="fa-solid fa-spinner fa-spin tw-mr-3"></i> Guardando...</span> : <span><i className="fa-solid fa-floppy-disk tw-mr-3"></i> Guardar Borrador</span>}
+                                    </button>
                                     <button 
                                         onClick={handleGenerate}
-                                        disabled={isGenerating}
-                                        className={`tw-w-full tw-py-4 tw-rounded-xl tw-text-lg tw-font-bold tw-text-white tw-shadow-lg tw-transition-all ${isGenerating ? 'tw-bg-slate-400 tw-cursor-not-allowed' : 'tw-bg-teal-600 hover:tw-bg-teal-700 hover:-tw-translate-y-1 hover:tw-shadow-xl'}`}
+                                        disabled={isGenerating || isSavingDraft}
+                                        className={`tw-w-full tw-py-4 tw-rounded-xl tw-text-lg tw-font-bold tw-text-white tw-shadow-lg tw-transition-all ${(isGenerating || isSavingDraft) ? 'tw-bg-slate-400 tw-cursor-not-allowed' : 'tw-bg-teal-600 hover:tw-bg-teal-700 hover:-tw-translate-y-1 hover:tw-shadow-xl'}`}
                                     >
                                         {isGenerating ? <span><i className="fa-solid fa-circle-notch fa-spin tw-mr-3"></i> Generando Informe...</span> : <span><i className="fa-solid fa-file-pdf tw-mr-3"></i> Generar y Descargar Informe PDF</span>}
                                     </button>
@@ -996,6 +1061,7 @@ const ReportsApp = () => {
                                         <tr>
                                             <th className="tw-px-6 tw-py-4">ID</th>
                                             <th className="tw-px-6 tw-py-4">Versión</th>
+                                            <th className="tw-px-6 tw-py-4">Estado</th>
                                             <th className="tw-px-6 tw-py-4">Cliente</th>
                                             <th className="tw-px-6 tw-py-4">Proyecto</th>
                                             <th className="tw-px-6 tw-py-4">Fecha</th>
@@ -1016,6 +1082,13 @@ const ReportsApp = () => {
                                                     <td className="tw-px-6 tw-py-4 tw-font-bold tw-text-slate-700 tw-whitespace-nowrap">{r.id}</td>
                                                     <td className="tw-px-6 tw-py-4">
                                                         <span className="tw-px-2 tw-py-0.5 tw-bg-slate-100 tw-text-slate-600 tw-rounded tw-text-xs tw-font-bold">v{r.version}</span>
+                                                    </td>
+                                                    <td className="tw-px-6 tw-py-4">
+                                                        {r.status === 'Borrador' ? (
+                                                            <span className="tw-px-2 tw-py-1 tw-bg-amber-100 tw-text-amber-800 tw-rounded-lg tw-text-xs tw-font-bold tw-shadow-sm">Borrador 📝</span>
+                                                        ) : (
+                                                            <span className="tw-px-2 tw-py-1 tw-bg-emerald-100 tw-text-emerald-800 tw-rounded-lg tw-text-xs tw-font-bold tw-shadow-sm">Emitido 📄</span>
+                                                        )}
                                                     </td>
                                                     <td className="tw-px-6 tw-py-4 tw-text-slate-600 tw-whitespace-nowrap">{r.clientName}</td>
                                                     <td className="tw-px-6 tw-py-4 tw-text-slate-600 tw-max-w-xs tw-truncate">{r.projectName || '---'}</td>
