@@ -1160,14 +1160,14 @@ const QuotationsApp = () => {
                                             .map(q => (
                                                 <tr key={`${q.id}-${q.version}`} className="hover:tw-bg-slate-50 tw-transition-colors">
                                                     <td className="tw-px-6 tw-py-4 tw-font-bold tw-text-slate-700 tw-whitespace-nowrap">{q.id}</td>
-                                                    <td className="tw-px-6 tw-py-4">
+                                                    <td className="tw-px-6 tw-py-4 tw-whitespace-nowrap">
                                                         <span className="tw-px-2 tw-py-0.5 tw-bg-slate-100 tw-text-slate-600 tw-rounded tw-text-xs tw-font-bold">v{q.version}</span>
                                                     </td>
-                                                    <td className="tw-px-6 tw-py-4">
+                                                    <td className="tw-px-6 tw-py-4 tw-whitespace-nowrap">
                                                         {q.status === 'Borrador' ? (
-                                                            <span className="tw-px-2 tw-py-1 tw-bg-amber-100 tw-text-amber-800 tw-rounded-lg tw-text-xs tw-font-bold tw-shadow-sm">Borrador 📝</span>
+                                                            <span className="tw-px-2 tw-py-1 tw-bg-amber-100 tw-text-amber-800 tw-rounded-lg tw-text-xs tw-font-bold tw-shadow-sm tw-whitespace-nowrap tw-inline-block">Borrador 📝</span>
                                                         ) : (
-                                                            <span className="tw-px-2 tw-py-1 tw-bg-emerald-100 tw-text-emerald-800 tw-rounded-lg tw-text-xs tw-font-bold tw-shadow-sm">Emitida 📄</span>
+                                                            <span className="tw-px-2 tw-py-1 tw-bg-emerald-100 tw-text-emerald-800 tw-rounded-lg tw-text-xs tw-font-bold tw-shadow-sm tw-whitespace-nowrap tw-inline-block">Emitida 📄</span>
                                                         )}
                                                     </td>
                                                     <td className="tw-px-6 tw-py-4 tw-text-slate-600 tw-whitespace-nowrap">{q.clientName}</td>
