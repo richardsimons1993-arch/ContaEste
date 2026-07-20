@@ -543,7 +543,16 @@ const ReportsApp = () => {
 
     // Actualizar previsualizador rápido
     const updatePreview = async () => {
-        if (!selectedClient || !window.pdfMake) return;
+        if (!selectedClient) return;
+        
+        if (!window.pdfMake) {
+            try {
+                await window._loadPdfMake();
+            } catch (err) {
+                console.error("Error al cargar pdfMake para la previsualización del informe:", err);
+                return;
+            }
+        }
         
         try {
             // Pasamos true para usar placeholders rápidos de imágenes en la preview (no congelar UI al escribir)
@@ -561,6 +570,10 @@ const ReportsApp = () => {
 
     // Guardar informe final y subir a OneDrive
     const handleGenerate = async () => {
+        if (!window.pdfMake) {
+            try { await window._loadPdfMake(); } catch(e) { await customAlert('Error cargando librería PDF. Verifique su conexión.'); return; }
+        }
+
         if (!selectedClient) {
             await customAlert("Debe seleccionar un cliente.", "Falta Información");
             return;

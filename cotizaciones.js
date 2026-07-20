@@ -533,7 +533,16 @@ const QuotationsApp = () => {
     };
 
     const updatePreview = async () => {
-        if (!selectedClient || !window.pdfMake) return;
+        if (!selectedClient) return;
+        
+        if (!window.pdfMake) {
+            try {
+                await window._loadPdfMake();
+            } catch (err) {
+                console.error("Error al cargar pdfMake para la previsualización:", err);
+                return;
+            }
+        }
         
         try {
             const docDefinition = buildDocDefinition();
