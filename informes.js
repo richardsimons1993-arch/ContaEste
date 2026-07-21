@@ -1,4 +1,4 @@
-const { useState, useEffect, useRef } = React;
+const { useState, useEffect, useMemo, useRef } = React;
 
 const ReportsApp = () => {
     // Listas
@@ -30,7 +30,13 @@ const ReportsApp = () => {
     const [isGenerating, setIsGenerating] = useState(false);
     const [isSavingDraft, setIsSavingDraft] = useState(false);
     const [mode, setMode] = useState('new'); // 'new' | 'edit' | 'edit-draft'
+    const [projects, setProjects] = useState([]);
+    const [isManualProject, setIsManualProject] = useState(false);
     const [dialog, setDialog] = useState(null); // { type: 'alert'|'confirm', title, message, resolve }
+
+    const filteredProjects = useMemo(() => {
+        return projects.filter(p => p.status === 'Cotizado' && (!selectedClient || p.clientId === selectedClient));
+    }, [projects, selectedClient]);
     const previewTimeoutRef = useRef(null);
 
     // Cargar datos iniciales
@@ -57,7 +63,7 @@ const ReportsApp = () => {
         };
     }, []);
 
-    // Cargar clientes desde el estado global en Finanzas
+    // Cargar clientes y proyectos desde el servidor / estado global
     const loadData = async () => {
         try {
             let clientsData = window.state && window.state.clients ? window.state.clients : [];
@@ -66,8 +72,11 @@ const ReportsApp = () => {
             }
             const year = new Date().getFullYear();
             setCurrentYear(year);
+
+            const projData = await window.StorageAPI.async.getProjects();
+            setProjects(projData || []);
         } catch (error) {
-            console.error("Error cargando clientes en informes:", error);
+            console.error("Error cargando datos en informes:", error);
         }
     };
 
@@ -153,6 +162,7 @@ const ReportsApp = () => {
         setImages([]);
         setCurrentVersion(1);
         setMode('new');
+        setIsManualProject(false);
     };
 
     // Recalcular previsualización
@@ -733,6 +743,9 @@ const ReportsApp = () => {
             setNextId(r.correlative);
             setCurrentYear(r.year);
 
+            const isCotizado = projects.some(p => p.projectName === r.projectName && p.clientId === r.clientId && p.status === 'Cotizado');
+            setIsManualProject(!isCotizado);
+
             if (r.status === 'Borrador') {
                 setMode('edit-draft');
                 setCurrentVersion(r.version || 1);
@@ -814,14 +827,57 @@ const ReportsApp = () => {
                                         </select>
                                     </div>
                                     <div>
-                                        <label className="tw-block tw-text-sm tw-font-bold tw-text-slate-700 tw-mb-2">Nombre del Proyecto</label>
-                                        <input 
-                                            type="text" 
-                                            className="tw-w-full tw-p-3 tw-bg-slate-50 tw-border tw-border-slate-300 tw-rounded-lg focus:tw-border-googleBlue focus:tw-ring-2 focus:tw-ring-blue-100 focus:tw-outline-none tw-transition-all"
-                                            placeholder="Ej: Mantenimiento de Antena U7"
-                                            value={projectName}
-                                            onChange={(e) => setProjectName(e.target.value)}
-                                        />
+                                        <div className="tw-flex tw-justify-between tw-items-center tw-mb-2">
+                                            <label className="tw-block tw-text-sm tw-font-bold tw-text-slate-700">Nombre del Proyecto</label>
+                                            <button 
+                                                type="button" 
+                                                onClick={() => {
+                                                    setIsManualProject(!isManualProject);
+                                                    setProjectName('');
+                                                }}
+                                                className="tw-text-xs tw-text-googleBlue hover:tw-underline tw-font-semibold tw-flex tw-items-center tw-gap-1"
+                                            >
+                                                {isManualProject ? (
+                                                    <>
+                                                        <i className="fa-solid fa-list"></i> Seleccionar cotizado
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <i className="fa-solid fa-keyboard"></i> Escribir manualmente
+                                                    </>
+                                                )}
+                                            </button>
+                                        </div>
+                                        {isManualProject ? (
+                                            <input 
+                                                type="text" 
+                                                className="tw-w-full tw-p-3 tw-bg-slate-50 tw-border tw-border-slate-300 tw-rounded-lg focus:tw-border-googleBlue focus:tw-ring-2 focus:tw-ring-blue-100 focus:tw-outline-none tw-transition-all"
+                                                placeholder="Ej: Mantenimiento de Antena U7"
+                                                value={projectName}
+                                                onChange={(e) => setProjectName(e.target.value)}
+                                            />
+                                        ) : (
+                                            <select
+                                                className="tw-w-full tw-p-3 tw-bg-slate-50 tw-border tw-border-slate-300 tw-rounded-lg focus:tw-border-googleBlue focus:tw-ring-2 focus:tw-ring-blue-100 focus:tw-outline-none tw-transition-all"
+                                                value={projectName}
+                                                onChange={(e) => setProjectName(e.target.value)}
+                                                disabled={!selectedClient}
+                                            >
+                                                {!selectedClient ? (
+                                                    <option value="">Seleccione un cliente primero...</option>
+                                                ) : (
+                                                    <>
+                                                        <option value="">-- Seleccione un Proyecto Cotizado --</option>
+                                                        {filteredProjects.map(p => (
+                                                            <option key={p.id} value={p.projectName}>{p.projectName}</option>
+                                                        ))}
+                                                        {filteredProjects.length === 0 && (
+                                                            <option value="" disabled>No hay proyectos cotizados para este cliente</option>
+                                                        )}
+                                                    </>
+                                                )}
+                                            </select>
+                                        )}
                                     </div>
                                 </div>
 
