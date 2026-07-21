@@ -51,3 +51,13 @@
 [Cron Alerts] Limpieza completada. Registros eliminados: 1
 [Cron Alerts] Conexión a la base de datos cerrada.
 [Cron Alerts] Fin de la ejecución.
+◇ injected env (14) from app/ContaEste/.env // tip: ⌘ suppress logs { quiet: true }
+[Cron Alerts] Inicio de ejecución a las: 2026-07-21T12:30:01.939Z
+✅ Conectado a SQL Server (ContabilidadDB)
+[Cron Alerts] Encontrados 1 usuarios con alertas activas.
+[Cron Alerts] No hay gastos operacionales vencidos o por vencer en <= 3 días.
+[Cron Alerts] No hay contratos activos pendientes de facturar en el mes corriente.
+[Cron Alerts] Iniciando limpieza de logs antiguos (>30 días)...
+[Cron Alerts] Limpieza completada. Registros eliminados: 2
+[Cron Alerts] Conexión a la base de datos cerrada.
+[Cron Alerts] Fin de la ejecución.
