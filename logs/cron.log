@@ -61,3 +61,82 @@
 [Cron Alerts] Limpieza completada. Registros eliminados: 2
 [Cron Alerts] Conexión a la base de datos cerrada.
 [Cron Alerts] Fin de la ejecución.
+◇ injected env (14) from app/ContaEste/.env // tip: ⌁ auth for agents [www.vestauth.com]
+[Cron Alerts] Inicio de ejecución a las: 2026-07-22T12:30:01.495Z
+✅ Conectado a SQL Server (ContabilidadDB)
+[Cron Alerts] Encontrados 1 usuarios con alertas activas.
+[Cron Alerts] No hay gastos operacionales vencidos o por vencer en <= 3 días.
+[Cron Alerts] No hay contratos activos pendientes de facturar en el mes corriente.
+[Cron Alerts] Iniciando limpieza de logs antiguos (>30 días)...
+[Cron Alerts] Limpieza completada. Registros eliminados: 22
+[Cron Alerts] Conexión a la base de datos cerrada.
+[Cron Alerts] Fin de la ejecución.
+◇ injected env (14) from app/ContaEste/.env // tip: ⌘ suppress logs { quiet: true }
+[Cron Alerts] Inicio de ejecución a las: 2026-07-23T12:30:01.507Z
+✅ Conectado a SQL Server (ContabilidadDB)
+[Cron Alerts] Encontrados 1 usuarios con alertas activas.
+[Cron Alerts] No hay gastos operacionales vencidos o por vencer en <= 3 días.
+[Cron Alerts] No hay contratos activos pendientes de facturar en el mes corriente.
+[Cron Alerts] Iniciando limpieza de logs antiguos (>30 días)...
+[Cron Alerts] Limpieza completada. Registros eliminados: 1
+[Cron Alerts] Conexión a la base de datos cerrada.
+[Cron Alerts] Fin de la ejecución.
+◇ injected env (14) from app/ContaEste/.env // tip: ⌘ custom filepath { path: '/custom/path/.env' }
+[Cron Alerts] Inicio de ejecución a las: 2026-07-24T12:30:03.252Z
+✅ Conectado a SQL Server (ContabilidadDB)
+[Cron Alerts] Encontrados 1 usuarios con alertas activas.
+[Cron Alerts] No hay gastos operacionales vencidos o por vencer en <= 3 días.
+[Cron Alerts] No hay contratos activos pendientes de facturar en el mes corriente.
+[Cron Alerts] Iniciando limpieza de logs antiguos (>30 días)...
+[Cron Alerts] Limpieza completada. Registros eliminados: 22
+[Cron Alerts] Conexión a la base de datos cerrada.
+[Cron Alerts] Fin de la ejecución.
+◇ injected env (14) from app/ContaEste/.env // tip: ⌘ suppress logs { quiet: true }
+[Cron Alerts] Inicio de ejecución a las: 2026-07-25T12:30:01.970Z
+✅ Conectado a SQL Server (ContabilidadDB)
+[Cron Alerts] Encontrados 1 usuarios con alertas activas.
+[Cron Alerts] No hay gastos operacionales vencidos o por vencer en <= 3 días.
+[Cron Alerts] No hay contratos activos pendientes de facturar en el mes corriente.
+[Cron Alerts] Iniciando limpieza de logs antiguos (>30 días)...
+[Cron Alerts] Limpieza completada. Registros eliminados: 11
+[Cron Alerts] Conexión a la base de datos cerrada.
+[Cron Alerts] Fin de la ejecución.
+◇ injected env (14) from app/ContaEste/.env // tip: ⌘ multiple files { path: ['.env.local', '.env'] }
+[Cron Alerts] Inicio de ejecución a las: 2026-07-26T12:30:02.299Z
+✅ Conectado a SQL Server (ContabilidadDB)
+[Cron Alerts] Encontrados 1 usuarios con alertas activas.
+[Cron Alerts] Encontrados 1 gastos pendientes/vencidos. Enviando a 1 usuarios.
+[Cron Alerts] No hay contratos activos pendientes de facturar en el mes corriente.
+[Cron Alerts] Enviando 1 correos en total...
+✉️ Correo enviado vía Graph a: richard@simons.cl (Asunto: Pago Pendiente)
+[Cron Alerts] Finalizado. Envíos exitosos: 1/1
+[Cron Alerts] Iniciando limpieza de logs antiguos (>30 días)...
+[Cron Alerts] Limpieza completada. Registros eliminados: 33
+[Cron Alerts] Conexión a la base de datos cerrada.
+[Cron Alerts] Fin de la ejecución.
+◇ injected env (14) from app/ContaEste/.env // tip: ⌘ override existing { override: true }
+[Cron Alerts] Inicio de ejecución a las: 2026-07-27T12:30:02.149Z
+✅ Conectado a SQL Server (ContabilidadDB)
+[Cron Alerts] Encontrados 1 usuarios con alertas activas.
+[Cron Alerts] Encontrados 6 gastos pendientes/vencidos. Enviando a 1 usuarios.
+[Cron Alerts] No hay contratos activos pendientes de facturar en el mes corriente.
+[Cron Alerts] Enviando 1 correos en total...
+✉️ Correo enviado vía Graph a: richard@simons.cl (Asunto: Pago Pendiente)
+[Cron Alerts] Finalizado. Envíos exitosos: 1/1
+[Cron Alerts] Iniciando limpieza de logs antiguos (>30 días)...
+[Cron Alerts] Limpieza completada. Registros eliminados: 34
+[Cron Alerts] Conexión a la base de datos cerrada.
+[Cron Alerts] Fin de la ejecución.
+◇ injected env (14) from app/ContaEste/.env // tip: ◈ encrypted .env [www.dotenvx.com]
+[Cron Alerts] Inicio de ejecución a las: 2026-07-28T12:30:02.195Z
+✅ Conectado a SQL Server (ContabilidadDB)
+[Cron Alerts] Encontrados 1 usuarios con alertas activas.
+[Cron Alerts] Encontrados 6 gastos pendientes/vencidos. Enviando a 1 usuarios.
+[Cron Alerts] No hay contratos activos pendientes de facturar en el mes corriente.
+[Cron Alerts] Enviando 1 correos en total...
+✉️ Correo enviado vía Graph a: richard@simons.cl (Asunto: Pago Pendiente)
+[Cron Alerts] Finalizado. Envíos exitosos: 1/1
+[Cron Alerts] Iniciando limpieza de logs antiguos (>30 días)...
+[Cron Alerts] Limpieza completada. Registros eliminados: 0
+[Cron Alerts] Conexión a la base de datos cerrada.
+[Cron Alerts] Fin de la ejecución.

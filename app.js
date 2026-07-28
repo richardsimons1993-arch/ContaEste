@@ -3268,6 +3268,9 @@ const UI = {
 
     async handleSupplierSubmit(e) {
         e.preventDefault();
+        const submitBtn = document.getElementById('btn-save-supplier');
+        if (submitBtn) this.showLoading(submitBtn);
+
         const formData = new FormData(e.target);
         const id = formData.get('id');
 
@@ -3281,16 +3284,23 @@ const UI = {
             address: formData.get('address')
         };
 
-        window.StorageAPI.saveSupplier(supplier);
+        try {
+            window.StorageAPI.saveSupplier(supplier);
 
-        if (id) {
-            this.recordActivity('Modificación', 'Proveedor', `Actualizado proveedor ${supplier.name}`);
-        } else {
-            this.recordActivity('Alta', 'Proveedor', `Registrado proveedor ${supplier.name}`);
+            if (id) {
+                this.recordActivity('Modificación', 'Proveedor', `Actualizado proveedor ${supplier.name}`);
+            } else {
+                this.recordActivity('Alta', 'Proveedor', `Registrado proveedor ${supplier.name}`);
+            }
+
+            await this.loadData();
+            this.resetSupplierForm();
+        } catch (err) {
+            console.error(err);
+            this.showToast('Error al guardar proveedor', 'error');
+        } finally {
+            if (submitBtn) this.hideLoading(submitBtn);
         }
-
-        await this.loadData();
-        this.resetSupplierForm();
     },
 
     editSupplier(id) {
@@ -5712,6 +5722,9 @@ const UI = {
 
     async handleClientSubmit(e) {
         e.preventDefault();
+        const submitBtn = document.getElementById('btn-save-client');
+        if (submitBtn) this.showLoading(submitBtn);
+
         const formData = new FormData(e.target);
         const id = formData.get('id');
 
@@ -5726,26 +5739,33 @@ const UI = {
             direccion: formData.get('direccion')
         };
 
-        window.StorageAPI.saveClient(client);
+        try {
+            window.StorageAPI.saveClient(client);
 
-        if (id) {
-            const index = state.clients.findIndex(c => c.id === id);
-            state.clients[index] = client;
-            this.recordActivity('Modificación', 'Cliente', `Actualizado: ${client.razonSocial}`);
-        } else {
-            state.clients.push(client);
-            this.recordActivity('Alta', 'Cliente', `Registrado: ${client.razonSocial}`);
+            if (id) {
+                const index = state.clients.findIndex(c => c.id === id);
+                state.clients[index] = client;
+                this.recordActivity('Modificación', 'Cliente', `Actualizado: ${client.razonSocial}`);
+            } else {
+                state.clients.push(client);
+                this.recordActivity('Alta', 'Cliente', `Registrado: ${client.razonSocial}`);
+            }
+
+            e.target.reset();
+            document.getElementById('client-id').value = '';
+            document.getElementById('client-form-title').textContent = 'Crear Cliente';
+            const cancelBtn = document.getElementById('cancel-client-edit');
+            if (cancelBtn) cancelBtn.style.display = 'none';
+
+            await this.loadData();
+            this.switchView('clients');
+            this.renderClients();
+        } catch (err) {
+            console.error(err);
+            this.showToast('Error al guardar cliente', 'error');
+        } finally {
+            if (submitBtn) this.hideLoading(submitBtn);
         }
-
-        e.target.reset();
-        document.getElementById('client-id').value = '';
-        document.getElementById('client-form-title').textContent = 'Crear Cliente';
-        const cancelBtn = document.getElementById('cancel-client-edit');
-        if (cancelBtn) cancelBtn.style.display = 'none';
-
-        await this.loadData();
-        this.switchView('clients');
-        this.renderClients();
     },
 
     // --- LOGICA CONTRATOS RECURRENTES ---
@@ -8001,6 +8021,8 @@ const UI = {
 
     async handleCRMLeadSubmit(e) {
         e.preventDefault();
+        const submitBtn = document.getElementById('btn-save-crm-lead');
+        if (submitBtn) this.showLoading(submitBtn);
         const formData = new FormData(e.target);
         const data = Object.fromEntries(formData.entries());
 
@@ -8016,6 +8038,8 @@ const UI = {
         } catch (err) {
             console.error(err);
             this.showToast('Error al guardar prospecto: ' + err.message, 'error');
+        } finally {
+            if (submitBtn) this.hideLoading(submitBtn);
         }
     },
 
