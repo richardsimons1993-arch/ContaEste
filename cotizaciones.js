@@ -1,5 +1,29 @@
 const { useState, useEffect, useMemo, useRef } = React;
 
+const formatBullets = (text) => {
+    if (!text) return '';
+    if (text === '-' || text === '- ') return '- ';
+    if (!text.startsWith('-')) {
+        text = '- ' + text;
+    }
+    const lines = text.split('\n');
+    const formatted = lines.map(line => {
+        let trimmed = line.trimStart();
+        if (!trimmed.startsWith('-')) {
+            trimmed = '- ' + trimmed;
+        }
+        if (trimmed.startsWith('- ')) {
+            const content = trimmed.substring(2);
+            if (content.length > 0) {
+                return '- ' + content.charAt(0).toUpperCase() + content.slice(1);
+            }
+            return '- ';
+        }
+        return trimmed;
+    });
+    return formatted.join('\n');
+};
+
 const QuotationsApp = () => {
     const [clients, setClients] = useState([]);
     const [selectedClient, setSelectedClient] = useState('');
@@ -972,7 +996,28 @@ const QuotationsApp = () => {
                                         rows="3"
                                         placeholder="Ej: Suministro e instalación de puntos de red..."
                                         value={requirements}
-                                        onChange={(e) => setRequirements(e.target.value)}
+                                        onChange={(e) => setRequirements(formatBullets(e.target.value))}
+                                        onKeyDown={(e) => {
+                                            if (e.key === 'Enter') {
+                                                const textarea = e.target;
+                                                const val = textarea.value;
+                                                const cursor = textarea.selectionStart;
+                                                const beforeCursor = val.substring(0, cursor);
+                                                const afterCursor = val.substring(cursor);
+                                                const lastNewline = beforeCursor.lastIndexOf('\n');
+                                                const currentLine = beforeCursor.substring(lastNewline + 1);
+
+                                                if (currentLine.trim().endsWith('.')) {
+                                                    e.preventDefault();
+                                                    const newVal = beforeCursor + '\n- ' + afterCursor;
+                                                    setRequirements(newVal);
+                                                    const newCursorPos = cursor + 3; // \n + - + espacio
+                                                    setTimeout(() => {
+                                                        textarea.selectionStart = textarea.selectionEnd = newCursorPos;
+                                                    }, 0);
+                                                }
+                                            }
+                                        }}
                                     ></textarea>
 
                                     <label className="tw-block tw-text-base tw-font-bold tw-text-slate-700 tw-mb-2">Consideraciones Técnicas (Estándares)</label>
@@ -980,13 +1025,7 @@ const QuotationsApp = () => {
                                         className="tw-w-full tw-p-3 tw-bg-slate-50 tw-border tw-border-slate-300 tw-rounded-lg focus:tw-border-googleBlue focus:tw-ring-2 focus:tw-ring-blue-100 focus:tw-outline-none tw-transition-all tw-mb-6 tw-text-justify tw-text-base"
                                         rows="3"
                                         value={techConditions}
-                                        onChange={(e) => {
-                                            let val = e.target.value;
-                                            if (val && !val.startsWith('-')) {
-                                                val = '- ' + val;
-                                            }
-                                            setTechConditions(val);
-                                        }}
+                                        onChange={(e) => setTechConditions(formatBullets(e.target.value))}
                                         onKeyDown={(e) => {
                                             if (e.key === 'Enter') {
                                                 const textarea = e.target;
