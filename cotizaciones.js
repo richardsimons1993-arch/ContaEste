@@ -8,12 +8,20 @@ const formatBullets = (text) => {
     }
     const lines = text.split('\n');
     const formatted = lines.map(line => {
+        if (line.trim() === '') return '';
         let trimmed = line.trimStart();
         if (!trimmed.startsWith('-')) {
             trimmed = '- ' + trimmed;
         }
         if (trimmed.startsWith('- ')) {
-            const content = trimmed.substring(2);
+            const content = trimmed.substring(2).trimStart();
+            if (content.length > 0) {
+                return '- ' + content.charAt(0).toUpperCase() + content.slice(1);
+            }
+            return '- ';
+        }
+        if (trimmed.startsWith('-') && !trimmed.startsWith('- ')) {
+            const content = trimmed.substring(1).trimStart();
             if (content.length > 0) {
                 return '- ' + content.charAt(0).toUpperCase() + content.slice(1);
             }
@@ -1009,9 +1017,9 @@ const QuotationsApp = () => {
 
                                                 if (currentLine.trim().endsWith('.')) {
                                                     e.preventDefault();
-                                                    const newVal = beforeCursor + '\n- ' + afterCursor;
+                                                    const newVal = beforeCursor + '\n\n- ' + afterCursor;
                                                     setRequirements(newVal);
-                                                    const newCursorPos = cursor + 3; // \n + - + espacio
+                                                    const newCursorPos = cursor + 4; // \n + \n + - + espacio
                                                     setTimeout(() => {
                                                         textarea.selectionStart = textarea.selectionEnd = newCursorPos;
                                                     }, 0);
@@ -1038,9 +1046,9 @@ const QuotationsApp = () => {
 
                                                 if (currentLine.trim().endsWith('.')) {
                                                     e.preventDefault();
-                                                    const newVal = beforeCursor + '\n- ' + afterCursor;
+                                                    const newVal = beforeCursor + '\n\n- ' + afterCursor;
                                                     setTechConditions(newVal);
-                                                    const newCursorPos = cursor + 3; // \n + - + espacio
+                                                    const newCursorPos = cursor + 4; // \n + \n + - + espacio
                                                     setTimeout(() => {
                                                         textarea.selectionStart = textarea.selectionEnd = newCursorPos;
                                                     }, 0);
