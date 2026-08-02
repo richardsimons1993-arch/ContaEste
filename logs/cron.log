@@ -163,3 +163,39 @@
 [Cron Alerts] Limpieza completada. Registros eliminados: 6
 [Cron Alerts] Conexión a la base de datos cerrada.
 [Cron Alerts] Fin de la ejecución.
+◇ injected env (14) from app/ContaEste/.env // tip: ◈ secrets for agents [www.dotenvx.com]
+[Cron Alerts] Inicio de ejecución a las: 2026-07-31T12:30:01.880Z
+✅ Conectado a SQL Server (ContabilidadDB)
+[Cron Alerts] Encontrados 1 usuarios con alertas activas.
+[Cron Alerts] No hay gastos operacionales vencidos o por vencer en <= 3 días.
+[Cron Alerts] No hay contratos activos pendientes de facturar en el mes corriente.
+[Cron Alerts] Iniciando limpieza de logs antiguos (>30 días)...
+[Cron Alerts] Limpieza completada. Registros eliminados: 0
+[Cron Alerts] Conexión a la base de datos cerrada.
+[Cron Alerts] Fin de la ejecución.
+◇ injected env (14) from app/ContaEste/.env // tip: ⌘ suppress logs { quiet: true }
+[Cron Alerts] Inicio de ejecución a las: 2026-08-01T12:30:01.489Z
+✅ Conectado a SQL Server (ContabilidadDB)
+[Cron Alerts] Encontrados 1 usuarios con alertas activas.
+[Cron Alerts] No hay gastos operacionales vencidos o por vencer en <= 3 días.
+[Cron Alerts] Encontrados 1 contratos pendientes de facturar. Enviando a 1 usuarios.
+[Cron Alerts] Enviando 1 correos en total...
+✉️ Correo enviado vía Graph a: richard@simons.cl (Asunto: Cobro Pendiente)
+[Cron Alerts] Finalizado. Envíos exitosos: 1/1
+[Cron Alerts] Iniciando limpieza de logs antiguos (>30 días)...
+[Cron Alerts] Limpieza completada. Registros eliminados: 20
+[Cron Alerts] Conexión a la base de datos cerrada.
+[Cron Alerts] Fin de la ejecución.
+◇ injected env (14) from app/ContaEste/.env // tip: ◈ secrets for agents [www.dotenvx.com]
+[Cron Alerts] Inicio de ejecución a las: 2026-08-02T12:30:02.231Z
+✅ Conectado a SQL Server (ContabilidadDB)
+[Cron Alerts] Encontrados 1 usuarios con alertas activas.
+[Cron Alerts] No hay gastos operacionales vencidos o por vencer en <= 3 días.
+[Cron Alerts] Encontrados 1 contratos pendientes de facturar. Enviando a 1 usuarios.
+[Cron Alerts] Enviando 1 correos en total...
+✉️ Correo enviado vía Graph a: richard@simons.cl (Asunto: Cobro Pendiente)
+[Cron Alerts] Finalizado. Envíos exitosos: 1/1
+[Cron Alerts] Iniciando limpieza de logs antiguos (>30 días)...
+[Cron Alerts] Limpieza completada. Registros eliminados: 0
+[Cron Alerts] Conexión a la base de datos cerrada.
+[Cron Alerts] Fin de la ejecución.

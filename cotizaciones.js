@@ -1185,14 +1185,14 @@ const QuotationsApp = () => {
                                 <table className="tw-w-full tw-text-sm tw-text-left">
                                     <thead className="tw-bg-slate-50 tw-text-slate-600 tw-font-bold tw-border-b tw-border-slate-200">
                                         <tr>
-                                            <th className="tw-px-2 lg:tw-px-4 xl:tw-px-6 tw-py-4">ID</th>
-                                            <th className="tw-px-2 lg:tw-px-4 xl:tw-px-6 tw-py-4">Versión</th>
-                                            <th className="tw-px-2 lg:tw-px-4 xl:tw-px-6 tw-py-4">Estado</th>
-                                            <th className="tw-px-2 lg:tw-px-4 xl:tw-px-6 tw-py-4">Cliente</th>
-                                            <th className="tw-px-2 lg:tw-px-4 xl:tw-px-6 tw-py-4">Proyecto</th>
-                                            <th className="tw-px-2 lg:tw-px-4 xl:tw-px-6 tw-py-4">Fecha</th>
-                                            <th className="tw-px-2 lg:tw-px-4 xl:tw-px-6 tw-py-4">Total</th>
-                                            <th className="tw-px-2 lg:tw-px-4 xl:tw-px-6 tw-py-4 tw-text-right">Acciones</th>
+                                            <th className="tw-px-2 lg:tw-px-3 xl:tw-px-4 tw-py-3">ID</th>
+                                            <th className="tw-px-2 lg:tw-px-3 xl:tw-px-4 tw-py-3">Versión</th>
+                                            <th className="tw-px-2 lg:tw-px-3 xl:tw-px-4 tw-py-3">Estado</th>
+                                            <th className="tw-px-2 lg:tw-px-3 xl:tw-px-4 tw-py-3">Cliente</th>
+                                            <th className="tw-px-2 lg:tw-px-3 xl:tw-px-4 tw-py-3">Proyecto</th>
+                                            <th className="tw-px-2 lg:tw-px-3 xl:tw-px-4 tw-py-3">Fecha</th>
+                                            <th className="tw-px-2 lg:tw-px-3 xl:tw-px-4 tw-py-3">Total</th>
+                                            <th className="tw-px-2 lg:tw-px-3 xl:tw-px-4 tw-py-3 tw-text-right">Acciones</th>
                                         </tr>
                                     </thead>
                                     <tbody className="tw-divide-y tw-divide-slate-100">
@@ -1206,49 +1206,49 @@ const QuotationsApp = () => {
                                             })
                                             .map(q => (
                                                 <tr key={`${q.id}-${q.version}`} className="hover:tw-bg-slate-50 tw-transition-colors">
-                                                    <td className="tw-px-2 lg:tw-px-4 xl:tw-px-6 tw-py-4 tw-font-bold tw-text-slate-700 tw-whitespace-nowrap">{q.id}</td>
-                                                    <td className="tw-px-2 lg:tw-px-4 xl:tw-px-6 tw-py-4 tw-whitespace-nowrap">
+                                                    <td className="tw-px-2 lg:tw-px-3 xl:tw-px-4 tw-py-3 tw-font-bold tw-text-slate-700 tw-whitespace-nowrap">{q.id}</td>
+                                                    <td className="tw-px-2 lg:tw-px-3 xl:tw-px-4 tw-py-3 tw-whitespace-nowrap">
                                                         <span className="tw-px-2 tw-py-0.5 tw-bg-slate-100 tw-text-slate-600 tw-rounded tw-text-xs tw-font-bold">v{q.version}</span>
                                                     </td>
-                                                    <td className="tw-px-2 lg:tw-px-4 xl:tw-px-6 tw-py-4 tw-whitespace-nowrap">
+                                                    <td className="tw-px-2 lg:tw-px-3 xl:tw-px-4 tw-py-3 tw-whitespace-nowrap">
                                                         {q.status === 'Borrador' ? (
                                                             <span className="tw-px-2 tw-py-1 tw-bg-amber-100 tw-text-amber-800 tw-rounded-lg tw-text-xs tw-font-bold tw-shadow-sm tw-whitespace-nowrap tw-inline-block">Borrador 📝</span>
                                                         ) : (
                                                             <span className="tw-px-2 tw-py-1 tw-bg-emerald-100 tw-text-emerald-800 tw-rounded-lg tw-text-xs tw-font-bold tw-shadow-sm tw-whitespace-nowrap tw-inline-block">Emitida 📄</span>
                                                         )}
                                                     </td>
-                                                    <td className="tw-px-2 lg:tw-px-4 xl:tw-px-6 tw-py-4 tw-text-slate-600 tw-whitespace-nowrap">{q.clientName}</td>
-                                                    <td className="tw-px-2 lg:tw-px-4 xl:tw-px-6 tw-py-4 tw-text-slate-600 tw-max-w-xs tw-truncate">{q.projectName || '---'}</td>
-                                                    <td className="tw-px-2 lg:tw-px-4 xl:tw-px-6 tw-py-4 tw-text-slate-500 tw-whitespace-nowrap">
+                                                    <td className="tw-px-2 lg:tw-px-3 xl:tw-px-4 tw-py-3 tw-text-slate-600 tw-max-w-[140px] tw-truncate" title={q.clientName}>{q.clientName}</td>
+                                                    <td className="tw-px-2 lg:tw-px-3 xl:tw-px-4 tw-py-3 tw-text-slate-600 tw-max-w-[180px] tw-truncate" title={q.projectName || '---'}>{q.projectName || '---'}</td>
+                                                    <td className="tw-px-2 lg:tw-px-3 xl:tw-px-4 tw-py-3 tw-text-slate-500 tw-whitespace-nowrap">
                                                         {q.createdAt ? (new Date(q.createdAt).toLocaleDateString('es-CL')) : '---'}
                                                     </td>
-                                                    <td className="tw-px-2 lg:tw-px-4 xl:tw-px-6 tw-py-4 tw-font-semibold tw-text-[#004d4d] tw-whitespace-nowrap">{formatMoney(q.total || 0, q.currency)}</td>
-                                                    <td className="tw-px-2 lg:tw-px-4 xl:tw-px-6 tw-py-4 tw-text-right">
-                                                        <div className="tw-flex tw-justify-end tw-gap-2">
+                                                    <td className="tw-px-2 lg:tw-px-3 xl:tw-px-4 tw-py-3 tw-font-semibold tw-text-[#004d4d] tw-whitespace-nowrap">{formatMoney(q.total || 0, q.currency)}</td>
+                                                    <td className="tw-px-2 lg:tw-px-3 xl:tw-px-4 tw-py-3 tw-text-right">
+                                                        <div className="tw-flex tw-justify-end tw-gap-1">
                                                             <button 
                                                                 onClick={() => handleDownloadFromHistory(q)}
-                                                                className="tw-p-2 tw-text-teal-600 hover:tw-bg-teal-50 tw-rounded-lg tw-transition-colors"
+                                                                className="tw-p-1.5 tw-text-teal-600 hover:tw-bg-teal-50 tw-rounded-lg tw-transition-colors"
                                                                 title="Descargar PDF"
                                                             >
                                                                 <i className="fa-solid fa-download"></i>
                                                             </button>
                                                             <button 
                                                                 onClick={() => handleEditFromHistory(q)}
-                                                                className="tw-p-2 tw-text-googleBlue hover:tw-bg-blue-50 tw-rounded-lg tw-transition-colors"
+                                                                className="tw-p-1.5 tw-text-googleBlue hover:tw-bg-blue-50 tw-rounded-lg tw-transition-colors"
                                                                 title="Editar (Generar nueva versión)"
                                                             >
                                                                 <i className="fa-solid fa-pen-to-square"></i>
                                                             </button>
                                                             <button 
                                                                 onClick={() => handleCopyFromHistory(q)}
-                                                                className="tw-p-2 tw-text-emerald-600 hover:tw-bg-emerald-50 tw-rounded-lg tw-transition-colors"
+                                                                className="tw-p-1.5 tw-text-emerald-600 hover:tw-bg-emerald-50 tw-rounded-lg tw-transition-colors"
                                                                 title="Copiar (Crear nueva cotización)"
                                                             >
                                                                 <i className="fa-solid fa-copy"></i>
                                                             </button>
                                                             <button 
                                                                 onClick={() => handleDeleteFromHistory(q.id, q.version)}
-                                                                className="tw-p-2 tw-text-red-500 hover:tw-bg-red-50 tw-rounded-lg tw-transition-colors"
+                                                                className="tw-p-1.5 tw-text-red-500 hover:tw-bg-red-50 tw-rounded-lg tw-transition-colors"
                                                                 title="Eliminar de la BD"
                                                             >
                                                                 <i className="fa-solid fa-trash"></i>
