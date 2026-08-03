@@ -6080,6 +6080,68 @@ const UI = {
 
     },
 
+    showInvoiceUploadModal(clientName, amountText) {
+        return new Promise((resolve) => {
+            const modal = document.createElement('div');
+            modal.className = 'modal-overlay';
+            modal.style.cssText = `
+                position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+                background: rgba(0,0,0,0.6); display: flex; align-items: center;
+                justify-content: center; z-index: 100000;
+            `;
+            modal.innerHTML = `
+                <div class="modal-card" style="max-width: 450px; width: 90%; background: var(--card-bg); padding: 1.5rem; border-radius: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.3); border: 1px solid var(--border-color);">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 1.25rem;">
+                        <h3 style="margin:0; font-size:1.25rem; color:var(--text-color); font-weight:bold;">Emitir Facturación de Contrato</h3>
+                        <i class="fa-solid fa-xmark" id="btn-close-invoice-upload" style="cursor:pointer; color:var(--text-muted); font-size:1.2rem;"></i>
+                    </div>
+                    <div style="margin-bottom: 1.5rem; font-size:0.95rem; color:var(--text-muted); line-height:1.5; text-align: left;">
+                        <p>Estás a punto de registrar la emisión del contrato para el cliente <strong style="color:var(--text-color);">${clientName}</strong> por un monto de <strong style="color:var(--secondary-color);">${amountText}</strong>.</p>
+                        <p style="margin-top:0.5rem; font-weight:500; color:var(--danger-color);">⚠️ Debes cargar la factura de respaldo correspondiente para proceder.</p>
+                        
+                        <div style="margin-top:1.25rem;">
+                           <label style="display:block; font-weight:bold; margin-bottom:0.5rem; color:var(--text-color);">Archivo de Factura (PDF, Imagen)</label>
+                           <input type="file" id="modal-invoice-file" accept=".pdf,.jpg,.jpeg,.png" style="width:100%; padding:8px; background:var(--bg-main); color:var(--text-main); border:1px solid var(--border-color); border-radius:6px; font-size:0.9rem;">
+                        </div>
+                    </div>
+                    <div style="display:flex; gap:1rem; justify-content:flex-end;">
+                        <button type="button" class="btn-text" id="btn-cancel-invoice-upload" style="padding: 8px 16px;">Cancelar</button>
+                        <button type="button" class="btn-primary" id="btn-submit-invoice-upload" style="padding: 8px 16px; background-color: var(--success-color); border-color: var(--success-color); display:flex; align-items:center; gap:6px;" disabled>
+                            <i class="fa-solid fa-check"></i> Emitir Factura
+                        </button>
+                    </div>
+                </div>
+            `;
+            
+            document.body.appendChild(modal);
+            
+            const fileInput = modal.querySelector('#modal-invoice-file');
+            const submitBtn = modal.querySelector('#btn-submit-invoice-upload');
+            const cancelBtn = modal.querySelector('#btn-cancel-invoice-upload');
+            const closeBtn = modal.querySelector('#btn-close-invoice-upload');
+            
+            fileInput.addEventListener('change', () => {
+                submitBtn.disabled = !fileInput.files[0];
+            });
+            
+            const closeModal = () => {
+                if (modal.parentNode) modal.parentNode.removeChild(modal);
+                resolve(null);
+            };
+            
+            cancelBtn.addEventListener('click', closeModal);
+            closeBtn.addEventListener('click', closeModal);
+            
+            submitBtn.addEventListener('click', () => {
+                const file = fileInput.files[0];
+                if (file) {
+                    if (modal.parentNode) modal.parentNode.removeChild(modal);
+                    resolve(file);
+                }
+            });
+        });
+    },
+
     async markContractInvoiced(id, clpAmount = null) {
         const row = document.getElementById(`pending-row-${id}`);
         const contract = state.pendingContracts.find(c => c.id === id);
@@ -6101,8 +6163,103 @@ const UI = {
             return;
         }
 
+        let clientName = this.getClientName(contract.clientId);
+        const client = state.clients.find(c => c.id === contract.clientId);
+        if (client) {
+            clientName = client.nombreFantasia || client.razonSocial || client.name || clientName;
+        }
+
+        const amountText = clpAmount ? formatCurrency(clpAmount) : (contract.currency === 'UF' ? `${contract.amount} UF` : formatCurrency(contract.amount));
+
+        // Pedir cargar la factura antes de emitir
+        const file = await this.showInvoiceUploadModal(clientName, amountText);
+        if (!file) {
+            if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = clpAmount ? `<i class="fa-solid fa-check"></i> Emitir por ${formatCurrency(clpAmount)}` : '<i class="fa-solid fa-check"></i> Factura Emitida';
+            }
+            return; // Cancelado
+        }
+
         try {
             const response = await window.StorageAPI.async.invoiceContract(id);
+            const debtorId = response.debtorId;
+            const currentPeriod = response.period || `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`;
+
+            if (debtorId) {
+                const year = new Date().getFullYear();
+                const safeClientName = clientName.replace(/[^a-zA-Z0-9 \-]/g, '').trim();
+
+                let uploadBanner = document.getElementById('invoice-upload-banner');
+                if (!uploadBanner) {
+                    uploadBanner = document.createElement('div');
+                    uploadBanner.id = 'invoice-upload-banner';
+                    uploadBanner.style.cssText = `
+                        position: fixed; bottom: 24px; right: 24px; z-index: 99999;
+                        background: #1e3a5f; color: #fff; border-radius: 10px;
+                        padding: 14px 20px; font-size: 14px; font-weight: 500;
+                        display: flex; align-items: center; gap: 12px;
+                        box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+                        border-left: 4px solid #3b82f6;
+                        min-width: 300px; max-width: 420px;
+                    `;
+                    document.body.appendChild(uploadBanner);
+                }
+                uploadBanner.innerHTML = `
+                    <i class="fa-solid fa-cloud-arrow-up fa-beat" style="color:#60a5fa;font-size:18px;"></i>
+                    <span>Subiendo factura de respaldo… <br><small style="opacity:0.7">Registrando en OneDrive en segundo plano.</small></span>
+                `;
+
+                const reader = new FileReader();
+                reader.onload = async (e) => {
+                    const pdfBase64 = e.target.result;
+                    try {
+                        const sessionData = JSON.parse(localStorage.getItem('contabilidad_session') || '{}');
+                        const authHeaders = { 'Content-Type': 'application/json' };
+                        if (sessionData.token) authHeaders['Authorization'] = `Bearer ${sessionData.token}`;
+
+                        const uploadRes = await fetch('/api/debtors/upload-invoice', {
+                            method: 'POST',
+                            headers: authHeaders,
+                            body: JSON.stringify({
+                                clientName: safeClientName,
+                                year: year,
+                                debtorId: debtorId,
+                                description: `Mensualidad Contrato ${currentPeriod}`,
+                                pdfBase64: pdfBase64,
+                                originalFileName: file.name
+                            })
+                        });
+                        const uploadResult = await uploadRes.json();
+                        if (uploadResult.success) {
+                            uploadBanner.style.borderLeftColor = '#22c55e';
+                            uploadBanner.innerHTML = `
+                                <i class="fa-solid fa-circle-check" style="color:#22c55e;font-size:18px;"></i>
+                                <span>✅ Factura cargada y emitida</span>
+                            `;
+                            setTimeout(() => { if (uploadBanner.parentNode) uploadBanner.parentNode.removeChild(uploadBanner); }, 4000);
+                            this.recordActivity('Carga', 'Contrato', `Factura emitida y adjuntada para el cliente ${clientName}`);
+                            await this.loadData();
+                        } else {
+                            uploadBanner.style.borderLeftColor = '#ef4444';
+                            uploadBanner.innerHTML = `
+                                <i class="fa-solid fa-triangle-exclamation" style="color:#ef4444;font-size:18px;"></i>
+                                <span>Error al cargar factura: ${uploadResult.error}</span>
+                            `;
+                            setTimeout(() => { if (uploadBanner.parentNode) uploadBanner.parentNode.removeChild(uploadBanner); }, 6000);
+                        }
+                    } catch (err) {
+                        console.error('Error al subir factura:', err);
+                        uploadBanner.style.borderLeftColor = '#ef4444';
+                        uploadBanner.innerHTML = `
+                            <i class="fa-solid fa-triangle-exclamation" style="color:#ef4444;font-size:18px;"></i>
+                            <span>Error de red al cargar factura</span>
+                        `;
+                        setTimeout(() => { if (uploadBanner.parentNode) uploadBanner.parentNode.removeChild(uploadBanner); }, 6000);
+                    }
+                };
+                reader.readAsDataURL(file);
+            }
             
             // Actualización optimista: mover el contrato de "pendiente" a "emitido" localmente
             // Esto permite que el cambio sea instantáneo en el DOM
@@ -6138,7 +6295,7 @@ const UI = {
             this.showToast('Error al procesar facturación.', 'error');
             if (btn) {
                 btn.disabled = false;
-                btn.innerHTML = '<i class="fa-solid fa-check"></i> Emitir Factura';
+                btn.innerHTML = clpAmount ? `<i class="fa-solid fa-check"></i> Emitir por ${formatCurrency(clpAmount)}` : '<i class="fa-solid fa-check"></i> Factura Emitida';
             }
             this.loadData();
         }

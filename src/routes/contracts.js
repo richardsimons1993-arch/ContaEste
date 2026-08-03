@@ -318,7 +318,7 @@ router.post('/:id/invoice', async (req, res) => {
             .input('debtorId', sql.VarChar(50), newDebtorId)
             .query(`INSERT INTO ContractHistory (id, contractId, clientId, periodName, issueDate, amount, amountCLP, ufValue, debtorId) VALUES (@id, @contractId, @clientId, @periodName, @issueDate, @amount, @amountCLP, @ufValue, @debtorId)`);
 
-        res.json({ success: true, period: currentPeriod });
+        res.json({ success: true, period: currentPeriod, debtorId: newDebtorId });
     } catch (err) {
         console.error('Error in POST /api/contracts/:id/invoice:', err);
         res.status(500).json({ error: err.message });
