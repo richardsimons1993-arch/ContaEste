@@ -4036,6 +4036,10 @@ const UI = {
             
             const sortedFinLocations = state.locations
                 .filter(l => l.type === 'finance')
+                .filter(l => {
+                    const av = state.availables.find(a => a.location === l.name);
+                    return !(av && av.classification === 'Inversiones');
+                })
                 .sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' }));
                 
             sortedFinLocations.forEach(l => {
