@@ -4689,14 +4689,74 @@ const UI = {
         const select = document.getElementById('transaction-location-select');
         const label = document.getElementById('transaction-location-label');
         if (container && select && label) {
+            container.style.display = 'block';
+            select.required = true;
+
+            const currentVal = select.value;
+            select.innerHTML = '';
+
             if (type === 'expense') {
-                container.style.display = 'block';
-                select.required = true;
                 label.textContent = 'Origen de Fondos (Ubicación)';
+                select.innerHTML = '<option value="">Seleccionar Ubicación / Tarjeta</option>';
+
+                // 1. Ubicaciones líquidas (Caja y Bancos)
+                const sortedFinLocations = state.locations
+                    .filter(l => l.type === 'finance')
+                    .filter(l => {
+                        const av = state.availables.find(a => a.location === l.name);
+                        return !(av && av.classification === 'Inversiones');
+                    })
+                    .sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' }));
+
+                sortedFinLocations.forEach(l => {
+                    const opt = document.createElement('option');
+                    opt.value = l.name;
+                    opt.textContent = l.name;
+                    select.appendChild(opt);
+                });
+
+                // 2. Tarjetas de crédito (deudas)
+                const creditCards = (state.debts || [])
+                    .filter(d => d.status === 'pending' && (d.creditor.toUpperCase().includes('TDC') || d.creditor.toLowerCase().includes('tarjeta')))
+                    .sort((a, b) => a.creditor.localeCompare(b.creditor, 'es', { sensitivity: 'base' }));
+
+                if (creditCards.length > 0) {
+                    const optGroup = document.createElement('optgroup');
+                    optGroup.label = "Tarjetas de Crédito (Deuda)";
+                    creditCards.forEach(c => {
+                        const opt = document.createElement('option');
+                        opt.value = c.creditor;
+                        opt.textContent = `${c.creditor} (Deuda: ${formatCurrency(c.amount)})`;
+                        optGroup.appendChild(opt);
+                    });
+                    select.appendChild(optGroup);
+                }
             } else {
-                container.style.display = 'none';
-                select.required = false;
-                select.value = '';
+                // Ingreso (income)
+                label.textContent = 'Destino de Fondos (Ubicación)';
+                select.innerHTML = '<option value="">Seleccionar Ubicación</option>';
+
+                // Solo ubicaciones líquidas (Caja y Bancos)
+                const sortedFinLocations = state.locations
+                    .filter(l => l.type === 'finance')
+                    .filter(l => {
+                        const av = state.availables.find(a => a.location === l.name);
+                        return !(av && av.classification === 'Inversiones');
+                    })
+                    .sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' }));
+
+                sortedFinLocations.forEach(l => {
+                    const opt = document.createElement('option');
+                    opt.value = l.name;
+                    opt.textContent = l.name;
+                    select.appendChild(opt);
+                });
+            }
+
+            // Si la opción previamente seleccionada aún existe en la lista, la restauramos
+            if (currentVal) {
+                const optExists = Array.from(select.options).some(o => o.value === currentVal);
+                if (optExists) select.value = currentVal;
             }
         }
     },
@@ -7321,43 +7381,10 @@ const UI = {
         }
 
         if (txLocationSelect) {
-            const currentVal = txLocationSelect.value;
-            txLocationSelect.innerHTML = '<option value="">Seleccionar Ubicación / Tarjeta</option>';
-            
-            // 1. Ubicaciones líquidas (Caja y Bancos)
-            const sortedFinLocations = state.locations
-                .filter(l => l.type === 'finance')
-                .filter(l => {
-                    const av = state.availables.find(a => a.location === l.name);
-                    return !(av && av.classification === 'Inversiones');
-                })
-                .sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' }));
-                
-            sortedFinLocations.forEach(l => {
-                const opt = document.createElement('option');
-                opt.value = l.name;
-                opt.textContent = l.name;
-                txLocationSelect.appendChild(opt);
-            });
-
-            // 2. Tarjetas de crédito (deudas)
-            const creditCards = (state.debts || [])
-                .filter(d => d.status === 'pending' && (d.creditor.toUpperCase().includes('TDC') || d.creditor.toLowerCase().includes('tarjeta')))
-                .sort((a, b) => a.creditor.localeCompare(b.creditor, 'es', { sensitivity: 'base' }));
-
-            if (creditCards.length > 0) {
-                const optGroup = document.createElement('optgroup');
-                optGroup.label = "Tarjetas de Crédito (Deuda)";
-                creditCards.forEach(c => {
-                    const opt = document.createElement('option');
-                    opt.value = c.creditor;
-                    opt.textContent = `${c.creditor} (Deuda: ${formatCurrency(c.amount)})`;
-                    optGroup.appendChild(opt);
-                });
-                txLocationSelect.appendChild(optGroup);
-            }
-
-            if (currentVal) txLocationSelect.value = currentVal;
+            const txForm = document.getElementById('add-transaction-form');
+            const typeRadio = txForm ? txForm.querySelector('input[name="type"]:checked') : null;
+            const currentType = typeRadio ? typeRadio.value : 'income';
+            this.handleTransactionTypeChange(currentType);
         }
     },
 
