@@ -345,6 +345,7 @@ router.post('/debtors/:id/pay', async (req, res) => {
     try {
         const pool = await getDbPool();
         const debtorId = req.params.id;
+        const { locationName } = req.body;
 
         const transaction = new sql.Transaction(pool);
         await transaction.begin();
@@ -366,6 +367,7 @@ router.post('/debtors/:id/pay', async (req, res) => {
             const moveDate = new Date();
             const obsText = 'Pago deuda auto. Titular: ' + debtor.debtor + ' - Detalle: ' + (debtor.description || '');
 
+            // 1. Insertar movimiento
             await transaction.request()
                 .input('id', sql.VarChar, moveId)
                 .input('date', sql.Date, moveDate)
@@ -376,6 +378,35 @@ router.post('/debtors/:id/pay', async (req, res) => {
                 .input('clientId', sql.VarChar, clientIdToUse)
                 .query(`INSERT INTO Transactions (id, date, type, conceptId, amount, observation, clientId) VALUES (@id, @date, @type, @conceptId, @amount, @observation, @clientId)`);
 
+            // 2. Actualizar o Insertar Disponible si viene ubicación de destino
+            if (locationName) {
+                const checkAvailable = await transaction.request()
+                    .input('location', sql.VarChar(255), locationName)
+                    .query(`SELECT id, amount FROM Availables WHERE location = @location`);
+
+                if (checkAvailable.recordset.length > 0) {
+                    await transaction.request()
+                        .input('location', sql.VarChar(255), locationName)
+                        .input('amount', sql.Decimal(18, 2), debtor.amount)
+                        .query(`UPDATE Availables SET amount = amount + @amount WHERE location = @location`);
+                } else {
+                    const newAvailId = 'A' + Date.now().toString() + Math.floor(Math.random() * 1000);
+                    const isCaja = locationName.toLowerCase() === 'efectivo' || locationName.toLowerCase().includes('caja');
+                    const classification = isCaja ? 'Caja' : 'Bancos';
+                    
+                    await transaction.request()
+                        .input('id', sql.VarChar(50), newAvailId)
+                        .input('location', sql.VarChar(255), locationName)
+                        .input('classification', sql.VarChar(50), classification)
+                        .input('amount', sql.Decimal(18, 2), debtor.amount)
+                        .input('placementDate', sql.Date, moveDate)
+                        .input('observation', sql.VarChar(sql.MAX), 'Ingreso automático desde Cobro Deudor')
+                        .query(`INSERT INTO Availables (id, location, classification, instrument, amount, placementDate, dueDate, observation) 
+                                VALUES (@id, @location, @classification, null, @amount, @placementDate, null, @observation)`);
+                }
+            }
+
+            // 3. Eliminar deudor y actualizar referencias
             await transaction.request()
                 .input('id', sql.VarChar, debtorId)
                 .query(`DELETE FROM Debtors WHERE id = @id`);

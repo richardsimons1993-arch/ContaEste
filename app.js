@@ -3153,6 +3153,14 @@ const UI = {
         document.getElementById('pay-confirm-amount').textContent = formatCurrency(debt.amount);
         document.getElementById('pay-confirm-concept').textContent = concept ? concept.name : 'Sin Concepto';
 
+        // Ocultar destino de fondos para egresos
+        const destContainer = document.getElementById('pay-confirm-destination-container');
+        const destSelect = document.getElementById('pay-confirm-destination-select');
+        if (destContainer && destSelect) {
+            destContainer.style.display = 'none';
+            destSelect.required = false;
+        }
+
         const confirmBtn = document.getElementById('btn-confirm-generic-pay');
         confirmBtn.onclick = () => this.confirmPayDebtAction(id);
 
@@ -4013,10 +4021,30 @@ const UI = {
         }
 
         document.getElementById('pay-confirm-title').textContent = 'Confirmar Cobro a Deudor';
-        document.getElementById('pay-confirm-message').textContent = '¿Estás seguro de marcar esta deuda como pagada? Esto registrará un ingreso en Movimientos.';
+        document.getElementById('pay-confirm-message').textContent = '¿Estás seguro de marcar esta deuda como pagada? Esto registrará un ingreso en Movimientos y sumará los fondos a la ubicación seleccionada.';
         document.getElementById('pay-confirm-titular').textContent = displayName;
         document.getElementById('pay-confirm-amount').textContent = formatCurrency(debtor.amount);
         document.getElementById('pay-confirm-concept').textContent = 'Ventas (Cobro Deudor)';
+
+        // Mostrar destino de fondos y popular con ubicaciones financieras
+        const destContainer = document.getElementById('pay-confirm-destination-container');
+        const destSelect = document.getElementById('pay-confirm-destination-select');
+        if (destContainer && destSelect) {
+            destContainer.style.display = 'block';
+            destSelect.required = true;
+            destSelect.innerHTML = '<option value="">Seleccionar Ubicación</option>';
+            
+            const sortedFinLocations = state.locations
+                .filter(l => l.type === 'finance')
+                .sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' }));
+                
+            sortedFinLocations.forEach(l => {
+                const opt = document.createElement('option');
+                opt.value = l.name;
+                opt.textContent = l.name;
+                destSelect.appendChild(opt);
+            });
+        }
 
         const confirmBtn = document.getElementById('btn-confirm-generic-pay');
         confirmBtn.onclick = () => this.confirmPayDebtorAction(id);
@@ -4025,17 +4053,25 @@ const UI = {
     },
 
     async confirmPayDebtorAction(id) {
+        const destSelect = document.getElementById('pay-confirm-destination-select');
+        const locationName = destSelect ? destSelect.value : '';
+        if (!locationName) {
+            this.showToast('Debe seleccionar la ubicación de destino para los fondos.', 'warning');
+            return;
+        }
+
         this.closeModal('pay-confirm-modal');
 
         const originalDebtors = [...state.debtors];
         const originalTransactions = [...state.transactions];
+        const originalAvailables = state.availables.map(a => ({ ...a }));
 
         const rows = document.querySelectorAll(`[onclick="UI.payDebtor('${id}')"]`);
         const row = rows.length > 0 ? rows[0].closest('tr') : null;
         if (row) row.classList.add('fade-out');
 
         try {
-            await window.StorageAPI.async.payDebtor(id);
+            await window.StorageAPI.async.payDebtor(id, locationName);
 
             state.debtors = state.debtors.filter(d => d.id !== id);
 
@@ -4058,6 +4094,21 @@ const UI = {
                     observation: `Cobro a deudor: ${displayName}`
                 };
                 state.transactions = [newTx, ...state.transactions];
+
+                // Actualizar disponible localmente de forma optimista
+                const av = state.availables.find(a => a.location === locationName);
+                if (av) {
+                    av.amount = parseFloat(av.amount || 0) + parseFloat(debtor.amount);
+                } else {
+                    state.availables.push({
+                        id: 'A' + Date.now().toString(),
+                        location: locationName,
+                        classification: (locationName.toLowerCase() === 'efectivo' || locationName.toLowerCase().includes('caja')) ? 'Caja' : 'Bancos',
+                        amount: debtor.amount,
+                        placementDate: getLocalISODate(),
+                        observation: 'Ingreso automático desde Cobro Deudor'
+                    });
+                }
             }
 
             this.showToast('Deuda liquidada con éxito', 'success');
@@ -4066,6 +4117,7 @@ const UI = {
             if (row) row.classList.remove('fade-out');
             state.debtors = originalDebtors;
             state.transactions = originalTransactions;
+            state.availables = originalAvailables;
             this.showToast('Error al procesar el cobro.', 'error');
         } finally {
             this.renderDashboard();

@@ -311,7 +311,7 @@ const Storage = {
         getDebtors: () => asyncRequest('GET', '/debtors'),
         saveDebtor: (d) => asyncRequest('POST', '/debtors', d),
         deleteDebtor: (id) => asyncRequest('DELETE', `/debtors/${id}`),
-        payDebtor: (id) => asyncRequest('POST', `/debtors/${id}/pay`),
+        payDebtor: (id, locationName = null) => asyncRequest('POST', `/debtors/${id}/pay`, { locationName }),
 
         getAvailables: () => asyncRequest('GET', '/availables'),
         saveAvailable: (a) => asyncRequest('POST', '/availables', a),
@@ -355,6 +355,11 @@ const Storage = {
         getClients: () => asyncRequest('GET', '/clients'),
         getSuppliers: () => asyncRequest('GET', '/suppliers'),
         getLogs: () => asyncRequest('GET', '/logs'),
+        getFilteredLogs: (filters) => {
+            const params = new URLSearchParams(filters).toString();
+            return asyncRequest('GET', `/logs?${params}`);
+        },
+        purgeLogs: () => asyncRequest('DELETE', '/logs/purge'),
         getUsers: () => asyncRequest('GET', '/users'),
 
         // --- Gastos Operacionales ---
