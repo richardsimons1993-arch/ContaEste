@@ -117,32 +117,48 @@ router.post('/', async (req, res) => {
                 .query(`INSERT INTO Transactions (id, date, type, conceptId, clientId, supplierId, amount, observation, invoicePath) VALUES (@id, @date, @type, @conceptId, @clientId, @supplierId, @amount, @observation, @invoicePath)`);
         }
 
-        // Actualizar o Insertar Disponible si viene ubicación de origen/destino y es inserción nueva
+        // Actualizar o Insertar Disponible / Deuda si viene ubicación de origen/destino y es inserción nueva
         if (t.locationName && !check.recordset.length) {
-            const amountToChange = finalType === 'income' ? parseFloat(t.amount) : -parseFloat(t.amount);
-            const checkAvailable = await pool.request()
-                .input('location', sql.VarChar(255), t.locationName)
-                .query(`SELECT id, amount FROM Availables WHERE location = @location`);
+            const isExpense = finalType === 'expense';
+            const amountToChange = isExpense ? parseFloat(t.amount) : -parseFloat(t.amount);
 
-            if (checkAvailable.recordset.length > 0) {
+            // 1. Verificar si es una de las tarjetas de crédito (deudas)
+            const checkDebt = await pool.request()
+                .input('creditor', sql.VarChar(255), t.locationName)
+                .query(`SELECT id FROM Debts WHERE creditor = @creditor AND status = 'pending'`);
+
+            if (checkDebt.recordset.length > 0) {
                 await pool.request()
-                    .input('location', sql.VarChar(255), t.locationName)
+                    .input('creditor', sql.VarChar(255), t.locationName)
                     .input('amount', sql.Decimal(18, 2), amountToChange)
-                    .query(`UPDATE Availables SET amount = amount + @amount WHERE location = @location`);
+                    .query(`UPDATE Debts SET amount = amount + @amount WHERE creditor = @creditor AND status = 'pending'`);
             } else {
-                const newAvailId = 'A' + Date.now().toString() + Math.floor(Math.random() * 1000);
-                const isCaja = t.locationName.toLowerCase() === 'efectivo' || t.locationName.toLowerCase().includes('caja');
-                const classification = isCaja ? 'Caja' : 'Bancos';
-                
-                await pool.request()
-                    .input('id', sql.VarChar(50), newAvailId)
+                // 2. Si no es tarjeta de crédito, actualizar Disponible
+                const amountToChangeAvail = finalType === 'income' ? parseFloat(t.amount) : -parseFloat(t.amount);
+                const checkAvailable = await pool.request()
                     .input('location', sql.VarChar(255), t.locationName)
-                    .input('classification', sql.VarChar(50), classification)
-                    .input('amount', sql.Decimal(18, 2), amountToChange)
-                    .input('placementDate', sql.Date, finalDate)
-                    .input('observation', sql.VarChar(sql.MAX), `Registro automático desde Movimiento (${finalType === 'income' ? 'Ingreso' : 'Egreso'})`)
-                    .query(`INSERT INTO Availables (id, location, classification, instrument, amount, placementDate, dueDate, observation) 
-                            VALUES (@id, @location, @classification, null, @amount, @placementDate, null, @observation)`);
+                    .query(`SELECT id, amount FROM Availables WHERE location = @location`);
+
+                if (checkAvailable.recordset.length > 0) {
+                    await pool.request()
+                        .input('location', sql.VarChar(255), t.locationName)
+                        .input('amount', sql.Decimal(18, 2), amountToChangeAvail)
+                        .query(`UPDATE Availables SET amount = amount + @amount WHERE location = @location`);
+                } else {
+                    const newAvailId = 'A' + Date.now().toString() + Math.floor(Math.random() * 1000);
+                    const isCaja = t.locationName.toLowerCase() === 'efectivo' || t.locationName.toLowerCase().includes('caja');
+                    const classification = isCaja ? 'Caja' : 'Bancos';
+                    
+                    await pool.request()
+                        .input('id', sql.VarChar(50), newAvailId)
+                        .input('location', sql.VarChar(255), t.locationName)
+                        .input('classification', sql.VarChar(50), classification)
+                        .input('amount', sql.Decimal(18, 2), amountToChangeAvail)
+                        .input('placementDate', sql.Date, finalDate)
+                        .input('observation', sql.VarChar(sql.MAX), `Registro automático desde Movimiento (${finalType === 'income' ? 'Ingreso' : 'Egreso'})`)
+                        .query(`INSERT INTO Availables (id, location, classification, instrument, amount, placementDate, dueDate, observation) 
+                                VALUES (@id, @location, @classification, null, @amount, @placementDate, null, @observation)`);
+                }
             }
         }
         

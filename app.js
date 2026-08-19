@@ -4541,6 +4541,7 @@ const UI = {
         // --- LÓGICA OPTIMISTA (Instantánea) ---
         const originalTransactions = [...state.transactions];
         const originalAvailables = state.availables.map(a => ({ ...a }));
+        const originalDebts = state.debts.map(d => ({ ...d }));
         
         // Actualizar estado local inmediatamente
         if (id) {
@@ -4552,19 +4553,26 @@ const UI = {
 
             // Actualizar disponible localmente de forma optimista
             if (locationName) {
-                const amountToChange = type === 'income' ? transaction.amount : -transaction.amount;
-                const av = state.availables.find(a => a.location === locationName);
-                if (av) {
-                    av.amount = parseFloat(av.amount || 0) + amountToChange;
+                // Verificar si es una tarjeta de crédito en deudas
+                const creditCard = state.debts.find(d => d.creditor === locationName && d.status === 'pending');
+                if (creditCard) {
+                    const debtAmountChange = type === 'income' ? -transaction.amount : transaction.amount;
+                    creditCard.amount = parseFloat(creditCard.amount || 0) + debtAmountChange;
                 } else {
-                    state.availables.push({
-                        id: 'A' + Date.now().toString(),
-                        location: locationName,
-                        classification: (locationName.toLowerCase() === 'efectivo' || locationName.toLowerCase().includes('caja')) ? 'Caja' : 'Bancos',
-                        amount: amountToChange,
-                        placementDate: dateVal,
-                        observation: `Registro automático desde Movimiento (${type === 'income' ? 'Ingreso' : 'Egreso'})`
-                    });
+                    const amountToChange = type === 'income' ? transaction.amount : -transaction.amount;
+                    const av = state.availables.find(a => a.location === locationName);
+                    if (av) {
+                        av.amount = parseFloat(av.amount || 0) + amountToChange;
+                    } else {
+                        state.availables.push({
+                            id: 'A' + Date.now().toString(),
+                            location: locationName,
+                            classification: (locationName.toLowerCase() === 'efectivo' || locationName.toLowerCase().includes('caja')) ? 'Caja' : 'Bancos',
+                            amount: amountToChange,
+                            placementDate: dateVal,
+                            observation: `Registro automático desde Movimiento (${type === 'income' ? 'Ingreso' : 'Egreso'})`
+                        });
+                    }
                 }
             }
         }
@@ -4588,6 +4596,7 @@ const UI = {
                 // ROLLBACK: Revertir al estado anterior si falla el servidor
                 state.transactions = originalTransactions;
                 state.availables = originalAvailables;
+                state.debts = originalDebts;
                 
                 // Solo advertencia en caso de fallo
                 this.showToast('⚠️ Advertencia: Registro fallido (' + error.message + ')', 'warning');
@@ -7313,7 +7322,9 @@ const UI = {
 
         if (txLocationSelect) {
             const currentVal = txLocationSelect.value;
-            txLocationSelect.innerHTML = '<option value="">Seleccionar Ubicación</option>';
+            txLocationSelect.innerHTML = '<option value="">Seleccionar Ubicación / Tarjeta</option>';
+            
+            // 1. Ubicaciones líquidas (Caja y Bancos)
             const sortedFinLocations = state.locations
                 .filter(l => l.type === 'finance')
                 .filter(l => {
@@ -7321,12 +7332,31 @@ const UI = {
                     return !(av && av.classification === 'Inversiones');
                 })
                 .sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' }));
+                
             sortedFinLocations.forEach(l => {
                 const opt = document.createElement('option');
                 opt.value = l.name;
                 opt.textContent = l.name;
                 txLocationSelect.appendChild(opt);
             });
+
+            // 2. Tarjetas de crédito (deudas)
+            const creditCards = (state.debts || [])
+                .filter(d => d.status === 'pending' && (d.creditor.toUpperCase().includes('TDC') || d.creditor.toLowerCase().includes('tarjeta')))
+                .sort((a, b) => a.creditor.localeCompare(b.creditor, 'es', { sensitivity: 'base' }));
+
+            if (creditCards.length > 0) {
+                const optGroup = document.createElement('optgroup');
+                optGroup.label = "Tarjetas de Crédito (Deuda)";
+                creditCards.forEach(c => {
+                    const opt = document.createElement('option');
+                    opt.value = c.creditor;
+                    opt.textContent = `${c.creditor} (Deuda: ${formatCurrency(c.amount)})`;
+                    optGroup.appendChild(opt);
+                });
+                txLocationSelect.appendChild(optGroup);
+            }
+
             if (currentVal) txLocationSelect.value = currentVal;
         }
     },
@@ -7736,7 +7766,8 @@ const UI = {
         const opSelect = document.getElementById('op-pay-origin-select');
         if (opSelect) {
             opSelect.required = true;
-            opSelect.innerHTML = '<option value="">Seleccionar Ubicación</option>';
+            opSelect.innerHTML = '<option value="">Seleccionar Ubicación / Tarjeta</option>';
+            
             const sortedFinLocations = state.locations
                 .filter(l => l.type === 'finance')
                 .filter(l => {
@@ -7744,12 +7775,30 @@ const UI = {
                     return !(av && av.classification === 'Inversiones');
                 })
                 .sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' }));
+                
             sortedFinLocations.forEach(l => {
                 const opt = document.createElement('option');
                 opt.value = l.name;
                 opt.textContent = l.name;
                 opSelect.appendChild(opt);
             });
+
+            // Agregar Tarjetas de crédito
+            const creditCards = (state.debts || [])
+                .filter(d => d.status === 'pending' && (d.creditor.toUpperCase().includes('TDC') || d.creditor.toLowerCase().includes('tarjeta')))
+                .sort((a, b) => a.creditor.localeCompare(b.creditor, 'es', { sensitivity: 'base' }));
+
+            if (creditCards.length > 0) {
+                const optGroup = document.createElement('optgroup');
+                optGroup.label = "Tarjetas de Crédito (Deuda)";
+                creditCards.forEach(c => {
+                    const opt = document.createElement('option');
+                    opt.value = c.creditor;
+                    opt.textContent = `${c.creditor} (Deuda: ${formatCurrency(c.amount)})`;
+                    optGroup.appendChild(opt);
+                });
+                opSelect.appendChild(optGroup);
+            }
         }
 
         this.openModal('operational-pay-confirm-modal');
@@ -7782,21 +7831,27 @@ const UI = {
         this.closeModal('operational-pay-confirm-modal');
         
         const originalAvailables = state.availables.map(a => ({ ...a }));
+        const originalDebts = state.debts.map(d => ({ ...d }));
         
         try {
-            // Actualizar disponible localmente de forma optimista
-            const av = state.availables.find(a => a.location === locationName);
-            if (av) {
-                av.amount = parseFloat(av.amount || 0) - amount;
+            // Actualizar localmente de forma optimista
+            const creditCard = state.debts.find(d => d.creditor === locationName && d.status === 'pending');
+            if (creditCard) {
+                creditCard.amount = parseFloat(creditCard.amount || 0) + amount;
             } else {
-                state.availables.push({
-                    id: 'A' + Date.now().toString(),
-                    location: locationName,
-                    classification: (locationName.toLowerCase() === 'efectivo' || locationName.toLowerCase().includes('caja')) ? 'Caja' : 'Bancos',
-                    amount: -amount,
-                    placementDate: getLocalISODate(),
-                    observation: 'Ingreso automático desde Pago Gasto Operacional (Egreso)'
-                });
+                const av = state.availables.find(a => a.location === locationName);
+                if (av) {
+                    av.amount = parseFloat(av.amount || 0) - amount;
+                } else {
+                    state.availables.push({
+                        id: 'A' + Date.now().toString(),
+                        location: locationName,
+                        classification: (locationName.toLowerCase() === 'efectivo' || locationName.toLowerCase().includes('caja')) ? 'Caja' : 'Bancos',
+                        amount: -amount,
+                        placementDate: getLocalISODate(),
+                        observation: 'Ingreso automático desde Pago Gasto Operacional (Egreso)'
+                    });
+                }
             }
 
             await window.StorageAPI.async.payOperationalExpense(id, amount, locationName);
@@ -7805,6 +7860,7 @@ const UI = {
         } catch (error) {
             console.error("Error al pagar gasto operacional:", error);
             state.availables = originalAvailables;
+            state.debts = originalDebts;
             this.showToast('Error al registrar el pago: ' + error.message, 'error');
         }
     },
