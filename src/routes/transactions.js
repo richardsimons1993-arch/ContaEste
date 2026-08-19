@@ -116,6 +116,35 @@ router.post('/', async (req, res) => {
                 .input('invoicePath', sql.VarChar(sql.MAX), t.invoicePath || null)
                 .query(`INSERT INTO Transactions (id, date, type, conceptId, clientId, supplierId, amount, observation, invoicePath) VALUES (@id, @date, @type, @conceptId, @clientId, @supplierId, @amount, @observation, @invoicePath)`);
         }
+
+        // Actualizar o Insertar Disponible si viene ubicación de origen/destino y es inserción nueva
+        if (t.locationName && !check.recordset.length) {
+            const amountToChange = finalType === 'income' ? parseFloat(t.amount) : -parseFloat(t.amount);
+            const checkAvailable = await pool.request()
+                .input('location', sql.VarChar(255), t.locationName)
+                .query(`SELECT id, amount FROM Availables WHERE location = @location`);
+
+            if (checkAvailable.recordset.length > 0) {
+                await pool.request()
+                    .input('location', sql.VarChar(255), t.locationName)
+                    .input('amount', sql.Decimal(18, 2), amountToChange)
+                    .query(`UPDATE Availables SET amount = amount + @amount WHERE location = @location`);
+            } else {
+                const newAvailId = 'A' + Date.now().toString() + Math.floor(Math.random() * 1000);
+                const isCaja = t.locationName.toLowerCase() === 'efectivo' || t.locationName.toLowerCase().includes('caja');
+                const classification = isCaja ? 'Caja' : 'Bancos';
+                
+                await pool.request()
+                    .input('id', sql.VarChar(50), newAvailId)
+                    .input('location', sql.VarChar(255), t.locationName)
+                    .input('classification', sql.VarChar(50), classification)
+                    .input('amount', sql.Decimal(18, 2), amountToChange)
+                    .input('placementDate', sql.Date, finalDate)
+                    .input('observation', sql.VarChar(sql.MAX), `Registro automático desde Movimiento (${finalType === 'income' ? 'Ingreso' : 'Egreso'})`)
+                    .query(`INSERT INTO Availables (id, location, classification, instrument, amount, placementDate, dueDate, observation) 
+                            VALUES (@id, @location, @classification, null, @amount, @placementDate, null, @observation)`);
+            }
+        }
         
         // Evaluar alertas si es un egreso de Caja Chica
         const isCajaChica = finalType === 'expense' && 

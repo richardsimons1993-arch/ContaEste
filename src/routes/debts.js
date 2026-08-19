@@ -717,6 +717,35 @@ router.post('/operational-expenses/:id/pay', async (req, res) => {
                 .input('supplierId', sql.VarChar, null)
                 .query(`INSERT INTO Transactions (id, date, type, conceptId, amount, observation, clientId, supplierId) VALUES (@id, @date, @type, @conceptId, @amount, @observation, @clientId, @supplierId)`);
 
+            // Actualizar o Insertar Disponible si viene ubicación de origen
+            const locationName = req.body.locationName;
+            if (locationName) {
+                const checkAvailable = await transaction.request()
+                    .input('location', sql.VarChar(255), locationName)
+                    .query(`SELECT id, amount FROM Availables WHERE location = @location`);
+
+                if (checkAvailable.recordset.length > 0) {
+                    await transaction.request()
+                        .input('location', sql.VarChar(255), locationName)
+                        .input('amount', sql.Decimal(18, 2), paidAmount)
+                        .query(`UPDATE Availables SET amount = amount - @amount WHERE location = @location`);
+                } else {
+                    const newAvailId = 'A' + Date.now().toString() + Math.floor(Math.random() * 1000);
+                    const isCaja = locationName.toLowerCase() === 'efectivo' || locationName.toLowerCase().includes('caja');
+                    const classification = isCaja ? 'Caja' : 'Bancos';
+                    
+                    await transaction.request()
+                        .input('id', sql.VarChar(50), newAvailId)
+                        .input('location', sql.VarChar(255), locationName)
+                        .input('classification', sql.VarChar(50), classification)
+                        .input('amount', sql.Decimal(18, 2), -paidAmount)
+                        .input('placementDate', sql.Date, new Date())
+                        .input('observation', sql.VarChar(sql.MAX), 'Ingreso automático desde Pago Gasto Operacional (Egreso)')
+                        .query(`INSERT INTO Availables (id, location, classification, instrument, amount, placementDate, dueDate, observation) 
+                                VALUES (@id, @location, @classification, null, @amount, @placementDate, null, @observation)`);
+                }
+            }
+
             await transaction.commit();
 
             // Lógica de alerta de Caja Chica

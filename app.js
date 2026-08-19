@@ -773,10 +773,21 @@ const UI = {
                     const concept = state.concepts.find(c => c.id === conceptId);
                     if (concept) {
                         const typeRadio = txForm.querySelector(`input[name="type"][value="${concept.type}"]`);
-                        if (typeRadio) typeRadio.checked = true;
+                        if (typeRadio) {
+                            typeRadio.checked = true;
+                            this.handleTransactionTypeChange(concept.type);
+                        }
                     }
                 });
             }
+
+            // Escuchar cambios manuales de tipo
+            const typeRadios = txForm.querySelectorAll('input[name="type"]');
+            typeRadios.forEach(radio => {
+                radio.addEventListener('change', (e) => {
+                    this.handleTransactionTypeChange(e.target.value);
+                });
+            });
         }
 
         const conceptForm = document.getElementById('add-concept-form');
@@ -4506,6 +4517,7 @@ const UI = {
         const file = fileInput ? fileInput.files[0] : null;
 
         const existingTx = id ? state.transactions.find(t => t.id === id) : null;
+        const locationName = formData.get('locationName');
         const transaction = {
             id: id || Date.now().toString(),
             type: type,
@@ -4515,7 +4527,8 @@ const UI = {
             supplierId: (isSupplierConcept && personId && personId.trim() !== '') ? personId : null,
             date: dateVal,
             observation: formData.get('observation'),
-            invoicePath: existingTx ? existingTx.invoicePath : null
+            invoicePath: existingTx ? existingTx.invoicePath : null,
+            locationName: locationName || null
         };
 
         console.log('Objeto Transacción:', transaction);
@@ -4527,6 +4540,7 @@ const UI = {
 
         // --- LÓGICA OPTIMISTA (Instantánea) ---
         const originalTransactions = [...state.transactions];
+        const originalAvailables = state.availables.map(a => ({ ...a }));
         
         // Actualizar estado local inmediatamente
         if (id) {
@@ -4535,6 +4549,24 @@ const UI = {
         } else {
             state.transactions = [transaction, ...state.transactions];
             this.recordActivity('Alta', 'Movimiento', `Registrado: ${concept?.name || 'Varios'} por ${formatCurrency(transaction.amount)}`);
+
+            // Actualizar disponible localmente de forma optimista
+            if (locationName) {
+                const amountToChange = type === 'income' ? transaction.amount : -transaction.amount;
+                const av = state.availables.find(a => a.location === locationName);
+                if (av) {
+                    av.amount = parseFloat(av.amount || 0) + amountToChange;
+                } else {
+                    state.availables.push({
+                        id: 'A' + Date.now().toString(),
+                        location: locationName,
+                        classification: (locationName.toLowerCase() === 'efectivo' || locationName.toLowerCase().includes('caja')) ? 'Caja' : 'Bancos',
+                        amount: amountToChange,
+                        placementDate: dateVal,
+                        observation: `Registro automático desde Movimiento (${type === 'income' ? 'Ingreso' : 'Egreso'})`
+                    });
+                }
+            }
         }
 
         // UI Feedback inmediato (sin esperas)
@@ -4555,6 +4587,7 @@ const UI = {
                 console.error("❌ ERROR CRÍTICO DE SINCRONIZACIÓN:", error);
                 // ROLLBACK: Revertir al estado anterior si falla el servidor
                 state.transactions = originalTransactions;
+                state.availables = originalAvailables;
                 
                 // Solo advertencia en caso de fallo
                 this.showToast('⚠️ Advertencia: Registro fallido (' + error.message + ')', 'warning');
@@ -4586,10 +4619,18 @@ const UI = {
         }
         form.elements['observation'].value = transaction.observation || '';
 
+        // Sincronizar campo de ubicación al editar
+        this.handleTransactionTypeChange(transaction.type);
+        const select = document.getElementById('transaction-location-select');
+        if (select) {
+            select.value = transaction.locationName || '';
+        }
+
         document.getElementById('transaction-form-title').textContent = 'Editar Movimiento';
         document.getElementById('btn-save-transaction').textContent = 'Actualizar Movimiento';
         document.getElementById('cancel-transaction-edit').style.display = 'inline-block';
-
+        
+        // Si hay una factura o comprobante existente, mostrar indicador
         const statusSpan = document.getElementById('transaction-invoice-status');
         if (statusSpan) {
             statusSpan.style.display = transaction.invoicePath ? 'block' : 'none';
@@ -4622,6 +4663,32 @@ const UI = {
             if (fileInput) fileInput.value = '';
             const statusSpan = document.getElementById('transaction-invoice-status');
             if (statusSpan) statusSpan.style.display = 'none';
+
+            // Limpiar contenedor de ubicación
+            const container = document.getElementById('transaction-location-container');
+            const select = document.getElementById('transaction-location-select');
+            if (container && select) {
+                container.style.display = 'none';
+                select.required = false;
+                select.value = '';
+            }
+        }
+    },
+
+    handleTransactionTypeChange(type) {
+        const container = document.getElementById('transaction-location-container');
+        const select = document.getElementById('transaction-location-select');
+        const label = document.getElementById('transaction-location-label');
+        if (container && select && label) {
+            if (type === 'expense') {
+                container.style.display = 'block';
+                select.required = true;
+                label.textContent = 'Origen de Fondos (Ubicación)';
+            } else {
+                container.style.display = 'none';
+                select.required = false;
+                select.value = '';
+            }
         }
     },
 
@@ -7212,6 +7279,7 @@ const UI = {
     updateLocationSelects() {
         const inventorySelect = document.getElementById('inventory-location-select');
         const availableSelect = document.getElementById('available-location-select');
+        const txLocationSelect = document.getElementById('transaction-location-select');
 
         if (inventorySelect) {
             const currentVal = inventorySelect.value;
@@ -7241,6 +7309,25 @@ const UI = {
                 availableSelect.appendChild(opt);
             });
             if (currentVal) availableSelect.value = currentVal;
+        }
+
+        if (txLocationSelect) {
+            const currentVal = txLocationSelect.value;
+            txLocationSelect.innerHTML = '<option value="">Seleccionar Ubicación</option>';
+            const sortedFinLocations = state.locations
+                .filter(l => l.type === 'finance')
+                .filter(l => {
+                    const av = state.availables.find(a => a.location === l.name);
+                    return !(av && av.classification === 'Inversiones');
+                })
+                .sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' }));
+            sortedFinLocations.forEach(l => {
+                const opt = document.createElement('option');
+                opt.value = l.name;
+                opt.textContent = l.name;
+                txLocationSelect.appendChild(opt);
+            });
+            if (currentVal) txLocationSelect.value = currentVal;
         }
     },
 
@@ -7645,6 +7732,26 @@ const UI = {
         document.getElementById('op-pay-name').textContent = expense.name;
         document.getElementById('op-pay-amount-input').value = '';
 
+        // Popular selector de origen de fondos
+        const opSelect = document.getElementById('op-pay-origin-select');
+        if (opSelect) {
+            opSelect.required = true;
+            opSelect.innerHTML = '<option value="">Seleccionar Ubicación</option>';
+            const sortedFinLocations = state.locations
+                .filter(l => l.type === 'finance')
+                .filter(l => {
+                    const av = state.availables.find(a => a.location === l.name);
+                    return !(av && av.classification === 'Inversiones');
+                })
+                .sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' }));
+            sortedFinLocations.forEach(l => {
+                const opt = document.createElement('option');
+                opt.value = l.name;
+                opt.textContent = l.name;
+                opSelect.appendChild(opt);
+            });
+        }
+
         this.openModal('operational-pay-confirm-modal');
         // Enfocar el input de monto automáticamente
         setTimeout(() => document.getElementById('op-pay-amount-input')?.focus(), 300);
@@ -7653,7 +7760,9 @@ const UI = {
     async confirmOperationalPay() {
         const id = document.getElementById('op-pay-id').value;
         const amountStr = document.getElementById('op-pay-amount-input').value;
-        
+        const opSelect = document.getElementById('op-pay-origin-select');
+        const locationName = opSelect ? opSelect.value : '';
+
         if (!amountStr || amountStr.trim() === '') {
             this.showToast('Por favor, ingrese el monto pagado', 'warning');
             return;
@@ -7665,14 +7774,37 @@ const UI = {
             return;
         }
 
+        if (!locationName) {
+            this.showToast('Debe seleccionar el origen de fondos.', 'warning');
+            return;
+        }
+
         this.closeModal('operational-pay-confirm-modal');
         
+        const originalAvailables = state.availables.map(a => ({ ...a }));
+        
         try {
-            await window.StorageAPI.async.payOperationalExpense(id, amount);
+            // Actualizar disponible localmente de forma optimista
+            const av = state.availables.find(a => a.location === locationName);
+            if (av) {
+                av.amount = parseFloat(av.amount || 0) - amount;
+            } else {
+                state.availables.push({
+                    id: 'A' + Date.now().toString(),
+                    location: locationName,
+                    classification: (locationName.toLowerCase() === 'efectivo' || locationName.toLowerCase().includes('caja')) ? 'Caja' : 'Bancos',
+                    amount: -amount,
+                    placementDate: getLocalISODate(),
+                    observation: 'Ingreso automático desde Pago Gasto Operacional (Egreso)'
+                });
+            }
+
+            await window.StorageAPI.async.payOperationalExpense(id, amount, locationName);
             this.showToast('Pago registrado correctamente', 'success');
             await this.loadData();
         } catch (error) {
             console.error("Error al pagar gasto operacional:", error);
+            state.availables = originalAvailables;
             this.showToast('Error al registrar el pago: ' + error.message, 'error');
         }
     },
