@@ -4768,10 +4768,28 @@ const UI = {
         const tx = state.transactions.find(t => t.id === id);
         const concept = state.concepts.find(c => c.id === tx?.conceptId);
         const originalTransactions = [...state.transactions];
+        const originalAvailables = state.availables.map(a => ({ ...a }));
+        const originalDebts = state.debts.map(d => ({ ...d }));
 
         // --- Baja Optimista ---
         state.transactions = state.transactions.filter(t => t.id !== id);
         state.lastDeleted = { type: 'transaction', data: { ...tx } };
+
+        if (tx && tx.locationName) {
+            const creditCard = state.debts.find(d => d.creditor === tx.locationName && d.status === 'pending');
+            if (creditCard) {
+                // Reversar el incremento de deuda (restar si era egreso, sumar si era ingreso)
+                const amountChange = tx.type === 'expense' ? -tx.amount : tx.amount;
+                creditCard.amount = parseFloat(creditCard.amount || 0) + amountChange;
+            } else {
+                // Reversar el cambio de disponible (sumar si era egreso, restar si era ingreso)
+                const amountChange = tx.type === 'expense' ? tx.amount : -tx.amount;
+                const av = state.availables.find(a => a.location === tx.locationName);
+                if (av) {
+                    av.amount = parseFloat(av.amount || 0) + amountChange;
+                }
+            }
+        }
 
         try {
             await window.StorageAPI.async.deleteTransaction(id);
@@ -4780,6 +4798,8 @@ const UI = {
         } catch (error) {
             console.error("Error al eliminar transacción:", error);
             state.transactions = originalTransactions;
+            state.availables = originalAvailables;
+            state.debts = originalDebts;
             this.showToast('Error al eliminar en el servidor.', 'error');
         } finally {
             this.renderDashboard();
@@ -4871,8 +4891,23 @@ const UI = {
         console.log("Deshaciendo eliminación de:", type, data);
 
         if (type === 'transaction') {
-            window.StorageAPI.saveTransaction(data);
+            window.StorageAPI.async.saveTransaction(data).then(() => this.loadData());
             state.transactions.push(data);
+
+            if (data.locationName) {
+                const creditCard = state.debts.find(d => d.creditor === data.locationName && d.status === 'pending');
+                if (creditCard) {
+                    const debtAmountChange = data.type === 'income' ? -data.amount : data.amount;
+                    creditCard.amount = parseFloat(creditCard.amount || 0) + debtAmountChange;
+                } else {
+                    const amountToChange = data.type === 'income' ? data.amount : -data.amount;
+                    const av = state.availables.find(a => a.location === data.locationName);
+                    if (av) {
+                        av.amount = parseFloat(av.amount || 0) + amountToChange;
+                    }
+                }
+            }
+
             this.renderDashboard();
             this.renderTransactionsList();
         } else if (type === 'concept') {
