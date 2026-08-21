@@ -14,15 +14,46 @@ router.delete('/:id', async (req, res) => {
     try {
         const pool = await getDbPool();
         
-        // 1. Obtener invoicePath si existe para eliminarlo del almacenamiento remoto
-        const result = await pool.request()
+        // 1. Obtener detalles de la transacción antes de eliminarla para revertir saldos/deudas
+        const txResult = await pool.request()
             .input('id', sql.VarChar(50), req.params.id)
-            .query('SELECT invoicePath FROM Transactions WHERE id = @id');
+            .query('SELECT type, amount, locationName, invoicePath FROM Transactions WHERE id = @id');
         
-        if (result.recordset.length > 0) {
-            const invoicePath = result.recordset[0].invoicePath;
+        if (txResult.recordset.length > 0) {
+            const tx = txResult.recordset[0];
+            const invoicePath = tx.invoicePath;
+            const locationName = tx.locationName;
+            const amount = parseFloat(tx.amount);
+            const type = tx.type;
+
+            // Eliminar archivo del almacenamiento remoto si existe
             if (invoicePath) {
-                deleteRemoteFile(invoicePath); // Se ejecuta en segundo plano
+                deleteRemoteFile(invoicePath);
+            }
+
+            // Reversar saldos/deudas si tiene ubicación asociada
+            if (locationName && !isNaN(amount)) {
+                // A. Verificar si es tarjeta de crédito (Deudas)
+                const checkDebt = await pool.request()
+                    .input('creditor', sql.VarChar(255), locationName)
+                    .query(`SELECT id FROM Debts WHERE creditor = @creditor AND status = 'pending'`);
+
+                if (checkDebt.recordset.length > 0) {
+                    // Reversar el incremento de deuda (restar si era egreso, sumar si era ingreso)
+                    const reverseAmount = type === 'expense' ? -amount : amount;
+                    await pool.request()
+                        .input('creditor', sql.VarChar(255), locationName)
+                        .input('amount', sql.Decimal(18, 2), reverseAmount)
+                        .query(`UPDATE Debts SET amount = amount + @amount WHERE creditor = @creditor AND status = 'pending'`);
+                } else {
+                    // B. Si es una ubicación de Disponible
+                    // Reversar el cambio de disponible (sumar si era egreso, restar si era ingreso)
+                    const reverseAmount = type === 'expense' ? amount : -amount;
+                    await pool.request()
+                        .input('location', sql.VarChar(255), locationName)
+                        .input('amount', sql.Decimal(18, 2), reverseAmount)
+                        .query(`UPDATE Availables SET amount = amount + @amount WHERE location = @location`);
+                }
             }
         }
 
@@ -101,7 +132,8 @@ router.post('/', async (req, res) => {
                 .input('amount', sql.Decimal(18, 2), t.amount)
                 .input('observation', sql.VarChar(sql.MAX), t.observation || '')
                 .input('invoicePath', sql.VarChar(sql.MAX), t.invoicePath || null)
-                .query(`UPDATE Transactions SET date=@date, type=@type, conceptId=@conceptId, clientId=@clientId, supplierId=@supplierId, amount=@amount, observation=@observation, invoicePath=COALESCE(@invoicePath, invoicePath) WHERE id=@id`);
+                .input('locationName', sql.VarChar(255), t.locationName || null)
+                .query(`UPDATE Transactions SET date=@date, type=@type, conceptId=@conceptId, clientId=@clientId, supplierId=@supplierId, amount=@amount, observation=@observation, invoicePath=COALESCE(@invoicePath, invoicePath), locationName=COALESCE(@locationName, locationName) WHERE id=@id`);
         } else {
             console.log('Insertando nueva transacción:', t.id);
             await pool.request()
@@ -114,7 +146,8 @@ router.post('/', async (req, res) => {
                 .input('amount', sql.Decimal(18, 2), t.amount)
                 .input('observation', sql.VarChar(sql.MAX), t.observation || '')
                 .input('invoicePath', sql.VarChar(sql.MAX), t.invoicePath || null)
-                .query(`INSERT INTO Transactions (id, date, type, conceptId, clientId, supplierId, amount, observation, invoicePath) VALUES (@id, @date, @type, @conceptId, @clientId, @supplierId, @amount, @observation, @invoicePath)`);
+                .input('locationName', sql.VarChar(255), t.locationName || null)
+                .query(`INSERT INTO Transactions (id, date, type, conceptId, clientId, supplierId, amount, observation, invoicePath, locationName) VALUES (@id, @date, @type, @conceptId, @clientId, @supplierId, @amount, @observation, @invoicePath, @locationName)`);
         }
 
         // Actualizar o Insertar Disponible / Deuda si viene ubicación de origen/destino y es inserción nueva
