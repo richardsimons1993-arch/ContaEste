@@ -218,6 +218,7 @@ router.post('/debts/:id/pay', async (req, res) => {
     try {
         const pool = await getDbPool();
         const debtId = req.params.id;
+        const { locationName, partialAmount } = req.body;
 
         const transaction = new sql.Transaction(pool);
         await transaction.begin();
@@ -234,9 +235,23 @@ router.post('/debts/:id/pay', async (req, res) => {
             }
 
             const debt = debtRes.recordset[0];
+            const currentAmount = parseFloat(debt.amount);
+            
+            // Determinar monto del movimiento y si es parcial
+            let isPartial = false;
+            let transactionAmount = currentAmount;
+            
+            if (partialAmount !== undefined && partialAmount !== null) {
+                const parsedPartial = parseFloat(partialAmount);
+                if (!isNaN(parsedPartial) && parsedPartial > 0) {
+                    isPartial = true;
+                    transactionAmount = parsedPartial;
+                }
+            }
+
             const moveId = 'T' + Date.now().toString() + Math.floor(Math.random() * 1000);
             const moveDate = new Date();
-            const obsText = 'Pago a proveedor: ' + debt.creditor + (debt.description ? ' - ' + debt.description : '');
+            const obsText = (isPartial ? 'Abono a deuda: ' : 'Pago deuda: ') + debt.creditor + (debt.description ? ' - ' + debt.description : '');
 
             const conceptIdToUse = debt.conceptId || '1';
 
@@ -246,19 +261,66 @@ router.post('/debts/:id/pay', async (req, res) => {
                 .input('date', sql.Date, moveDate)
                 .input('type', sql.VarChar, 'expense')
                 .input('conceptId', sql.VarChar, conceptIdToUse)
-                .input('amount', sql.Decimal(18, 2), debt.amount)
+                .input('amount', sql.Decimal(18, 2), transactionAmount)
                 .input('observation', sql.VarChar(sql.MAX), obsText)
                 .input('clientId', sql.VarChar, null)
                 .input('supplierId', sql.VarChar, debt.supplierId || null)
-                .query(`INSERT INTO Transactions (id, date, type, conceptId, amount, observation, clientId, supplierId) VALUES (@id, @date, @type, @conceptId, @amount, @observation, @clientId, @supplierId)`);
+                .input('locationName', sql.VarChar(255), locationName || null)
+                .query(`INSERT INTO Transactions (id, date, type, conceptId, amount, observation, clientId, supplierId, locationName) VALUES (@id, @date, @type, @conceptId, @amount, @observation, @clientId, @supplierId, @locationName)`);
 
-            // 3. Eliminar deuda
-            await transaction.request()
-                .input('id', sql.VarChar, debtId)
-                .query(`DELETE FROM Debts WHERE id = @id`);
+            // 3. Actualizar o Eliminar deuda
+            if (isPartial && currentAmount - transactionAmount > 0) {
+                await transaction.request()
+                    .input('id', sql.VarChar, debtId)
+                    .input('amount', sql.Decimal(18, 2), transactionAmount)
+                    .query(`UPDATE Debts SET amount = amount - @amount WHERE id = @id`);
+            } else {
+                await transaction.request()
+                    .input('id', sql.VarChar, debtId)
+                    .query(`DELETE FROM Debts WHERE id = @id`);
+            }
+
+            // 4. Actualizar o Insertar Disponible si viene ubicación de origen
+            if (locationName) {
+                const checkDebt = await transaction.request()
+                    .input('creditor', sql.VarChar(255), locationName)
+                    .query(`SELECT id FROM Debts WHERE creditor = @creditor AND status = 'pending'`);
+
+                if (checkDebt.recordset.length > 0) {
+                    await transaction.request()
+                        .input('creditor', sql.VarChar(255), locationName)
+                        .input('amount', sql.Decimal(18, 2), transactionAmount)
+                        .query(`UPDATE Debts SET amount = amount + @amount WHERE creditor = @creditor AND status = 'pending'`);
+                } else {
+                    const checkAvailable = await transaction.request()
+                        .input('location', sql.VarChar(255), locationName)
+                        .query(`SELECT id, amount FROM Availables WHERE location = @location`);
+
+                    if (checkAvailable.recordset.length > 0) {
+                        await transaction.request()
+                            .input('location', sql.VarChar(255), locationName)
+                            .input('amount', sql.Decimal(18, 2), transactionAmount)
+                            .query(`UPDATE Availables SET amount = amount - @amount WHERE location = @location`);
+                    } else {
+                        const newAvailId = 'A' + Date.now().toString() + Math.floor(Math.random() * 1000);
+                        const isCaja = locationName.toLowerCase() === 'efectivo' || locationName.toLowerCase().includes('caja');
+                        const classification = isCaja ? 'Caja' : 'Bancos';
+                        
+                        await transaction.request()
+                            .input('id', sql.VarChar(50), newAvailId)
+                            .input('location', sql.VarChar(255), locationName)
+                            .input('classification', sql.VarChar(50), classification)
+                            .input('amount', sql.Decimal(18, 2), -transactionAmount)
+                            .input('placementDate', sql.Date, moveDate)
+                            .input('observation', sql.VarChar(sql.MAX), 'Egreso automático desde Pago/Abono de Deuda')
+                            .query(`INSERT INTO Availables (id, location, classification, instrument, amount, placementDate, dueDate, observation) 
+                                    VALUES (@id, @location, @classification, null, @amount, @placementDate, null, @observation)`);
+                    }
+                }
+            }
 
             await transaction.commit();
-            res.json({ success: true, message: 'Deuda pagada y movimiento creado' });
+            res.json({ success: true, message: isPartial ? 'Abono registrado con éxito' : 'Deuda pagada y movimiento creado' });
 
         } catch (tErr) {
             try {

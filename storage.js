@@ -306,7 +306,7 @@ const Storage = {
         getDebts: () => asyncRequest('GET', '/debts'),
         saveDebt: (d) => asyncRequest('POST', '/debts', d),
         deleteDebt: (id) => asyncRequest('DELETE', `/debts/${id}`),
-        payDebt: (id) => asyncRequest('POST', `/debts/${id}/pay`),
+        payDebt: (id, locationName = null, partialAmount = null) => asyncRequest('POST', `/debts/${id}/pay`, { locationName, partialAmount }),
 
         getDebtors: () => asyncRequest('GET', '/debtors'),
         saveDebtor: (d) => asyncRequest('POST', '/debtors', d),

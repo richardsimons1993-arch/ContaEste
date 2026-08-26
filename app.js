@@ -3069,6 +3069,9 @@ const UI = {
                     <button class="btn-icon text-success" title="Marcar como Pagada" onclick="UI.payDebt('${d.id}')">
                         <i class="fa-solid fa-check-double"></i>
                     </button>
+                    <button class="btn-icon text-info" title="Registrar Abono" onclick="UI.partialPayDebt('${d.id}')">
+                        <i class="fa-solid fa-money-bill-wave"></i>
+                    </button>
                     <button class="btn-icon" title="Editar" onclick="UI.editDebt('${d.id}')">
                         <i class="fa-solid fa-pen-to-square"></i>
                     </button>
@@ -3219,6 +3222,160 @@ const UI = {
             state.transactions = originalTransactions;
             this.showToast('Error al procesar el pago en el servidor.', 'error');
         } finally {
+            this.renderDashboard();
+        }
+    },
+
+    async partialPayDebt(id) {
+        const debt = state.debts.find(d => d.id === id);
+        if (!debt) return;
+
+        const supplier = state.suppliers.find(s => s.id === debt.supplierId);
+        const creditorName = supplier ? supplier.name : (debt.titular || debt.creditor || '-');
+
+        document.getElementById('partial-pay-id').value = id;
+        document.getElementById('partial-pay-creditor').textContent = creditorName;
+        document.getElementById('partial-pay-current-amount').textContent = formatCurrency(debt.amount);
+        document.getElementById('partial-pay-amount-input').value = '';
+
+        // Popular selector de origen de fondos
+        const select = document.getElementById('partial-pay-location-select');
+        if (select) {
+            select.required = true;
+            select.innerHTML = '<option value="">Seleccionar Ubicación / Tarjeta</option>';
+            
+            // 1. Ubicaciones líquidas (Caja y Bancos)
+            const sortedFinLocations = state.locations
+                .filter(l => l.type === 'finance')
+                .filter(l => {
+                    const av = state.availables.find(a => a.location === l.name);
+                    return !(av && av.classification === 'Inversiones');
+                })
+                .sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' }));
+                
+            sortedFinLocations.forEach(l => {
+                const opt = document.createElement('option');
+                opt.value = l.name;
+                opt.textContent = l.name;
+                select.appendChild(opt);
+            });
+
+            // 2. Tarjetas de crédito (deudas)
+            const creditCards = (state.debts || [])
+                .filter(d => d.status === 'pending' && (d.creditor.toUpperCase().includes('TDC') || d.creditor.toLowerCase().includes('tarjeta')))
+                .sort((a, b) => a.creditor.localeCompare(b.creditor, 'es', { sensitivity: 'base' }));
+
+            if (creditCards.length > 0) {
+                const optGroup = document.createElement('optgroup');
+                optGroup.label = "Tarjetas de Crédito (Deuda)";
+                creditCards.forEach(c => {
+                    const opt = document.createElement('option');
+                    opt.value = c.creditor;
+                    opt.textContent = `${c.creditor} (Deuda: ${formatCurrency(c.amount)})`;
+                    optGroup.appendChild(opt);
+                });
+                select.appendChild(optGroup);
+            }
+        }
+
+        this.openModal('partial-pay-confirm-modal');
+        setTimeout(() => document.getElementById('partial-pay-amount-input')?.focus(), 300);
+    },
+
+    async confirmPartialPayDebtAction() {
+        const id = document.getElementById('partial-pay-id').value;
+        const amountStr = document.getElementById('partial-pay-amount-input').value;
+        const select = document.getElementById('partial-pay-location-select');
+        const locationName = select ? select.value : '';
+
+        if (!amountStr || amountStr.trim() === '') {
+            this.showToast('Por favor, ingrese el monto del abono', 'warning');
+            return;
+        }
+
+        const amount = parseFloat(amountStr.replace(/\./g, '').replace(',', '.'));
+        if (isNaN(amount) || amount <= 0) {
+            this.showToast('Por favor, ingrese un monto válido', 'warning');
+            return;
+        }
+
+        const debt = state.debts.find(d => d.id === id);
+        if (!debt) return;
+
+        if (amount > parseFloat(debt.amount)) {
+            this.showToast('El abono no puede superar el saldo pendiente actual.', 'warning');
+            return;
+        }
+
+        if (!locationName) {
+            this.showToast('Debe seleccionar el origen de fondos.', 'warning');
+            return;
+        }
+
+        this.closeModal('partial-pay-confirm-modal');
+
+        const originalDebts = state.debts.map(d => ({ ...d }));
+        const originalTransactions = [...state.transactions];
+        const originalAvailables = state.availables.map(a => ({ ...a }));
+
+        try {
+            // Actualización local optimista
+            // 1. Reducir la deuda correspondiente
+            const targetDebt = state.debts.find(d => d.id === id);
+            if (targetDebt) {
+                if (parseFloat(targetDebt.amount) - amount <= 0) {
+                    state.debts = state.debts.filter(d => d.id !== id);
+                } else {
+                    targetDebt.amount = parseFloat(targetDebt.amount) - amount;
+                }
+            }
+
+            // 2. Crear movimiento en Transactions localmente
+            const newTx = {
+                id: 'T' + Date.now().toString(),
+                type: 'expense',
+                amount: amount,
+                conceptId: debt.conceptId || '1',
+                supplierId: debt.supplierId || null,
+                date: getLocalISODate(),
+                observation: `Abono a deuda: ${debt.description || debt.creditor || ''}`,
+                locationName: locationName
+            };
+            state.transactions = [newTx, ...state.transactions];
+
+            // 3. Modificar origen de fondos (Disponible / Tarjeta)
+            const creditCard = state.debts.find(d => d.creditor === locationName && d.status === 'pending');
+            if (creditCard) {
+                creditCard.amount = parseFloat(creditCard.amount || 0) + amount;
+            } else {
+                const av = state.availables.find(a => a.location === locationName);
+                if (av) {
+                    av.amount = parseFloat(av.amount || 0) - amount;
+                } else {
+                    state.availables.push({
+                        id: 'A' + Date.now().toString(),
+                        location: locationName,
+                        classification: (locationName.toLowerCase() === 'efectivo' || locationName.toLowerCase().includes('caja')) ? 'Caja' : 'Bancos',
+                        amount: -amount,
+                        placementDate: getLocalISODate(),
+                        observation: 'Egreso automático desde Pago/Abono de Deuda'
+                    });
+                }
+            }
+
+            // Renderizar dashboard con cambios optimistas
+            this.renderDashboard();
+
+            // Llamar al backend
+            await window.StorageAPI.async.payDebt(id, locationName, amount);
+            this.showToast('Abono registrado correctamente', 'success');
+            await this.loadData(); // Recargar datos reales del servidor
+        } catch (error) {
+            console.error("Error al registrar abono:", error);
+            state.debts = originalDebts;
+            state.transactions = originalTransactions;
+            state.availables = originalAvailables;
+            this.showToast('Error al registrar el abono en el servidor.', 'error');
             this.renderDashboard();
         }
     },
