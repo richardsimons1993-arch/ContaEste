@@ -6,12 +6,17 @@ const requireAuth = (req, res, next) => {
     // Si la ruta es de autenticación pública, dejamos pasar
     if (req.path.startsWith('/auth/') || req.path.startsWith('/api/auth/')) return next();
 
+    let token = null;
     const authHeader = req.headers.authorization;
-    if (!authHeader) {
-        return res.status(401).json({ error: 'Acceso Denegado: Falta token de autenticación MFA' });
+    if (authHeader) {
+        token = authHeader.split(' ')[1];
+    } else if (req.query.token) {
+        token = req.query.token;
     }
 
-    const token = authHeader.split(' ')[1];
+    if (!token) {
+        return res.status(401).json({ error: 'Acceso Denegado: Falta token de autenticación MFA' });
+    }
     try {
         const decoded = jwt.verify(token, JWT_SECRET);
         req.user = decoded; // inyecta { id, email, role, modules }

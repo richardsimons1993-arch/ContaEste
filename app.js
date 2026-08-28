@@ -2569,7 +2569,7 @@ const UI = {
                 ${canRegister ? `
                 <td class="actions">
                     ${t.invoicePath ? `
-                    <a class="btn-icon text-primary" title="Descargar Comprobante" href="/api/transactions/${t.id}/download-invoice" target="_blank">
+                    <a class="btn-icon text-primary" title="Descargar Comprobante" href="/api/transactions/${t.id}/download-invoice?token=${state.token || JSON.parse(localStorage.getItem('contabilidad_session') || '{}').token || ''}" target="_blank">
                         <i class="fa-solid fa-file-pdf"></i>
                     </a>
                     <button class="btn-icon text-danger" title="Eliminar Comprobante" onclick="UI.deleteTransactionInvoice('${t.id}')">
@@ -3586,7 +3586,7 @@ const UI = {
                 <td style="font-weight:bold; white-space: nowrap; color: var(--secondary-color)">${formatCurrency(rawAmount)}</td>
                 <td class="actions">
                     ${d.invoicePath ? `
-                    <a class="btn-icon text-primary" title="Descargar Factura" href="/api/debtors/${d.id}/download-invoice" target="_blank">
+                    <a class="btn-icon text-primary" title="Descargar Factura" href="/api/debtors/${d.id}/download-invoice?token=${state.token || JSON.parse(localStorage.getItem('contabilidad_session') || '{}').token || ''}" target="_blank">
                         <i class="fa-solid fa-file-pdf"></i>
                     </a>
                     <button class="btn-icon text-danger" title="Eliminar Factura" onclick="UI.deleteDebtorInvoice('${d.id}')">
@@ -6834,7 +6834,7 @@ const UI = {
                 </td>
                 <td class="actions">
                     ${p.purchaseOrderPath ? `
-                    <a class="btn-icon text-primary" title="Descargar OC" href="/api/projects/${p.id}/download-po" target="_blank">
+                    <a class="btn-icon text-primary" title="Descargar OC" href="/api/projects/${p.id}/download-po?token=${state.token || JSON.parse(localStorage.getItem('contabilidad_session') || '{}').token || ''}" target="_blank">
                         <i class="fa-solid fa-file-pdf"></i>
                     </a>
                     <button class="btn-icon text-danger" title="Eliminar OC" onclick="UI.deleteProjectPO('${p.id}')">
