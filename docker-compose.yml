@@ -1,0 +1,13 @@
+version: 3.8
+services:
+  contabilidad-api:
+    build: .
+    container_name: contabilidad_api
+    restart: always
+    network_mode: "host"
+    environment:
+      - NODE_ENV=production
+    volumes:
+      - ./uploads:/app/uploads
+      - ./logs:/app/logs
+
