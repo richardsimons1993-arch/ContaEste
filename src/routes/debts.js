@@ -767,6 +767,7 @@ router.post('/operational-expenses/:id/pay', async (req, res) => {
             const moveId = 'T' + Date.now().toString();
             const obsText = expense.name;
             const paidAmount = req.body.amount;
+            const locationName = req.body.locationName;
             
             await transaction.request()
                 .input('id', sql.VarChar, moveId)
@@ -777,34 +778,58 @@ router.post('/operational-expenses/:id/pay', async (req, res) => {
                 .input('observation', sql.VarChar(sql.MAX), obsText)
                 .input('clientId', sql.VarChar, null)
                 .input('supplierId', sql.VarChar, null)
-                .query(`INSERT INTO Transactions (id, date, type, conceptId, amount, observation, clientId, supplierId) VALUES (@id, @date, @type, @conceptId, @amount, @observation, @clientId, @supplierId)`);
+                .input('locationName', sql.VarChar(255), locationName || null)
+                .query(`INSERT INTO Transactions (id, date, type, conceptId, amount, observation, clientId, supplierId, locationName) VALUES (@id, @date, @type, @conceptId, @amount, @observation, @clientId, @supplierId, @locationName)`);
 
-            // Actualizar o Insertar Disponible si viene ubicación de origen
-            const locationName = req.body.locationName;
+            // Actualizar o Insertar Disponible / Deuda si viene ubicación de origen
             if (locationName) {
-                const checkAvailable = await transaction.request()
-                    .input('location', sql.VarChar(255), locationName)
-                    .query(`SELECT id, amount FROM Availables WHERE location = @location`);
+                const isCreditCard = locationName.toUpperCase().includes('TDC') || locationName.toLowerCase().includes('tarjeta');
 
-                if (checkAvailable.recordset.length > 0) {
-                    await transaction.request()
-                        .input('location', sql.VarChar(255), locationName)
-                        .input('amount', sql.Decimal(18, 2), paidAmount)
-                        .query(`UPDATE Availables SET amount = amount - @amount WHERE location = @location`);
+                if (isCreditCard) {
+                    const checkDebt = await transaction.request()
+                        .input('creditor', sql.VarChar(255), locationName)
+                        .query(`SELECT id FROM Debts WHERE creditor = @creditor AND status = 'pending'`);
+
+                    if (checkDebt.recordset.length > 0) {
+                        await transaction.request()
+                            .input('creditor', sql.VarChar(255), locationName)
+                            .input('amount', sql.Decimal(18, 2), paidAmount)
+                            .query(`UPDATE Debts SET amount = amount + @amount WHERE creditor = @creditor AND status = 'pending'`);
+                    } else {
+                        const newDebtId = 'D' + Date.now().toString() + Math.floor(Math.random() * 1000);
+                        await transaction.request()
+                            .input('id', sql.VarChar(50), newDebtId)
+                            .input('creditor', sql.VarChar(255), locationName)
+                            .input('amount', sql.Decimal(18, 2), paidAmount)
+                            .input('date', sql.Date, new Date())
+                            .query(`INSERT INTO Debts (id, creditor, amount, date, status, description, conceptId) 
+                                    VALUES (@id, @creditor, @amount, @date, 'pending', 'Gasto automático tarjeta de crédito (Gasto Op)', '1774961310024')`);
+                    }
                 } else {
-                    const newAvailId = 'A' + Date.now().toString() + Math.floor(Math.random() * 1000);
-                    const isCaja = locationName.toLowerCase() === 'efectivo' || locationName.toLowerCase().includes('caja');
-                    const classification = isCaja ? 'Caja' : 'Bancos';
-                    
-                    await transaction.request()
-                        .input('id', sql.VarChar(50), newAvailId)
+                    const checkAvailable = await transaction.request()
                         .input('location', sql.VarChar(255), locationName)
-                        .input('classification', sql.VarChar(50), classification)
-                        .input('amount', sql.Decimal(18, 2), -paidAmount)
-                        .input('placementDate', sql.Date, new Date())
-                        .input('observation', sql.VarChar(sql.MAX), 'Ingreso automático desde Pago Gasto Operacional (Egreso)')
-                        .query(`INSERT INTO Availables (id, location, classification, instrument, amount, placementDate, dueDate, observation) 
-                                VALUES (@id, @location, @classification, null, @amount, @placementDate, null, @observation)`);
+                        .query(`SELECT id, amount FROM Availables WHERE location = @location`);
+
+                    if (checkAvailable.recordset.length > 0) {
+                        await transaction.request()
+                            .input('location', sql.VarChar(255), locationName)
+                            .input('amount', sql.Decimal(18, 2), paidAmount)
+                            .query(`UPDATE Availables SET amount = amount - @amount WHERE location = @location`);
+                    } else {
+                        const newAvailId = 'A' + Date.now().toString() + Math.floor(Math.random() * 1000);
+                        const isCaja = locationName.toLowerCase() === 'efectivo' || locationName.toLowerCase().includes('caja');
+                        const classification = isCaja ? 'Caja' : 'Bancos';
+                        
+                        await transaction.request()
+                            .input('id', sql.VarChar(50), newAvailId)
+                            .input('location', sql.VarChar(255), locationName)
+                            .input('classification', sql.VarChar(50), classification)
+                            .input('amount', sql.Decimal(18, 2), -paidAmount)
+                            .input('placementDate', sql.Date, new Date())
+                            .input('observation', sql.VarChar(sql.MAX), 'Egreso automático desde Pago Gasto Operacional')
+                            .query(`INSERT INTO Availables (id, location, classification, instrument, amount, placementDate, dueDate, observation) 
+                                    VALUES (@id, @location, @classification, null, @amount, @placementDate, null, @observation)`);
+                    }
                 }
             }
 

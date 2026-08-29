@@ -152,19 +152,32 @@ router.post('/', async (req, res) => {
 
         // Actualizar o Insertar Disponible / Deuda si viene ubicación de origen/destino y es inserción nueva
         if (t.locationName && !check.recordset.length) {
-            const isExpense = finalType === 'expense';
-            const amountToChange = isExpense ? parseFloat(t.amount) : -parseFloat(t.amount);
+            const isCreditCard = t.locationName.toUpperCase().includes('TDC') || t.locationName.toLowerCase().includes('tarjeta');
 
-            // 1. Verificar si es una de las tarjetas de crédito (deudas)
-            const checkDebt = await pool.request()
-                .input('creditor', sql.VarChar(255), t.locationName)
-                .query(`SELECT id FROM Debts WHERE creditor = @creditor AND status = 'pending'`);
+            if (isCreditCard) {
+                // 1. Si es tarjeta de crédito (deuda), actualizar o insertar en Debts
+                const isExpense = finalType === 'expense';
+                const amountToChange = isExpense ? parseFloat(t.amount) : -parseFloat(t.amount);
 
-            if (checkDebt.recordset.length > 0) {
-                await pool.request()
+                const checkDebt = await pool.request()
                     .input('creditor', sql.VarChar(255), t.locationName)
-                    .input('amount', sql.Decimal(18, 2), amountToChange)
-                    .query(`UPDATE Debts SET amount = amount + @amount WHERE creditor = @creditor AND status = 'pending'`);
+                    .query(`SELECT id FROM Debts WHERE creditor = @creditor AND status = 'pending'`);
+
+                if (checkDebt.recordset.length > 0) {
+                    await pool.request()
+                        .input('creditor', sql.VarChar(255), t.locationName)
+                        .input('amount', sql.Decimal(18, 2), amountToChange)
+                        .query(`UPDATE Debts SET amount = amount + @amount WHERE creditor = @creditor AND status = 'pending'`);
+                } else {
+                    const newDebtId = 'D' + Date.now().toString() + Math.floor(Math.random() * 1000);
+                    await pool.request()
+                        .input('id', sql.VarChar(50), newDebtId)
+                        .input('creditor', sql.VarChar(255), t.locationName)
+                        .input('amount', sql.Decimal(18, 2), Math.abs(amountToChange))
+                        .input('date', sql.Date, finalDate)
+                        .query(`INSERT INTO Debts (id, creditor, amount, date, status, description, conceptId) 
+                                VALUES (@id, @creditor, @amount, @date, 'pending', 'Gasto automático tarjeta de crédito', '1774961310024')`);
+                }
             } else {
                 // 2. Si no es tarjeta de crédito, actualizar Disponible
                 const amountToChangeAvail = finalType === 'income' ? parseFloat(t.amount) : -parseFloat(t.amount);
