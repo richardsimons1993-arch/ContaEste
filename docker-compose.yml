@@ -1,4 +1,4 @@
-version: 3.8
+version: "3.8"
 services:
   contabilidad-api:
     build: .
@@ -10,4 +10,7 @@ services:
     volumes:
       - ./uploads:/app/uploads
       - ./logs:/app/logs
+      - /home/administrador/.config/rclone:/home/administrador/.config/rclone
+      - /home/administrador/.config/rclone:/root/.config/rclone
+
 
