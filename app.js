@@ -2438,11 +2438,11 @@ const UI = {
     },
 
     getFilteredTransactions() {
-        let displayedTransactions = state.transactions;
+        let displayedTransactions = state.transactions || [];
 
-        // 1. Filtro Tipo
+        // 1. Filtro Tipo (Ingreso / Egreso / Todos)
         const filterType = document.getElementById('filter-type');
-        if (filterType && filterType.value !== 'all') {
+        if (filterType && filterType.value && filterType.value !== 'all') {
             displayedTransactions = displayedTransactions.filter(t => t.type === filterType.value);
         }
 
@@ -2451,38 +2451,82 @@ const UI = {
         const filterDateStart = document.getElementById('filter-date-start');
         const filterDateEnd = document.getElementById('filter-date-end');
 
-        if (filterMonth && filterMonth.value) {
-            const filterVal = filterMonth.value; // ej: "2026-03"
+        if (filterMonth && filterMonth.value && filterMonth.value.trim() !== '') {
+            const filterVal = filterMonth.value.trim(); // ej: "2026-03"
             displayedTransactions = displayedTransactions.filter(t => {
                 if (!t.date) return false;
-                const tDate = String(t.date);
+                const tDate = String(t.date).trim();
                 return tDate.startsWith(filterVal);
             });
         } else {
-            if (filterDateStart && filterDateStart.value) {
-                displayedTransactions = displayedTransactions.filter(t => t.date >= filterDateStart.value);
+            if (filterDateStart && filterDateStart.value && filterDateStart.value.trim() !== '') {
+                const startDate = filterDateStart.value.trim();
+                displayedTransactions = displayedTransactions.filter(t => t.date && String(t.date).trim() >= startDate);
             }
-            if (filterDateEnd && filterDateEnd.value) {
-                displayedTransactions = displayedTransactions.filter(t => t.date <= filterDateEnd.value);
+            if (filterDateEnd && filterDateEnd.value && filterDateEnd.value.trim() !== '') {
+                const endDate = filterDateEnd.value.trim();
+                displayedTransactions = displayedTransactions.filter(t => t.date && String(t.date).trim() <= endDate);
             }
         }
 
         // 3. Filtro Conceptos (Checkboxes)
-        const selectedConcepts = Array.from(document.querySelectorAll('#menu-dropdown-concept input:checked')).map(cb => cb.value);
+        const selectedConcepts = Array.from(document.querySelectorAll('#menu-dropdown-concept input:checked')).map(cb => String(cb.value).trim());
         if (selectedConcepts.length > 0) {
-            displayedTransactions = displayedTransactions.filter(t => selectedConcepts.includes(t.conceptId));
+            displayedTransactions = displayedTransactions.filter(t => t.conceptId && selectedConcepts.includes(String(t.conceptId).trim()));
         }
 
         // 4. Filtro Clientes (Checkboxes)
-        const selectedClients = Array.from(document.querySelectorAll('#menu-dropdown-client input:checked')).map(cb => cb.value);
+        const selectedClients = Array.from(document.querySelectorAll('#menu-dropdown-client input:checked')).map(cb => String(cb.value).trim());
         if (selectedClients.length > 0) {
-            displayedTransactions = displayedTransactions.filter(t => t.clientId && selectedClients.includes(t.clientId));
+            const clientObjects = (state.clients || []).filter(c => selectedClients.includes(String(c.id).trim()));
+
+            displayedTransactions = displayedTransactions.filter(t => {
+                // Coincidencia directa por clientId
+                if (t.clientId && selectedClients.includes(String(t.clientId).trim())) {
+                    return true;
+                }
+                // Si no tiene clientId asignado pero es un movimiento de un cliente (ej. cobro automático o detalle en observación)
+                if (t.observation) {
+                    const obsLower = t.observation.toLowerCase();
+                    return clientObjects.some(c => {
+                        const name = this.getClientName(c.id).toLowerCase();
+                        const fant = c.nombreFantasia ? c.nombreFantasia.toLowerCase() : '';
+                        const raz = c.razonSocial ? c.razonSocial.toLowerCase() : '';
+                        const rut = c.rut ? c.rut.toLowerCase() : '';
+                        return (name && obsLower.includes(name)) || 
+                               (fant && obsLower.includes(fant)) || 
+                               (raz && obsLower.includes(raz)) || 
+                               (rut && obsLower.includes(rut));
+                    });
+                }
+                return false;
+            });
         }
 
         // 5. Filtro Proveedores (Checkboxes)
-        const selectedSuppliers = Array.from(document.querySelectorAll('#menu-dropdown-supplier input:checked')).map(cb => cb.value);
+        const selectedSuppliers = Array.from(document.querySelectorAll('#menu-dropdown-supplier input:checked')).map(cb => String(cb.value).trim());
         if (selectedSuppliers.length > 0) {
-            displayedTransactions = displayedTransactions.filter(t => t.supplierId && selectedSuppliers.includes(t.supplierId));
+            const supplierObjects = (state.suppliers || []).filter(s => selectedSuppliers.includes(String(s.id).trim()));
+
+            displayedTransactions = displayedTransactions.filter(t => {
+                // Coincidencia directa por supplierId
+                if (t.supplierId && selectedSuppliers.includes(String(t.supplierId).trim())) {
+                    return true;
+                }
+                // Si no tiene supplierId asignado pero es un movimiento a proveedor detallado en observación
+                if (t.observation) {
+                    const obsLower = t.observation.toLowerCase();
+                    return supplierObjects.some(s => {
+                        const name = s.name ? s.name.toLowerCase() : '';
+                        const raz = s.razonSocial ? s.razonSocial.toLowerCase() : '';
+                        const rut = s.rut ? s.rut.toLowerCase() : '';
+                        return (name && obsLower.includes(name)) || 
+                               (raz && obsLower.includes(raz)) || 
+                               (rut && obsLower.includes(rut));
+                    });
+                }
+                return false;
+            });
         }
 
         return displayedTransactions;
@@ -2792,8 +2836,8 @@ const UI = {
         const btn = document.getElementById(`btn-dropdown-${type}`);
         if (!menu || !btn) return;
 
-        // Preservar selección
-        const checkedValues = Array.from(menu.querySelectorAll('input:checked')).map(cb => cb.value);
+        // Preservar selección usando mapas de string para tipo seguro
+        const checkedValues = Array.from(menu.querySelectorAll('input:checked')).map(cb => String(cb.value).trim());
 
         menu.innerHTML = '';
 
@@ -2810,7 +2854,7 @@ const UI = {
             checkbox.type = 'checkbox';
             checkbox.value = item.id;
             checkbox.id = `cb-${type}-${item.id}`;
-            if (checkedValues.includes(item.id)) checkbox.checked = true;
+            if (checkedValues.includes(String(item.id).trim())) checkbox.checked = true;
 
             // Disparar renderizado al cambiar
             checkbox.addEventListener('change', () => {
