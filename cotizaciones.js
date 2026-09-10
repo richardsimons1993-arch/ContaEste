@@ -62,6 +62,9 @@ const QuotationsApp = () => {
     const [history, setHistory] = useState([]);
     const [historyLoading, setHistoryLoading] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
+    const [historyClientFilter, setHistoryClientFilter] = useState('');
+    const [historyMonthFilter, setHistoryMonthFilter] = useState('');
+    const [historyStatusFilter, setHistoryStatusFilter] = useState('');
     const [previewUrl, setPreviewUrl] = useState(null);
     const [logoData, setLogoData] = useState({ svg: null, base64: null });
     const previewTimeoutRef = useRef(null);
@@ -1146,32 +1149,102 @@ const QuotationsApp = () => {
                 /* VISTA HISTORIAL */
                 <div className="tw-flex-1 tw-overflow-y-auto tw-p-8">
                     <div className="tw-max-w-[98%] xl:tw-max-w-[95%] 2xl:tw-max-w-7xl tw-mx-auto">
-                        <div className="tw-flex tw-justify-between tw-items-center tw-mb-8">
-                            <div>
-                                <h2 className="tw-text-2xl tw-font-bold tw-text-slate-800">Historial de Cotizaciones (Últimos 90 días)</h2>
-                                <button 
-                                    onClick={() => setActiveTab('generator')}
-                                    className="tw-text-sm tw-font-bold tw-text-googleBlue hover:tw-underline tw-flex tw-items-center tw-mt-2"
-                                >
-                                    <i className="fa-solid fa-arrow-left tw-mr-2"></i>Volver al Generador
-                                </button>
+                        <div className="tw-mb-6">
+                            <div className="tw-flex tw-flex-col sm:tw-flex-row sm:tw-items-center tw-justify-between tw-gap-4 tw-mb-4">
+                                <div>
+                                    <h2 className="tw-text-2xl tw-font-bold tw-text-slate-800">Historial Completo de Cotizaciones</h2>
+                                    <button
+                                        onClick={() => setActiveTab('generator')}
+                                        className="tw-text-sm tw-font-bold tw-text-googleBlue hover:tw-underline tw-flex tw-items-center tw-mt-1"
+                                    >
+                                        <i className="fa-solid fa-arrow-left tw-mr-2"></i>Volver al Generador
+                                    </button>
+                                </div>
+                                <div className="tw-flex tw-items-center tw-gap-2">
+                                    <button
+                                        onClick={fetchHistory}
+                                        className="tw-px-3 tw-py-2 tw-bg-white tw-border tw-border-slate-300 tw-rounded-lg hover:tw-bg-slate-50 tw-text-slate-700 tw-text-sm tw-font-bold tw-flex tw-items-center tw-gap-2 tw-shadow-sm"
+                                        title="Actualizar Historial"
+                                    >
+                                        <i className={`fa-solid fa-arrows-rotate ${historyLoading ? 'fa-spin' : ''}`}></i>
+                                        <span>Actualizar</span>
+                                    </button>
+                                </div>
                             </div>
-                            <div className="tw-relative">
-                                <i className="fa-solid fa-magnifying-glass tw-absolute tw-left-3 tw-top-3 tw-text-slate-400"></i>
-                                <input 
-                                    type="text" 
-                                    placeholder="Buscar por cliente o proyecto..."
-                                    className="tw-pl-10 tw-pr-4 tw-py-2 tw-border tw-border-slate-300 tw-rounded-lg tw-w-80 focus:tw-outline-none focus:tw-border-googleBlue"
-                                    value={searchTerm}
-                                    onChange={(e) => setSearchTerm(e.target.value)}
-                                />
-                                <button 
-                                    onClick={fetchHistory}
-                                    className="tw-ml-2 tw-p-2 tw-bg-white tw-border tw-border-slate-300 tw-rounded-lg hover:tw-bg-slate-50 tw-text-slate-600"
-                                    title="Actualizar Historial"
-                                >
-                                    <i className={`fa-solid fa-arrows-rotate ${historyLoading ? 'fa-spin' : ''}`}></i>
-                                </button>
+
+                            {/* Barra de Filtros Avanzados */}
+                            <div className="tw-bg-white tw-p-4 tw-rounded-xl tw-shadow-sm tw-border tw-border-slate-200 tw-grid tw-grid-cols-1 sm:tw-grid-cols-2 lg:tw-grid-cols-4 tw-gap-3">
+                                {/* Buscador de texto */}
+                                <div>
+                                    <label className="tw-block tw-text-[11px] tw-font-bold tw-text-slate-500 tw-uppercase tw-mb-1">Buscar por Texto</label>
+                                    <div className="tw-relative">
+                                        <i className="fa-solid fa-magnifying-glass tw-absolute tw-left-3 tw-top-2.5 tw-text-slate-400 tw-text-xs"></i>
+                                        <input
+                                            type="text"
+                                            placeholder="ID, cliente, proyecto..."
+                                            className="tw-pl-8 tw-pr-3 tw-py-1.5 tw-border tw-border-slate-300 tw-rounded-lg tw-w-full tw-text-sm focus:tw-outline-none focus:tw-border-googleBlue"
+                                            value={searchTerm}
+                                            onChange={(e) => setSearchTerm(e.target.value)}
+                                        />
+                                    </div>
+                                </div>
+
+                                {/* Filtro por Cliente */}
+                                <div>
+                                    <label className="tw-block tw-text-[11px] tw-font-bold tw-text-slate-500 tw-uppercase tw-mb-1">Cliente (Todos los años)</label>
+                                    <select
+                                        className="tw-w-full tw-py-1.5 tw-px-3 tw-border tw-border-slate-300 tw-rounded-lg tw-text-sm tw-bg-white focus:tw-outline-none focus:tw-border-googleBlue"
+                                        value={historyClientFilter}
+                                        onChange={(e) => setHistoryClientFilter(e.target.value)}
+                                    >
+                                        <option value="">-- Todos los Clientes --</option>
+                                        {clients.map(c => {
+                                            const cName = c.nombreFantasia || c.razonSocial || c.name || c.id;
+                                            return <option key={c.id} value={c.id}>{cName}</option>;
+                                        })}
+                                    </select>
+                                </div>
+
+                                {/* Filtro por Mes / Año */}
+                                <div>
+                                    <label className="tw-block tw-text-[11px] tw-font-bold tw-text-slate-500 tw-uppercase tw-mb-1">Filtrar por Mes / Año</label>
+                                    <input
+                                        type="month"
+                                        className="tw-w-full tw-py-1.5 tw-px-3 tw-border tw-border-slate-300 tw-rounded-lg tw-text-sm tw-bg-white focus:tw-outline-none focus:tw-border-googleBlue"
+                                        value={historyMonthFilter}
+                                        onChange={(e) => setHistoryMonthFilter(e.target.value)}
+                                    />
+                                </div>
+
+                                {/* Filtro por Estado y Limpiar */}
+                                <div>
+                                    <label className="tw-block tw-text-[11px] tw-font-bold tw-text-slate-500 tw-uppercase tw-mb-1">Estado / Limpiar</label>
+                                    <div className="tw-flex tw-gap-2">
+                                        <select
+                                            className="tw-w-full tw-py-1.5 tw-px-3 tw-border tw-border-slate-300 tw-rounded-lg tw-text-sm tw-bg-white focus:tw-outline-none focus:tw-border-googleBlue"
+                                            value={historyStatusFilter}
+                                            onChange={(e) => setHistoryStatusFilter(e.target.value)}
+                                        >
+                                            <option value="">Todos los Estados</option>
+                                            <option value="Borrador">Borradores 📝</option>
+                                            <option value="Generada">Generadas 📄</option>
+                                        </select>
+                                        {(searchTerm || historyClientFilter || historyMonthFilter || historyStatusFilter) && (
+                                            <button
+                                                onClick={() => {
+                                                    setSearchTerm('');
+                                                    setHistoryClientFilter('');
+                                                    setHistoryMonthFilter('');
+                                                    setHistoryStatusFilter('');
+                                                }}
+                                                className="tw-px-3 tw-py-1.5 tw-bg-slate-100 hover:tw-bg-slate-200 tw-text-slate-700 tw-rounded-lg tw-text-xs tw-font-bold tw-whitespace-nowrap tw-border tw-border-slate-300"
+                                                title="Limpiar Filtros"
+                                            >
+                                                Limpiar
+                                            </button>
+                                        )}
+                                    </div>
+                                </div>
                             </div>
                         </div>
 
@@ -1202,7 +1275,42 @@ const QuotationsApp = () => {
                                                 const project = (q.projectName || '').toLowerCase();
                                                 const qid = (q.id || '').toLowerCase();
                                                 const term = (searchTerm || '').toLowerCase();
-                                                return name.includes(term) || project.includes(term) || qid.includes(term);
+
+                                                // 1. Buscador texto
+                                                const matchesTerm = !term || name.includes(term) || project.includes(term) || qid.includes(term);
+
+                                                // 2. Filtro por Cliente
+                                                let matchesClient = true;
+                                                if (historyClientFilter) {
+                                                    const selectedC = clients.find(c => c.id === historyClientFilter);
+                                                    const selectedCName = selectedC ? (selectedC.nombreFantasia || selectedC.razonSocial || selectedC.name || '').toLowerCase() : '';
+                                                    matchesClient = (q.clientId === historyClientFilter) || (q.clientName && q.clientName.toLowerCase().includes(selectedCName));
+                                                }
+
+                                                // 3. Filtro por Mes/Año (YYYY-MM)
+                                                let matchesMonth = true;
+                                                if (historyMonthFilter && q.createdAt) {
+                                                    try {
+                                                        const dateObj = new Date(q.createdAt);
+                                                        if (!isNaN(dateObj.getTime())) {
+                                                            const yyyy = dateObj.getFullYear();
+                                                            const mm = String(dateObj.getMonth() + 1).padStart(2, '0');
+                                                            matchesMonth = (`${yyyy}-${mm}` === historyMonthFilter);
+                                                        }
+                                                    } catch (e) {}
+                                                }
+
+                                                // 4. Filtro por Estado
+                                                let matchesStatus = true;
+                                                if (historyStatusFilter) {
+                                                    if (historyStatusFilter === 'Borrador') {
+                                                        matchesStatus = (q.status === 'Borrador');
+                                                    } else if (historyStatusFilter === 'Generada') {
+                                                        matchesStatus = (q.status !== 'Borrador');
+                                                    }
+                                                }
+
+                                                return matchesTerm && matchesClient && matchesMonth && matchesStatus;
                                             })
                                             .map(q => (
                                                 <tr key={`${q.id}-${q.version}`} className="hover:tw-bg-slate-50 tw-transition-colors">

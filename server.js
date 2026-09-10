@@ -59,7 +59,7 @@ app.use(express.static(__dirname, {
             res.setHeader('Cache-Control', 'no-cache, must-revalidate');
         } else if (filePath.endsWith('.js') || filePath.endsWith('.css')) {
             // Código propio (usa ?v= en query string): no-cache, ETag sigue activo
-            res.setHeader('Cache-Control', 'no-cache');
+            res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
         }
     }
 }));

@@ -1,16 +1,20 @@
 version: "3.8"
 services:
   contabilidad-api:
-    build: .
+    image: contabilidad-api:latest
     container_name: contabilidad_api
     restart: always
     network_mode: "host"
+    security_opt:
+      - apparmor:unconfined
     environment:
       - NODE_ENV=production
     volumes:
+      - ./cotizaciones.js:/app/cotizaciones.js
+      - ./index.html:/app/index.html
+      - ./server.js:/app/server.js
+      - ./src:/app/src
       - ./uploads:/app/uploads
       - ./logs:/app/logs
       - /home/administrador/.config/rclone:/home/administrador/.config/rclone
       - /home/administrador/.config/rclone:/root/.config/rclone
-
-

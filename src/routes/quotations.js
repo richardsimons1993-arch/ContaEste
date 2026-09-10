@@ -9,7 +9,8 @@ const { fetchDolar, fetchUF } = require('../services/exchangeRates');
 async function cleanOldQuotations() {
     try {
         const pool = await getDbPool();
-        const result = await pool.request().query('DELETE FROM Quotations WHERE createdAt < DATEADD(day, -90, GETDATE())');
+        // Limpieza deshabilitada
+        return;
         if (result.rowsAffected[0] > 0) {
             console.log(`🧹 Limpieza: Se eliminaron ${result.rowsAffected[0]} cotizaciones antiguas de la BD.`);
             await pool.request()
