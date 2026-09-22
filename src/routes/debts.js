@@ -54,7 +54,7 @@ async function checkCajaChicaAlert(pool, amount) {
                                 <h2 style="color: #ff4d4f; margin: 0;">Alerta de Caja Chica Bajo el Mínimo</h2>
                             </div>
                             <p>Hola <strong>${user.name}</strong>,</p>
-                            <p>Te informamos que tras registrarse un egreso de fondos, el saldo de la <strong>Caja Chica (Efectivo)</strong> ha alcanzado un nivel crítico, quedando menor o igual al 20% del fondo establecido.</p>
+                            <p>Te informamos que tras registrarse un egreso de fondos, el saldo de la <strong>Caja Chica (Efectivo)</strong> ha alcanzado un nivel crítico, alcanzando o quedando por debajo del umbral mínimo de seguridad ($100.000 CLP).</p>
                             <div style="background-color: #fff1f0; border: 1px solid #ffa39e; padding: 15px; border-radius: 6px; margin: 20px 0; text-align: center;">
                                 <span style="font-size: 1.1rem; color: #cf1322;">Disponible Proyectado:</span>
                                 <h1 style="margin: 10px 0 0 0; font-size: 2.2rem; color: #cf1322; font-weight: bold;">${formattedAmount}</h1>
@@ -917,7 +917,7 @@ router.post('/availables', async (req, res) => {
                                     <h2 style="color: #ff4d4f; margin: 0;">Alerta de Caja Chica Bajo el Mínimo</h2>
                                 </div>
                                 <p>Hola <strong>${user.name}</strong>,</p>
-                                <p>Te informamos que el saldo de la <strong>Caja Chica (Efectivo)</strong> se encuentra en un nivel crítico, menor o igual al 20% del fondo establecido.</p>
+                                <p>Te informamos que el saldo de la <strong>Caja Chica (Efectivo)</strong> se encuentra en un nivel crítico, menor o igual al umbral mínimo de seguridad ($100.000 CLP).</p>
                                 <div style="background-color: #fff1f0; border: 1px solid #ffa39e; padding: 15px; border-radius: 6px; margin: 20px 0; text-align: center;">
                                     <span style="font-size: 1.1rem; color: #cf1322;">Disponible Actual:</span>
                                     <h1 style="margin: 10px 0 0 0; font-size: 2.2rem; color: #cf1322; font-weight: bold;">${formattedAmount}</h1>
