@@ -207,14 +207,7 @@ router.post('/', async (req, res) => {
                 }
             }
         }
-        
-        // Evaluar alertas si es un egreso de Caja Chica
-        const isCajaChica = finalType === 'expense' && 
-                            (t.conceptId === '1774961310024' || 
-                            (t.observation && t.observation.toLowerCase().includes('caja chica')));
-        if (isCajaChica && !check.recordset.length) { // Solo en inserción nueva
-            await debtsRouter.checkCajaChicaAlert(pool, parseFloat(t.amount));
-        }
+
 
         console.log('✅ Operación exitosa');
         res.json({ ...t, type: finalType, clientId: cleanClientId, supplierId: cleanSupplierId, invoicePath: t.invoicePath || null });

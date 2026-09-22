@@ -26,51 +26,8 @@ function tryParseDate(dateStr) {
 }
 
 async function checkCajaChicaAlert(pool, amount) {
-    try {
-        const res = await pool.request()
-            .query("SELECT id, amount FROM Availables WHERE location = 'Efectivo' OR classification = 'Caja'");
-        
-        if (res.recordset.length > 0) {
-            const row = res.recordset[0];
-            const currentAmount = parseFloat(row.amount || 0);
-            
-            // Calculamos cuánto quedaría si restáramos el gasto, pero SIN actualizar la DB
-            const remainingAmount = currentAmount - amount;
-            
-            console.log(`[Caja Chica Alert Check] Saldo actual: ${currentAmount}, Gasto registrado: ${amount}, Saldo proyectado: ${remainingAmount}`);
-
-            const limit = 100000;
-            if (remainingAmount <= limit) {
-                const userRes = await pool.request()
-                    .query("SELECT name, Email FROM Users WHERE ReceiveOpExpenseAlerts = 1 AND Email IS NOT NULL");
-                
-                const formattedAmount = new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP' }).format(remainingAmount);
-                
-                for (const user of userRes.recordset) {
-                    const emailSubject = `⚠️ ALERTA: Disponible de Caja Chica Crítico (${formattedAmount})`;
-                    const emailHtml = `
-                        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 8px; background-color: #fafafa;">
-                            <div style="text-align: center; border-bottom: 2px solid #ff4d4f; padding-bottom: 10px; margin-bottom: 20px;">
-                                <h2 style="color: #ff4d4f; margin: 0;">Alerta de Caja Chica Bajo el Mínimo</h2>
-                            </div>
-                            <p>Hola <strong>${user.name}</strong>,</p>
-                            <p>Te informamos que tras registrarse un egreso de fondos, el saldo de la <strong>Caja Chica (Efectivo)</strong> ha alcanzado un nivel crítico, alcanzando o quedando por debajo del umbral mínimo de seguridad ($100.000 CLP).</p>
-                            <div style="background-color: #fff1f0; border: 1px solid #ffa39e; padding: 15px; border-radius: 6px; margin: 20px 0; text-align: center;">
-                                <span style="font-size: 1.1rem; color: #cf1322;">Disponible Proyectado:</span>
-                                <h1 style="margin: 10px 0 0 0; font-size: 2.2rem; color: #cf1322; font-weight: bold;">${formattedAmount}</h1>
-                            </div>
-                            <p style="font-size: 0.9rem; color: #555;">Por favor, gestiona el reembolso o reposición de fondos a la brevedad.</p>
-                            <hr style="border: 0; border-top: 1px solid #e0e0e0; margin: 25px 0;">
-                            <p style="font-size: 0.8rem; color: #888; text-align: center;">Este es un mensaje automático enviado por el sistema ContaEste.</p>
-                        </div>
-                    `;
-                    sendEmail({ to: user.Email, subject: emailSubject, html: emailHtml });
-                }
-            }
-        }
-    } catch (err) {
-        console.error("Error al evaluar alerta de Caja Chica:", err);
-    }
+    // Alerta de disponible mínimo de Caja Chica eliminada por requerimiento
+    return;
 }
 
 async function notifyOpExpenseCajaChicaApproved(pool, expenseName, amount) {
@@ -840,7 +797,7 @@ router.post('/operational-expenses/:id/pay', async (req, res) => {
                                 (expense.description && expense.description.toLowerCase().includes('caja chica'));
             if (isCajaChica) {
                 // Evaluar si el egreso proyecta un disponible menor al 20%
-                await checkCajaChicaAlert(pool, paidAmount);
+                // Alerta de disponible mínimo de Caja Chica eliminada
                 // Notificar que se aprobó/pagó un gasto de Caja Chica
                 await notifyOpExpenseCajaChicaApproved(pool, expense.name, paidAmount);
             }
@@ -897,44 +854,6 @@ router.post('/availables', async (req, res) => {
                 .input('observation', sql.VarChar(sql.MAX), a.observation || '')
                 .query(`INSERT INTO Availables (id, location, classification, instrument, amount, placementDate, dueDate, observation) VALUES (@id, @location, @classification, @instrument, @amount, @placementDate, @dueDate, @observation)`);
         }
-
-        // Alerta de Caja Chica Baja al actualizar disponible directamente
-        if (a.location === 'Efectivo' || a.classification === 'Caja') {
-            const currentAmount = parseFloat(a.amount || 0);
-            const limit = 100000; // 20% de 500.000
-            if (currentAmount <= limit) {
-                try {
-                    const userRes = await pool.request()
-                        .query("SELECT name, Email FROM Users WHERE ReceiveOpExpenseAlerts = 1 AND Email IS NOT NULL");
-                    
-                    const formattedAmount = new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP' }).format(currentAmount);
-                    
-                    for (const user of userRes.recordset) {
-                        const emailSubject = `⚠️ ALERTA: Disponible de Caja Chica Crítico (${formattedAmount})`;
-                        const emailHtml = `
-                            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 8px; background-color: #fafafa;">
-                                <div style="text-align: center; border-bottom: 2px solid #ff4d4f; padding-bottom: 10px; margin-bottom: 20px;">
-                                    <h2 style="color: #ff4d4f; margin: 0;">Alerta de Caja Chica Bajo el Mínimo</h2>
-                                </div>
-                                <p>Hola <strong>${user.name}</strong>,</p>
-                                <p>Te informamos que el saldo de la <strong>Caja Chica (Efectivo)</strong> se encuentra en un nivel crítico, menor o igual al umbral mínimo de seguridad ($100.000 CLP).</p>
-                                <div style="background-color: #fff1f0; border: 1px solid #ffa39e; padding: 15px; border-radius: 6px; margin: 20px 0; text-align: center;">
-                                    <span style="font-size: 1.1rem; color: #cf1322;">Disponible Actual:</span>
-                                    <h1 style="margin: 10px 0 0 0; font-size: 2.2rem; color: #cf1322; font-weight: bold;">${formattedAmount}</h1>
-                                </div>
-                                <p style="font-size: 0.9rem; color: #555;">Por favor, gestiona el reembolso o reposición de fondos a la brevedad.</p>
-                                <hr style="border: 0; border-top: 1px solid #e0e0e0; margin: 25px 0;">
-                                <p style="font-size: 0.8rem; color: #888; text-align: center;">Este es un mensaje automático enviado por el sistema ContaEste.</p>
-                            </div>
-                        `;
-                        sendEmail({ to: user.Email, subject: emailSubject, html: emailHtml });
-                    }
-                } catch (emailErr) {
-                    console.error("Error al procesar alerta de email de disponible de caja chica:", emailErr);
-                }
-            }
-        }
-
         res.json(a);
     } catch (err) {
         console.error('Error in POST /api/availables:', err);
