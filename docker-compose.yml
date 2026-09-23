@@ -10,7 +10,11 @@ services:
     environment:
       - NODE_ENV=production
     volumes:
+      - ./app.js:/app/app.js
       - ./cotizaciones.js:/app/cotizaciones.js
+      - ./informes.js:/app/informes.js
+      - ./notas.js:/app/notas.js
+      - ./storage.js:/app/storage.js
       - ./index.html:/app/index.html
       - ./server.js:/app/server.js
       - ./src:/app/src
