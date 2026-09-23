@@ -285,8 +285,28 @@ const ReportsApp = () => {
             }
         }
 
-        setImages([...images, ...uploadedUrls]);
+        const newImageObjs = uploadedUrls.map(url => ({ url, title: '' }));
+        setImages([...images, ...newImageObjs]);
         setIsUploading(false);
+    };
+
+    // Cambiar título de imagen
+    const handleImageTitleChange = (index, newTitle) => {
+        const updated = [...images];
+        const current = typeof updated[index] === 'string' ? { url: updated[index], title: '' } : updated[index];
+        updated[index] = { ...current, title: newTitle };
+        setImages(updated);
+    };
+
+    // Reordenar imagen (Mover arriba/abajo)
+    const handleMoveImage = (index, direction) => {
+        const newIndex = direction === 'up' ? index - 1 : index + 1;
+        if (newIndex < 0 || newIndex >= images.length) return;
+        const updated = [...images];
+        const temp = updated[index];
+        updated[index] = updated[newIndex];
+        updated[newIndex] = temp;
+        setImages(updated);
     };
 
     // Quitar imagen
@@ -457,12 +477,14 @@ const ReportsApp = () => {
             const imageObjects = [];
             // Si estamos previsualizando, cargamos marcadores de posición rápidos para no congelar la UI
             if (isForPreview) {
-                images.forEach((_, idx) => {
+                images.forEach((imgItem, idx) => {
+                    const imgObj = typeof imgItem === 'string' ? { url: imgItem, title: '' } : imgItem;
+                    const previewLabel = imgObj.title ? `[Foto ${idx + 1}: ${imgObj.title}]` : `[Registro Fotográfico - Imagen ${idx + 1}]`;
                     imageObjects.push({
                         table: {
                             widths: ['*'],
                             body: [
-                                [{ text: `[Registro Fotográfico - Imagen ${idx + 1}]`, alignment: 'center', margin: [0, 70, 0, 70], color: '#64748b', italics: true }]
+                                [{ text: previewLabel, alignment: 'center', margin: [0, 50, 0, 50], color: '#64748b', italics: true }]
                             ]
                         },
                         layout: {
@@ -477,18 +499,25 @@ const ReportsApp = () => {
                 });
             } else {
                 // Para el PDF final definitivo, convertimos las imágenes reales a Base64
-                for (let imgUrl of images) {
-                    const b64 = await convertImageUrlToBase64(imgUrl);
+                for (let imgItem of images) {
+                    const imgObj = typeof imgItem === 'string' ? { url: imgItem, title: '' } : imgItem;
+                    const b64 = await convertImageUrlToBase64(imgObj.url);
                     if (b64) {
+                        const tableBody = [
+                            [{ image: b64, fit: [380, 230], alignment: 'center', border: [false, false, false, false] }]
+                        ];
+                        if (imgObj.title && imgObj.title.trim()) {
+                            tableBody.push([
+                                { text: imgObj.title.trim(), fontSize: 10, bold: true, alignment: 'center', color: '#1e293b', margin: [0, 4, 0, 2], border: [false, false, false, false] }
+                            ]);
+                        }
                         imageObjects.push({
                             table: {
                                 widths: ['*'],
-                                body: [
-                                    [{ image: b64, fit: [380, 250], alignment: 'center', border: [false, false, false, false] }]
-                                ]
+                                body: tableBody
                             },
                             layout: 'noBorders',
-                            margin: [0, 10, 0, 10]
+                            margin: [0, 8, 0, 8]
                         });
                     }
                 }
@@ -738,7 +767,9 @@ const ReportsApp = () => {
             setMaterials(JSON.parse(r.materials || '[]'));
             setResults(r.results || '');
             setConclusions(r.conclusions || '');
-            setImages(JSON.parse(r.images || '[]'));
+            const loadedImages = JSON.parse(r.images || '[]');
+            const normalizedImages = loadedImages.map(img => typeof img === 'string' ? { url: img, title: '' } : img);
+            setImages(normalizedImages);
             
             setNextId(r.correlative);
             setCurrentYear(r.year);
