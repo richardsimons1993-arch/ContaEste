@@ -1088,8 +1088,6 @@ const ReportsApp = () => {
                                                 })}
                                             </div>
                                         )}
-                                            </div>
-                                        )}
                                     </div>
                                 </div>
 
