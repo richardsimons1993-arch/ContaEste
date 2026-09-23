@@ -1024,23 +1024,70 @@ const ReportsApp = () => {
                                             </div>
                                         )}
 
-                                        {/* Galería Previa */}
+                                        {/* Galería y Edición de Títulos de Imágenes */}
                                         {images.length > 0 && (
-                                            <div className="tw-grid tw-grid-cols-2 md:tw-grid-cols-4 tw-gap-4 tw-mt-6">
-                                                {images.map((imgUrl, idx) => (
-                                                    <div key={idx} className="tw-group tw-relative tw-h-24 tw-rounded-lg tw-overflow-hidden tw-border tw-border-slate-200 tw-shadow-sm">
-                                                        <img src={imgUrl} className="tw-w-full tw-h-full tw-object-cover" alt={`Previo ${idx + 1}`} />
-                                                        <div className="tw-absolute tw-inset-0 tw-bg-black tw-bg-opacity-40 tw-opacity-0 group-hover:tw-opacity-100 tw-transition-opacity tw-flex tw-items-center tw-justify-center">
-                                                            <button 
-                                                                onClick={() => handleRemoveImage(idx)} 
-                                                                className="tw-bg-red-500 tw-text-white tw-p-2 tw-rounded-full hover:tw-bg-red-700 tw-transition-colors"
-                                                                title="Quitar foto"
-                                                            >
-                                                                <i className="fa-solid fa-trash-can"></i>
-                                                            </button>
+                                            <div className="tw-space-y-4 tw-mt-6">
+                                                <div className="tw-text-xs tw-font-bold tw-text-slate-500 tw-uppercase tw-tracking-wider">
+                                                    Fotos Adjuntas ({images.length}) — Asigna un título opcional y ajusta el orden:
+                                                </div>
+                                                {images.map((imgItem, idx) => {
+                                                    const url = typeof imgItem === 'string' ? imgItem : (imgItem.url || imgItem);
+                                                    const title = typeof imgItem === 'string' ? '' : (imgItem.title || '');
+                                                    return (
+                                                        <div key={idx} className="tw-flex tw-flex-col sm:tw-flex-row tw-items-center tw-gap-4 tw-p-3.5 tw-bg-slate-50 dark:tw-bg-slate-800 tw-border tw-border-slate-200 dark:tw-border-slate-700 tw-rounded-xl tw-shadow-sm hover:tw-border-slate-300 tw-transition-all">
+                                                            <div className="tw-relative tw-w-28 tw-h-20 tw-flex-shrink-0 tw-rounded-lg tw-overflow-hidden tw-border tw-border-slate-300 tw-bg-slate-200">
+                                                                <img src={url} className="tw-w-full tw-h-full tw-object-cover" alt={`Foto ${idx + 1}`} />
+                                                                <span className="tw-absolute tw-top-1 tw-left-1 tw-bg-slate-900/80 tw-text-white tw-text-[10px] tw-font-bold tw-px-1.5 tw-py-0.5 tw-rounded">
+                                                                    #{idx + 1}
+                                                                </span>
+                                                            </div>
+                                                            <div className="tw-flex-1 tw-w-full">
+                                                                <label className="tw-block tw-text-xs tw-font-bold tw-text-slate-600 dark:tw-text-slate-300 tw-mb-1">
+                                                                    Título / Leyenda Opcional (Foto #{idx + 1}):
+                                                                </label>
+                                                                <input
+                                                                    type="text"
+                                                                    placeholder="Ej: Foto 1: Montaje del Gabinete RACK..."
+                                                                    className="tw-w-full tw-p-2.5 tw-bg-white dark:tw-bg-slate-900 tw-border tw-border-slate-300 dark:tw-border-slate-600 tw-rounded-lg focus:tw-border-googleBlue focus:tw-ring-2 focus:tw-ring-blue-100 focus:tw-outline-none tw-text-sm"
+                                                                    value={title}
+                                                                    onChange={(e) => handleImageTitleChange(idx, e.target.value)}
+                                                                />
+                                                            </div>
+                                                            <div className="tw-flex sm:tw-flex-col tw-gap-1.5 tw-justify-end tw-w-full sm:tw-w-auto">
+                                                                <div className="tw-flex tw-gap-1">
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => handleMoveImage(idx, 'up')}
+                                                                        disabled={idx === 0}
+                                                                        className={`tw-px-2.5 tw-py-1.5 tw-text-xs tw-rounded-md tw-border ${idx === 0 ? 'tw-text-slate-300 tw-border-slate-200 tw-bg-slate-100 tw-cursor-not-allowed' : 'tw-text-slate-700 tw-bg-white hover:tw-bg-slate-100 tw-border-slate-300'}`}
+                                                                        title="Mover arriba / antes"
+                                                                    >
+                                                                        <i className="fa-solid fa-arrow-up"></i>
+                                                                    </button>
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => handleMoveImage(idx, 'down')}
+                                                                        disabled={idx === images.length - 1}
+                                                                        className={`tw-px-2.5 tw-py-1.5 tw-text-xs tw-rounded-md tw-border ${idx === images.length - 1 ? 'tw-text-slate-300 tw-border-slate-200 tw-bg-slate-100 tw-cursor-not-allowed' : 'tw-text-slate-700 tw-bg-white hover:tw-bg-slate-100 tw-border-slate-300'}`}
+                                                                        title="Mover abajo / después"
+                                                                    >
+                                                                        <i className="fa-solid fa-arrow-down"></i>
+                                                                    </button>
+                                                                </div>
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => handleRemoveImage(idx)}
+                                                                    className="tw-px-2.5 tw-py-1.5 tw-text-xs tw-text-red-600 tw-bg-red-50 hover:tw-bg-red-100 tw-border tw-border-red-200 tw-rounded-md tw-transition-colors"
+                                                                    title="Quitar foto"
+                                                                >
+                                                                    <i className="fa-solid fa-trash-can tw-mr-1"></i> Quitar
+                                                                </button>
+                                                            </div>
                                                         </div>
-                                                    </div>
-                                                ))}
+                                                    );
+                                                })}
+                                            </div>
+                                        )}
                                             </div>
                                         )}
                                     </div>
