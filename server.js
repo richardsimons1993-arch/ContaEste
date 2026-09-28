@@ -194,6 +194,16 @@ async function runDatabaseMigrations() {
             END
         `);
         
+        await pool.request().query(`
+            IF NOT EXISTS (
+                SELECT * FROM INFORMATION_SCHEMA.COLUMNS 
+                WHERE TABLE_NAME = 'Quotations' AND COLUMN_NAME = 'images'
+            )
+            BEGIN
+                ALTER TABLE Quotations ADD images VARCHAR(MAX) NULL;
+            END
+        `);
+        
         console.log('✅ Migraciones de base de datos finalizadas con éxito.');
     } catch (err) {
         console.error('❌ Error ejecutando migraciones de base de datos:', err.message);

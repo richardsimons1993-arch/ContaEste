@@ -39,6 +39,8 @@ const QuotationsApp = () => {
     const [requirements, setRequirements] = useState('');
     const [techConditions, setTechConditions] = useState('');
     const [commercialConditions, setCommercialConditions] = useState('• La solicitud se considerará aprobada una vez recibida la Orden de Compra por el total de la propuesta comercial, o bien, al efectuarse el depósito del 50% de la misma.');
+    const [images, setImages] = useState([]);
+    const [isUploading, setIsUploading] = useState(false);
     
     // Items Principales
     const [items, setItems] = useState([{ id: Date.now(), desc: '', qty: 1, price: 0 }]);
@@ -174,6 +176,7 @@ const QuotationsApp = () => {
         setRequirements('');
         setTechConditions('');
         setCommercialConditions('• La solicitud se considerará aprobada una vez recibida la Orden de Compra por el total de la propuesta comercial, o bien, al efectuarse el depósito del 50% de la misma.');
+        setImages([]);
         setItems([{ id: Date.now(), desc: '', qty: 1, price: 0 }]);
         setOptionals([]);
         setCurrentVersion(1);
@@ -203,6 +206,84 @@ const QuotationsApp = () => {
 
     const customPrompt = (message, defaultValue = '', title = 'Ingresar Valor') => {
         return showCustomDialog({ type: 'prompt', title, message, defaultValue });
+    };
+
+
+    // Subir imágenes
+    const handleImageUpload = async (e) => {
+        const files = Array.from(e.target.files);
+        if (files.length === 0) return;
+
+        setIsUploading(true);
+        const uploadedUrls = [];
+
+        for (let file of files) {
+            const formData = new FormData();
+            formData.append('image', file);
+
+            try {
+                const response = await fetch('/api/quotations/upload-image', {
+                    method: 'POST',
+                    body: formData
+                });
+                if (response.ok) {
+                    const data = await response.json();
+                    uploadedUrls.push(data.url);
+                } else {
+                    console.error("Error al subir archivo:", file.name);
+                }
+            } catch (err) {
+                console.error("Excepción al subir imagen:", err);
+            }
+        }
+
+        const newImageObjs = uploadedUrls.map(url => ({ url, title: '' }));
+        setImages(prev => [...prev, ...newImageObjs]);
+        setIsUploading(false);
+    };
+
+    const handleImageTitleChange = (index, newTitle) => {
+        setImages(prev => {
+            const updated = [...prev];
+            const current = typeof updated[index] === 'string' ? { url: updated[index], title: '' } : updated[index];
+            updated[index] = { ...current, title: newTitle };
+            return updated;
+        });
+    };
+
+    const handleMoveImage = (index, direction) => {
+        const newIndex = direction === 'up' ? index - 1 : index + 1;
+        if (newIndex < 0 || newIndex >= images.length) return;
+        setImages(prev => {
+            const updated = [...prev];
+            const temp = updated[index];
+            updated[index] = updated[newIndex];
+            updated[newIndex] = temp;
+            return updated;
+        });
+    };
+
+    const handleRemoveImage = (indexToRemove) => {
+        setImages(prev => prev.filter((_, idx) => idx !== indexToRemove));
+    };
+
+    const convertImageUrlToBase64 = (url) => {
+        return new Promise((resolve) => {
+            const img = new Image();
+            if (url.startsWith('http')) img.crossOrigin = 'Anonymous';
+            img.onload = () => {
+                const canvas = document.createElement('canvas');
+                canvas.width = img.width;
+                canvas.height = img.height;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(img, 0, 0);
+                resolve(canvas.toDataURL('image/jpeg', 0.8));
+            };
+            img.onerror = () => {
+                resolve(null);
+            };
+            img.src = url;
+        });
     };
 
     const fetchHistory = async () => {
@@ -309,14 +390,17 @@ const QuotationsApp = () => {
         setState(list.filter(item => item.id !== id));
     };
 
-    const buildDocDefinitionForHistory = (q) => {
+    const buildDocDefinitionForHistory = async (q, isForPreview = false) => {
         const itemsList = typeof q.items1 === 'string' ? JSON.parse(q.items1 || '[]') : (q.items1 || []);
         const optionalsList = typeof q.itemsOptional === 'string' ? JSON.parse(q.itemsOptional || '[]') : (q.itemsOptional || []);
         const selectedCurr = q.currency || 'CLP';
 
+        const imagesList = typeof q.images === "string" ? JSON.parse(q.images || "[]") : (q.images || []);
+
         let sectionCounter = 1;
         const nReq = (q.requirements && q.requirements.trim()) ? sectionCounter++ : null;
         const nTech = (q.technicalConditions && q.technicalConditions.trim()) ? sectionCounter++ : null;
+        const nImg = (imagesList && imagesList.length > 0) ? sectionCounter++ : null;
         const nProp = sectionCounter++;
         const nCom = (q.commercialConditions && q.commercialConditions.trim()) ? sectionCounter++ : null;
 
@@ -396,12 +480,78 @@ const QuotationsApp = () => {
             );
         }
 
-        // 3. Consideraciones Técnicas
+        // 2. Consideraciones Técnicas
         if (q.technicalConditions && q.technicalConditions.trim()) {
             content.push(
                 buildSectionHeader(`${nTech}. CONSIDERACIONES TÉCNICAS Y ESTÁNDARES`),
                 { text: q.technicalConditions, margin: [10, 0, 0, 15], alignment: 'justify' }
             );
+        }
+
+        // 3. Registro Fotográfico (sólo si existen imágenes)
+        if (imagesList && imagesList.length > 0) {
+            const imageObjects = [];
+            if (isForPreview) {
+                imagesList.forEach((imgItem, idx) => {
+                    const imgObj = typeof imgItem === "string" ? { url: imgItem, title: "" } : imgItem;
+                    const previewLabel = imgObj.title ? `[Foto ${idx + 1}: ${imgObj.title}]` : `[Registro Fotográfico - Imagen ${idx + 1}]`;
+                    imageObjects.push({
+                        table: {
+                            widths: ["*"],
+                            body: [
+                                [{ text: previewLabel, alignment: "center", margin: [0, 40, 0, 40], color: "#64748b", italics: true }]
+                            ]
+                        },
+                        layout: {
+                            hLineWidth: () => 1,
+                            vLineWidth: () => 1,
+                            hLineColor: () => "#cbd5e1",
+                            vLineColor: () => "#cbd5e1",
+                            fillColor: () => "#f8fafc"
+                        },
+                        margin: [20, 8, 20, 8]
+                    });
+                });
+            } else {
+                for (let imgItem of imagesList) {
+                    const imgObj = typeof imgItem === "string" ? { url: imgItem, title: "" } : imgItem;
+                    const b64 = await convertImageUrlToBase64(imgObj.url);
+                    if (b64) {
+                        const tableBody = [
+                            [{ image: b64, fit: [380, 230], alignment: "center", border: [false, false, false, false] }]
+                        ];
+                        if (imgObj.title && imgObj.title.trim()) {
+                            tableBody.push([
+                                { text: imgObj.title.trim(), fontSize: 10, bold: true, alignment: "center", color: "#1e293b", margin: [0, 4, 0, 2], border: [false, false, false, false] }
+                            ]);
+                        }
+                        imageObjects.push({
+                            table: {
+                                widths: ["*"],
+                                body: tableBody
+                            },
+                            layout: "noBorders",
+                            margin: [0, 8, 0, 8]
+                        });
+                    }
+                }
+            }
+
+            if (imageObjects.length > 0) {
+                const imgSectionElements = [];
+                imgSectionElements.push(buildSectionHeader(`${nImg}. REGISTRO FOTOGRÁFICO`));
+                for (let i = 0; i < imageObjects.length; i += 2) {
+                    imgSectionElements.push(imageObjects[i]);
+                    if (i + 1 < imageObjects.length) {
+                        imgSectionElements.push({ text: "\n" });
+                        imgSectionElements.push(imageObjects[i + 1]);
+                    }
+                }
+                content.push({
+                    unbreakable: false,
+                    stack: imgSectionElements
+                });
+            }
         }
 
         // 4. Propuesta Económica
@@ -532,9 +682,9 @@ const QuotationsApp = () => {
         return docDefinition;
     };
 
-    const buildDocDefinition = () => {
+    const buildDocDefinition = async (isForPreview = false) => {
         const clientName = activeClient ? (activeClient.nombreFantasia || activeClient.razonSocial || 'Cliente_Desconocido') : 'Cliente_Desconocido';
-        return buildDocDefinitionForHistory({
+        return await buildDocDefinitionForHistory({
             id: displayId,
             version: currentVersion,
             projectName: projectName,
@@ -544,12 +694,13 @@ const QuotationsApp = () => {
             commercialConditions: commercialConditions,
             items1: items,
             itemsOptional: optionals,
+            images: images,
             subtotal: subtotalMains,
             iva: iva,
             total: total,
             currency: currency,
             createdAt: new Date().toISOString()
-        });
+        }, isForPreview);
     };
 
     const handleDownloadFromHistory = async (q) => {
@@ -557,7 +708,7 @@ const QuotationsApp = () => {
             try { await window._loadPdfMake(); } catch(e) { await customAlert('Error cargando librería PDF. Verifique su conexión.'); return; }
         }
         try {
-            const docDefinition = buildDocDefinitionForHistory(q);
+            const docDefinition = await buildDocDefinitionForHistory(q, false);
             const versionSuffix = q.version > 1 ? `_v${q.version}` : '';
             const safeProjectName = q.projectName ? `_${q.projectName.replace(/[^a-zA-Z0-9]/g, '_')}` : '';
             const fileName = `Cotizacion_${q.id}${safeProjectName}${versionSuffix}.pdf`;
@@ -581,7 +732,7 @@ const QuotationsApp = () => {
         }
         
         try {
-            const docDefinition = buildDocDefinition();
+            const docDefinition = await buildDocDefinition(true);
             const pdfDocGenerator = pdfMake.createPdf(docDefinition);
             pdfDocGenerator.getBlob((blob) => {
                 if (previewUrl) URL.revokeObjectURL(previewUrl);
@@ -604,7 +755,7 @@ const QuotationsApp = () => {
         return () => {
             if (previewTimeoutRef.current) clearTimeout(previewTimeoutRef.current);
         };
-    }, [selectedClient, projectName, requirements, techConditions, commercialConditions, items, optionals, activeTab, logoData, currency]);
+    }, [selectedClient, projectName, requirements, techConditions, commercialConditions, items, optionals, images, activeTab, logoData, currency]);
 
     const handleGenerate = async () => {
         if (!window.pdfMake) {
@@ -631,7 +782,7 @@ const QuotationsApp = () => {
         setIsGenerating(true);
 
         try {
-            const docDefinition = buildDocDefinition();
+            const docDefinition = await buildDocDefinition(true);
             const clientName = activeClient ? (activeClient.nombreFantasia || activeClient.razonSocial || 'Cliente_Desconocido') : 'Cliente_Desconocido';
             const versionSuffix = currentVersion > 1 ? `_v${currentVersion}` : '';
             const safeProjectName = projectName ? `_${projectName.replace(/[^a-zA-Z0-9]/g, '_')}` : '';
@@ -739,6 +890,7 @@ const QuotationsApp = () => {
                 commercialConditions: commercialConditions,
                 items1: items,
                 itemsOptional: optionals,
+                images: images,
                 subtotal: subtotalMains,
                 iva: iva,
                 total: total,
@@ -767,6 +919,7 @@ const QuotationsApp = () => {
             setRequirements(q.requirements || '');
             setTechConditions(q.technicalConditions || '');
             setCommercialConditions(q.commercialConditions || '');
+            setImages(q.images ? (typeof q.images === 'string' ? JSON.parse(q.images || '[]') : q.images) : []);
             setItems(JSON.parse(q.items1 || '[]'));
             setOptionals(JSON.parse(q.itemsOptional || '[]'));
             setCurrency(q.currency || 'CLP');
@@ -802,6 +955,7 @@ const QuotationsApp = () => {
             setRequirements(q.requirements || '');
             setTechConditions(q.technicalConditions || '');
             setCommercialConditions(q.commercialConditions || '');
+            setImages(q.images ? (typeof q.images === 'string' ? JSON.parse(q.images || '[]') : q.images) : []);
             setItems(JSON.parse(q.items1 || '[]'));
             setOptionals(JSON.parse(q.itemsOptional || '[]'));
             setCurrency(q.currency || 'CLP');
@@ -1059,6 +1213,92 @@ const QuotationsApp = () => {
                                             }
                                         }}
                                     ></textarea>
+
+                                    {/* Subida de fotos / Registro Fotográfico */}
+                                    <div className="tw-mb-6">
+                                        <label className="tw-block tw-text-base tw-font-bold tw-text-slate-700 tw-mb-2">Adjuntar Registro Fotográfico (Opcional)</label>
+                                        <div className="tw-flex tw-items-center tw-justify-center tw-w-full">
+                                            <label className="tw-flex tw-flex-col tw-items-center tw-justify-center tw-w-full tw-h-32 tw-border-2 tw-border-slate-300 tw-border-dashed tw-rounded-lg tw-cursor-pointer tw-bg-slate-50 hover:tw-bg-slate-100 tw-transition-all">
+                                                <div className="tw-flex tw-flex-col tw-items-center tw-justify-center tw-pt-5 tw-pb-6">
+                                                    <i className="fa-solid fa-cloud-arrow-up tw-text-2xl tw-text-slate-400 tw-mb-2"></i>
+                                                    <p className="tw-text-sm tw-text-slate-500"><span className="tw-font-semibold">Haz clic para subir</span> o arrastra tus imágenes</p>
+                                                    <p className="tw-text-xs tw-text-slate-400">JPG, PNG o GIF (Max. 5MB cada una)</p>
+                                                </div>
+                                                <input type="file" multiple className="tw-hidden" accept="image/*" onChange={handleImageUpload} />
+                                            </label>
+                                        </div>
+
+                                        {isUploading && (
+                                            <div className="tw-flex tw-items-center tw-justify-center tw-mt-4 tw-text-sm tw-text-slate-600">
+                                                <i className="fa-solid fa-circle-notch fa-spin tw-mr-2 tw-text-googleBlue"></i> Subiendo fotos...
+                                            </div>
+                                        )}
+
+                                        {/* Galería y Edición de Títulos de Imágenes */}
+                                        {images.length > 0 && (
+                                            <div className="tw-space-y-4 tw-mt-6">
+                                                <div className="tw-text-xs tw-font-bold tw-text-slate-500 tw-uppercase tw-tracking-wider">
+                                                    Fotos Adjuntas ({images.length}) — Asigna un título opcional y ajusta el orden:
+                                                </div>
+                                                {images.map((imgItem, idx) => {
+                                                    const url = typeof imgItem === 'string' ? imgItem : (imgItem.url || imgItem);
+                                                    const title = typeof imgItem === 'string' ? '' : (imgItem.title || '');
+                                                    return (
+                                                        <div key={idx} className="tw-flex tw-flex-col sm:tw-flex-row tw-items-center tw-gap-4 tw-p-3.5 tw-bg-slate-50 dark:tw-bg-slate-800 tw-border tw-border-slate-200 dark:tw-border-slate-700 tw-rounded-xl tw-shadow-sm hover:tw-border-slate-300 tw-transition-all">
+                                                            <div className="tw-relative tw-w-28 tw-h-20 tw-flex-shrink-0 tw-rounded-lg tw-overflow-hidden tw-border tw-border-slate-300 tw-bg-slate-200">
+                                                                <img src={url} className="tw-w-full tw-h-full tw-object-cover" alt={`Foto ${idx + 1}`} />
+                                                                <span className="tw-absolute tw-top-1 tw-left-1 tw-bg-slate-900/80 tw-text-white tw-text-[10px] tw-font-bold tw-px-1.5 tw-py-0.5 tw-rounded">
+                                                                    #{idx + 1}
+                                                                </span>
+                                                            </div>
+                                                            <div className="tw-flex-1 tw-w-full">
+                                                                <label className="tw-block tw-text-xs tw-font-bold tw-text-slate-600 dark:tw-text-slate-300 tw-mb-1">
+                                                                    Título / Leyenda Opcional (Foto #{idx + 1}):
+                                                                </label>
+                                                                <input
+                                                                    type="text"
+                                                                    placeholder="Ej: Foto 1: Registro de instalación..."
+                                                                    className="tw-w-full tw-p-2.5 tw-bg-white dark:tw-bg-slate-900 tw-border tw-border-slate-300 dark:tw-border-slate-600 tw-rounded-lg focus:tw-border-googleBlue focus:tw-ring-2 focus:tw-ring-blue-100 focus:tw-outline-none tw-text-sm"
+                                                                    value={title}
+                                                                    onChange={(e) => handleImageTitleChange(idx, e.target.value)}
+                                                                />
+                                                            </div>
+                                                            <div className="tw-flex sm:tw-flex-col tw-gap-1.5 tw-justify-end tw-w-full sm:tw-w-auto">
+                                                                <div className="tw-flex tw-gap-1">
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => handleMoveImage(idx, 'up')}
+                                                                        disabled={idx === 0}
+                                                                        className={`tw-px-2.5 tw-py-1.5 tw-text-xs tw-rounded-md tw-border ${idx === 0 ? 'tw-text-slate-300 tw-border-slate-200 tw-bg-slate-100 tw-cursor-not-allowed' : 'tw-text-slate-700 tw-bg-white hover:tw-bg-slate-100 tw-border-slate-300'}`}
+                                                                        title="Mover arriba / antes"
+                                                                    >
+                                                                        <i className="fa-solid fa-arrow-up"></i>
+                                                                    </button>
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => handleMoveImage(idx, 'down')}
+                                                                        disabled={idx === images.length - 1}
+                                                                        className={`tw-px-2.5 tw-py-1.5 tw-text-xs tw-rounded-md tw-border ${idx === images.length - 1 ? 'tw-text-slate-300 tw-border-slate-200 tw-bg-slate-100 tw-cursor-not-allowed' : 'tw-text-slate-700 tw-bg-white hover:tw-bg-slate-100 tw-border-slate-300'}`}
+                                                                        title="Mover abajo / después"
+                                                                    >
+                                                                        <i className="fa-solid fa-arrow-down"></i>
+                                                                    </button>
+                                                                </div>
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => handleRemoveImage(idx)}
+                                                                    className="tw-px-2.5 tw-py-1.5 tw-text-xs tw-text-red-600 tw-bg-red-50 hover:tw-bg-red-100 tw-border tw-border-red-200 tw-rounded-md tw-transition-colors"
+                                                                    title="Quitar foto"
+                                                                >
+                                                                    <i className="fa-solid fa-trash-can tw-mr-1"></i> Quitar
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                        )}
+                                    </div>
 
                                     <label className="tw-block tw-text-base tw-font-bold tw-text-slate-700 tw-mb-2">Condiciones Comerciales</label>
                                     <textarea 

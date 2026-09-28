@@ -2,8 +2,42 @@ const express = require('express');
 const router = express.Router();
 const fs = require('fs');
 const path = require('path');
+const multer = require('multer');
 const { getDbPool, sql } = require('../config/db');
 const { fetchDolar, fetchUF } = require('../services/exchangeRates');
+
+const PROJECT_ROOT = path.join(__dirname, '../..');
+const UPLOADS_DIR = path.join(PROJECT_ROOT, 'uploads');
+if (!fs.existsSync(UPLOADS_DIR)) {
+    fs.mkdirSync(UPLOADS_DIR, { recursive: true });
+}
+
+const storage = multer.diskStorage({
+    destination: (req, file, cb) => cb(null, UPLOADS_DIR),
+    filename: (req, file, cb) => {
+        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+        cb(null, uniqueSuffix + path.extname(file.originalname));
+    }
+});
+
+const upload = multer({
+    storage,
+    limits: { fileSize: 5 * 1024 * 1024 },
+    fileFilter: (req, file, cb) => {
+        if (file.mimetype.startsWith('image/')) {
+            cb(null, true);
+        } else {
+            cb(new Error('Solo se permiten archivos de imagen'));
+        }
+    }
+});
+
+// POST /api/quotations/upload-image
+router.post('/upload-image', upload.single('image'), (req, res) => {
+    if (!req.file) return res.status(400).json({ error: 'No se subió ninguna imagen' });
+    const imageUrl = `/uploads/${req.file.filename}`;
+    res.json({ url: imageUrl });
+});
 
 // Limpiar cotizaciones antiguas (> 90 días)
 async function cleanOldQuotations() {
@@ -106,6 +140,7 @@ router.post('/', async (req, res) => {
             .input('commercialConditions', sql.VarChar(sql.MAX), q.commercialConditions || '')
             .input('items1', sql.VarChar(sql.MAX), JSON.stringify(q.items1 || []))
             .input('itemsOptional', sql.VarChar(sql.MAX), JSON.stringify(q.itemsOptional || []))
+            .input('images', sql.VarChar(sql.MAX), JSON.stringify(q.images || []))
             .input('subtotal', sql.Decimal(18,2), q.subtotal)
             .input('iva', sql.Decimal(18,2), q.iva)
             .input('total', sql.Decimal(18,2), q.total)
@@ -121,11 +156,11 @@ router.post('/', async (req, res) => {
                         clientName = @clientName, projectName = @projectName,
                         requirements = @requirements, technicalConditions = @technicalConditions,
                         commercialConditions = @commercialConditions, items1 = @items1,
-                        itemsOptional = @itemsOptional, subtotal = @subtotal, iva = @iva, total = @total,
+                        itemsOptional = @itemsOptional, images = @images, subtotal = @subtotal, iva = @iva, total = @total,
                         currency = @currency, status = @status
                 WHEN NOT MATCHED THEN
-                    INSERT (id, correlative, year, version, clientId, clientName, projectName, requirements, technicalConditions, commercialConditions, items1, itemsOptional, subtotal, iva, total, currency, status, createdAt)
-                    VALUES (@id, @correlative, @year, @version, @clientId, @clientName, @projectName, @requirements, @technicalConditions, @commercialConditions, @items1, @itemsOptional, @subtotal, @iva, @total, @currency, @status, GETDATE());
+                    INSERT (id, correlative, year, version, clientId, clientName, projectName, requirements, technicalConditions, commercialConditions, items1, itemsOptional, images, subtotal, iva, total, currency, status, createdAt)
+                    VALUES (@id, @correlative, @year, @version, @clientId, @clientName, @projectName, @requirements, @technicalConditions, @commercialConditions, @items1, @itemsOptional, @images, @subtotal, @iva, @total, @currency, @status, GETDATE());
             `);
 
         if (q.status === 'Emitida') {
