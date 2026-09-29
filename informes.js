@@ -398,51 +398,64 @@ const ReportsApp = () => {
 
         const content = docDefinition.content;
 
+        let sectionCounter = 1;
+
         // 1. Datos Generales
-        const section1Elements = [];
-        section1Elements.push(buildSectionHeaderInline('1. DATOS GENERALES DEL PROYECTO'));
-        section1Elements.push({ text: generalData || 'No se ingresaron datos generales.', margin: [8, 0, 0, 12], alignment: 'justify' });
-        content.push({
-            unbreakable: true,
-            stack: section1Elements
-        });
+        const hasGeneralData = generalData && generalData.trim().length > 0;
+        if (hasGeneralData) {
+            const num = sectionCounter++;
+            const section1Elements = [];
+            section1Elements.push(buildSectionHeaderInline(`${num}. DATOS GENERALES DEL PROYECTO`));
+            section1Elements.push({ text: generalData.trim(), margin: [8, 0, 0, 12], alignment: 'justify' });
+            content.push({
+                unbreakable: true,
+                stack: section1Elements
+            });
+        }
 
         // 2. Alcance del Proyecto
-        const section2Elements = [];
-        section2Elements.push(buildSectionHeaderInline('2. ALCANCE DEL PROYECTO'));
-        section2Elements.push({ text: scope || 'No se ingresó alcance del proyecto.', margin: [8, 0, 0, 12], alignment: 'justify' });
-        content.push({
-            unbreakable: true,
-            stack: section2Elements
-        });
+        const hasScope = scope && scope.trim().length > 0;
+        if (hasScope) {
+            const num = sectionCounter++;
+            const section2Elements = [];
+            section2Elements.push(buildSectionHeaderInline(`${num}. ALCANCE DEL PROYECTO`));
+            section2Elements.push({ text: scope.trim(), margin: [8, 0, 0, 12], alignment: 'justify' });
+            content.push({
+                unbreakable: true,
+                stack: section2Elements
+            });
+        }
 
         // 3. Materiales Utilizados
-        const materialsStackElements = [];
-        materialsStackElements.push({
-            table: {
-                widths: [4, '*'],
-                body: [
-                    [
-                        { text: '', fillColor: '#0f766e', border: [false, false, false, false] },
-                        { text: '3. MATERIALES UTILIZADOS', fillColor: '#f8fafc', border: [false, false, false, false], margin: [5, 4, 0, 4], color: '#1e293b', bold: true, fontSize: 13 }
+        const validMaterials = (materials || []).filter(m => (m.desc && m.desc.trim().length > 0) || (m.notes && m.notes.trim().length > 0));
+        const hasMaterials = validMaterials.length > 0;
+        if (hasMaterials) {
+            const num = sectionCounter++;
+            const materialsStackElements = [];
+            materialsStackElements.push({
+                table: {
+                    widths: [4, '*'],
+                    body: [
+                        [
+                            { text: '', fillColor: '#0f766e', border: [false, false, false, false] },
+                            { text: `${num}. MATERIALES UTILIZADOS`, fillColor: '#f8fafc', border: [false, false, false, false], margin: [5, 4, 0, 4], color: '#1e293b', bold: true, fontSize: 13 }
+                        ]
                     ]
-                ]
-            },
-            layout: 'noBorders',
-            margin: [0, 15, 0, 8]
-        });
+                },
+                layout: 'noBorders',
+                margin: [0, 15, 0, 8]
+            });
 
-        if (materials && materials.length > 0) {
             const tableBody = [
                 [
                     { text: 'Descripción del Material', style: 'tableHeader', alignment: 'left' },
                     { text: 'Notas / Detalles', style: 'tableHeader', alignment: 'left' }
                 ]
             ];
-            materials.forEach(m => {
+            validMaterials.forEach(m => {
                 tableBody.push([
-                    { text: m.desc || '-', fontSize: 10 },
-                    { text: m.notes || '-', fontSize: 10 }
+                    { text: m.desc ? m.desc.trim() : '-', fontSize: 10 },
+                    { text: m.notes ? m.notes.trim() : '-', fontSize: 10 }
                 ]);
             });
             materialsStackElements.push({
@@ -454,111 +467,123 @@ const ReportsApp = () => {
                 layout: 'lightHorizontalLines',
                 margin: [8, 0, 0, 12]
             });
-        } else {
-            materialsStackElements.push({ text: 'No se listaron materiales.', margin: [8, 0, 0, 12], italics: true, fontSize: 10 });
+
+            content.push({
+                unbreakable: true,
+                stack: materialsStackElements
+            });
         }
 
-        content.push({
-            unbreakable: true,
-            stack: materialsStackElements
-        });
-
         // 4. Resultados del Proyecto (Texto + Imágenes)
-        const section4Elements = [];
-        section4Elements.push(buildSectionHeaderInline('4. RESULTADOS DEL PROYECTO'));
-        section4Elements.push({ text: results || 'No se ingresaron resultados.', margin: [8, 0, 0, 12], alignment: 'justify' });
-        content.push({
-            unbreakable: true,
-            stack: section4Elements
-        });
+        const hasResultsText = results && results.trim().length > 0;
+        const hasImages = images && images.length > 0;
+        const hasResults = hasResultsText || hasImages;
 
-        // Procesar y adjuntar imágenes
-        if (images && images.length > 0) {
-            const imageObjects = [];
-            // Si estamos previsualizando, cargamos marcadores de posición rápidos para no congelar la UI
-            if (isForPreview) {
-                images.forEach((imgItem, idx) => {
-                    const imgObj = typeof imgItem === 'string' ? { url: imgItem, title: '' } : imgItem;
-                    const previewLabel = imgObj.title ? `[Foto ${idx + 1}: ${imgObj.title}]` : `[Registro Fotográfico - Imagen ${idx + 1}]`;
-                    imageObjects.push({
-                        table: {
-                            widths: ['*'],
-                            body: [
-                                [{ text: previewLabel, alignment: 'center', margin: [0, 50, 0, 50], color: '#64748b', italics: true }]
-                            ]
-                        },
-                        layout: {
-                            hLineWidth: () => 1,
-                            vLineWidth: () => 1,
-                            hLineColor: () => '#cbd5e1',
-                            vLineColor: () => '#cbd5e1',
-                            fillColor: () => '#f8fafc'
-                        },
-                        margin: [40, 10, 40, 10]
-                    });
-                });
-            } else {
-                // Para el PDF final definitivo, convertimos las imágenes reales a Base64
-                for (let imgItem of images) {
-                    const imgObj = typeof imgItem === 'string' ? { url: imgItem, title: '' } : imgItem;
-                    const b64 = await convertImageUrlToBase64(imgObj.url);
-                    if (b64) {
-                        const tableBody = [
-                            [{ image: b64, fit: [380, 230], alignment: 'center', border: [false, false, false, false] }]
-                        ];
-                        if (imgObj.title && imgObj.title.trim()) {
-                            tableBody.push([
-                                { text: imgObj.title.trim(), fontSize: 10, bold: true, alignment: 'center', color: '#1e293b', margin: [0, 4, 0, 2], border: [false, false, false, false] }
-                            ]);
-                        }
+        if (hasResults) {
+            const num = sectionCounter++;
+            const section4Elements = [];
+            section4Elements.push(buildSectionHeaderInline(`${num}. RESULTADOS DEL PROYECTO`));
+            if (hasResultsText) {
+                section4Elements.push({ text: results.trim(), margin: [8, 0, 0, 12], alignment: 'justify' });
+            }
+            content.push({
+                unbreakable: true,
+                stack: section4Elements
+            });
+
+            // Procesar y adjuntar imágenes
+            if (hasImages) {
+                const imageObjects = [];
+                // Si estamos previsualizando, cargamos marcadores de posición rápidos para no congelar la UI
+                if (isForPreview) {
+                    images.forEach((imgItem, idx) => {
+                        const imgObj = typeof imgItem === 'string' ? { url: imgItem, title: '' } : imgItem;
+                        const previewLabel = imgObj.title ? `[Foto ${idx + 1}: ${imgObj.title}]` : `[Registro Fotográfico - Imagen ${idx + 1}]`;
                         imageObjects.push({
                             table: {
                                 widths: ['*'],
-                                body: tableBody
+                                body: [
+                                    [{ text: previewLabel, alignment: 'center', margin: [0, 50, 0, 50], color: '#64748b', italics: true }]
+                                ]
                             },
-                            layout: 'noBorders',
-                            margin: [0, 8, 0, 8]
+                            layout: {
+                                hLineWidth: () => 1,
+                                vLineWidth: () => 1,
+                                hLineColor: () => '#cbd5e1',
+                                vLineColor: () => '#cbd5e1',
+                                fillColor: () => '#f8fafc'
+                            },
+                            margin: [40, 10, 40, 10]
                         });
+                    });
+                } else {
+                    // Para el PDF final definitivo, convertimos las imágenes reales a Base64
+                    for (let imgItem of images) {
+                        const imgObj = typeof imgItem === 'string' ? { url: imgItem, title: '' } : imgItem;
+                        const b64 = await convertImageUrlToBase64(imgObj.url);
+                        if (b64) {
+                            const tableBody = [
+                                [{ image: b64, fit: [380, 230], alignment: 'center', border: [false, false, false, false] }]
+                            ];
+                            if (imgObj.title && imgObj.title.trim()) {
+                                tableBody.push([
+                                    { text: imgObj.title.trim(), fontSize: 10, bold: true, alignment: 'center', color: '#1e293b', margin: [0, 4, 0, 2], border: [false, false, false, false] }
+                                ]);
+                            }
+                            imageObjects.push({
+                                table: {
+                                    widths: ['*'],
+                                    body: tableBody
+                                },
+                                layout: 'noBorders',
+                                margin: [0, 8, 0, 8]
+                            });
+                        }
                     }
                 }
-            }
 
-            // Agrupar fotos en páginas de hasta 2 imágenes, cada una con su respectivo título y espaciado
-            for (let i = 0; i < imageObjects.length; i += 2) {
-                const pageContent = [];
-                
-                // Título de registro fotográfico para esta página de fotos
-                pageContent.push({ text: 'Registro Fotográfico:', bold: true, fontSize: 11, margin: [8, 15, 0, 10], color: '#475569' });
-                pageContent.push({ text: '\n' }); // Separación de un enter
-                
-                // Primera imagen de la página
-                pageContent.push(imageObjects[i]);
-                
-                // Segunda imagen de la página (si existe)
-                if (i + 1 < imageObjects.length) {
-                    pageContent.push({ text: '\n' }); // Enter de separación entre las 2 imágenes
-                    pageContent.push(imageObjects[i + 1]);
+                // Agrupar fotos en páginas de hasta 2 imágenes, cada una con su respectivo título y espaciado
+                for (let i = 0; i < imageObjects.length; i += 2) {
+                    const pageContent = [];
+                    
+                    // Título de registro fotográfico para esta página de fotos
+                    pageContent.push({ text: 'Registro Fotográfico:', bold: true, fontSize: 11, margin: [8, 15, 0, 10], color: '#475569' });
+                    pageContent.push({ text: '\n' }); // Separación de un enter
+                    
+                    // Primera imagen de la página
+                    pageContent.push(imageObjects[i]);
+                    
+                    // Segunda imagen de la página (si existe)
+                    if (i + 1 < imageObjects.length) {
+                        pageContent.push({ text: '\n' }); // Enter de separación entre las 2 imágenes
+                        pageContent.push(imageObjects[i + 1]);
+                    }
+                    
+                    // Salto de página antes de las siguientes páginas de fotos
+                    if (i > 0) {
+                        content.push({ text: '', pageBreak: 'before' });
+                    }
+                    
+                    content.push({
+                        unbreakable: true,
+                        stack: pageContent
+                    });
                 }
-                
-                // Salto de página antes de las siguientes páginas de fotos
-                if (i > 0) {
-                    content.push({ text: '', pageBreak: 'before' });
-                }
-                
-                content.push({
-                    unbreakable: true,
-                    stack: pageContent
-                });
             }
         }
 
         // 5. Conclusiones y Recomendaciones
-        const conclusionsBlock = [];
-        conclusionsBlock.push(buildSectionHeaderInline('5. CONCLUSIONES Y RECOMENDACIONES'));
-        conclusionsBlock.push({ text: conclusions || 'Sin conclusiones o recomendaciones.', margin: [8, 0, 0, 15], alignment: 'justify' });
+        const hasConclusions = conclusions && conclusions.trim().length > 0;
+        const finalBlockElements = [];
+
+        if (hasConclusions) {
+            const num = sectionCounter++;
+            finalBlockElements.push(buildSectionHeaderInline(`${num}. CONCLUSIONES Y RECOMENDACIONES`));
+            finalBlockElements.push({ text: conclusions.trim(), margin: [8, 0, 0, 15], alignment: 'justify' });
+        }
 
         // Firma final
-        conclusionsBlock.push(
+        finalBlockElements.push(
             { canvas: [{ type: 'line', x1: 0, y1: 0, x2: 531.9, y2: 0, lineWidth: 1.5, lineColor: '#1e293b' }], margin: [0, 15, 0, 15] },
             {
                 stack: [
@@ -570,16 +595,16 @@ const ReportsApp = () => {
             }
         );
 
-        const conclusionsStack = {
+        const finalStack = {
             unbreakable: true,
-            stack: conclusionsBlock
+            stack: finalBlockElements
         };
 
-        if (images && images.length > 0) {
-            conclusionsStack.pageBreak = 'before';
+        if (hasImages) {
+            finalStack.pageBreak = 'before';
         }
 
-        content.push(conclusionsStack);
+        content.push(finalStack);
 
         return docDefinition;
     };
