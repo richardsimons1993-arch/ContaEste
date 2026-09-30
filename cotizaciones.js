@@ -211,35 +211,47 @@ const QuotationsApp = () => {
 
     // Subir imágenes
     const handleImageUpload = async (e) => {
-        const files = Array.from(e.target.files);
+        const inputElem = e.target;
+        const files = Array.from(inputElem.files);
         if (files.length === 0) return;
 
         setIsUploading(true);
         const uploadedUrls = [];
 
-        for (let file of files) {
-            const formData = new FormData();
-            formData.append('image', file);
+        try {
+            const sessionData = JSON.parse(localStorage.getItem('contabilidad_session') || '{}');
+            const headers = {};
+            if (sessionData.token) headers['Authorization'] = `Bearer ${sessionData.token}`;
 
-            try {
+            for (let file of files) {
+                const formData = new FormData();
+                formData.append('image', file);
+
                 const response = await fetch('/api/quotations/upload-image', {
                     method: 'POST',
+                    headers: headers,
                     body: formData
                 });
                 if (response.ok) {
                     const data = await response.json();
                     uploadedUrls.push(data.url);
                 } else {
-                    console.error("Error al subir archivo:", file.name);
+                    const errText = await response.text();
+                    console.error("Error al subir archivo:", file.name, errText);
+                    await customAlert(`Error al subir ${file.name}: ${response.statusText || errText}`);
                 }
-            } catch (err) {
-                console.error("Excepción al subir imagen:", err);
             }
+        } catch (err) {
+            console.error("Excepción al subir imagen:", err);
+            await customAlert(`Excepción al subir imagen: ${err.message}`);
+        } finally {
+            if (uploadedUrls.length > 0) {
+                const newImageObjs = uploadedUrls.map(url => ({ url, title: '' }));
+                setImages(prev => [...prev, ...newImageObjs]);
+            }
+            setIsUploading(false);
+            if (inputElem) inputElem.value = '';
         }
-
-        const newImageObjs = uploadedUrls.map(url => ({ url, title: '' }));
-        setImages(prev => [...prev, ...newImageObjs]);
-        setIsUploading(false);
     };
 
     const handleImageTitleChange = (index, newTitle) => {
@@ -782,7 +794,7 @@ const QuotationsApp = () => {
         setIsGenerating(true);
 
         try {
-            const docDefinition = await buildDocDefinition(true);
+            const docDefinition = await buildDocDefinition(false);
             const clientName = activeClient ? (activeClient.nombreFantasia || activeClient.razonSocial || 'Cliente_Desconocido') : 'Cliente_Desconocido';
             const versionSuffix = currentVersion > 1 ? `_v${currentVersion}` : '';
             const safeProjectName = projectName ? `_${projectName.replace(/[^a-zA-Z0-9]/g, '_')}` : '';
