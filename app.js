@@ -422,7 +422,13 @@ const UI = {
                         state.debts = dbts.map(d => ({ ...d, date: d.date ? d.date.split('T')[0] : null, dueDate: d.dueDate ? d.dueDate.split('T')[0] : null }));
                     } else if (endpoint.includes('/debtors')) {
                         const dbtrs = await window.StorageAPI.async.getDebtors();
-                        state.debtors = dbtrs.map(d => ({ ...d, date: d.date ? d.date.split('T')[0] : null, dueDate: d.dueDate ? d.dueDate.split('T')[0] : null }));
+                        state.debtors = dbtrs.map(d => ({
+                            ...d,
+                            titular: d.titular || d.debtor || '',
+                            debtor: d.debtor || d.titular || '',
+                            date: d.date ? d.date.split('T')[0] : null,
+                            dueDate: d.dueDate ? d.dueDate.split('T')[0] : null
+                        }));
                     } else if (endpoint.includes('/clients')) {
                         state.clients = await window.StorageAPI.async.getClients();
                     } else if (endpoint.includes('/suppliers')) {
@@ -2295,8 +2301,12 @@ const UI = {
         for (let d of state.debtors) {
             const amount = parseFloat(d.amount) || 0;
             if (amount <= 0) continue;
-            const client = state.clients.find(c => c.name === d.titular || c.razonSocial === d.titular || c.nombreFantasia === d.titular);
-            const name = client ? (client.nombreFantasia || client.name) : (d.titular || 'Otros');
+            const rawTitular = d.debtor || d.titular || '';
+            const client = state.clients.find(c => 
+                (d.clientId && String(c.id) === String(d.clientId)) ||
+                (rawTitular && (c.name === rawTitular || c.razonSocial === rawTitular || c.nombreFantasia === rawTitular))
+            );
+            const name = client ? (client.nombreFantasia || client.razonSocial || client.name || 'Cliente') : (rawTitular || 'Otros');
             debtorsGroup[name] = (debtorsGroup[name] || 0) + amount;
             totalDebtorsSum += amount;
         }
@@ -3597,12 +3607,12 @@ const UI = {
         let totalNetAmount = 0;
 
         const sortedDebtors = [...state.debtors].sort((a, b) => {
-            let nameA = a.titular || '';
-            const clientA = state.clients.find(c => c.name === a.titular || c.razonSocial === a.titular || c.nombreFantasia === a.titular);
+            let nameA = a.debtor || a.titular || '';
+            const clientA = state.clients.find(c => (a.clientId && String(c.id) === String(a.clientId)) || (nameA && (c.name === nameA || c.razonSocial === nameA || c.nombreFantasia === nameA)));
             if (clientA) nameA = this.getClientName(clientA.id);
 
-            let nameB = b.titular || '';
-            const clientB = state.clients.find(c => c.name === b.titular || c.razonSocial === b.titular || c.nombreFantasia === b.titular);
+            let nameB = b.debtor || b.titular || '';
+            const clientB = state.clients.find(c => (b.clientId && String(c.id) === String(b.clientId)) || (nameB && (c.name === nameB || c.razonSocial === nameB || c.nombreFantasia === nameB)));
             if (clientB) nameB = this.getClientName(clientB.id);
 
             return nameA.localeCompare(nameB, 'es', { sensitivity: 'base' });
@@ -3616,8 +3626,9 @@ const UI = {
             const tr = document.createElement('tr');
             
             // Intentar encontrar si el titular es un cliente para mostrar nombre de fantasía
-            let displayName = d.titular;
-            const client = state.clients.find(c => c.name === d.titular || c.razonSocial === d.titular || c.nombreFantasia === d.titular);
+            const rawTitular = d.debtor || d.titular || '';
+            let displayName = rawTitular || 'Cliente';
+            const client = state.clients.find(c => (d.clientId && String(c.id) === String(d.clientId)) || (rawTitular && (c.name === rawTitular || c.razonSocial === rawTitular || c.nombreFantasia === rawTitular)));
             if (client) {
                 displayName = this.getClientName(client.id);
             }
