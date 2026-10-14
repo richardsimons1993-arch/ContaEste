@@ -337,7 +337,7 @@ main {
     box-shadow: var(--shadow-lg);
     padding: 0.75rem;
     display: none;
-    z-index: 1000;
+    z-index: 1100;
     animation: fadeIn 0.2s ease;
 }
 
@@ -859,6 +859,7 @@ textarea:focus {
 
 /* Estilos de Desplegables Personalizados (Desde la interacción de app.js) */
 .custom-dropdown {
+    z-index: 1050;
     position: relative;
     width: 100%;
 }
@@ -895,7 +896,7 @@ textarea:focus {
     border-radius: var(--radius);
     margin-top: 0.5rem;
     padding: 0.5rem;
-    z-index: 1000;
+    z-index: 1100;
     display: none;
     max-height: 300px;
     overflow-y: auto;

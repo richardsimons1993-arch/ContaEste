@@ -36,7 +36,7 @@ router.post('/users', async (req, res) => {
         } else if (check.recordset.length > 0) {
             hashedPassword = check.recordset[0].password;
         } else {
-            hashedPassword = await bcrypt.hash('SSO_MANAGED_' + Date.now(), BCRYPT_ROUNDS);
+            hashedPassword = await bcrypt.hash('Simons2026!', BCRYPT_ROUNDS);
         }
 
         const modulesJson = JSON.stringify(u.modules || []);

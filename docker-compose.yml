@@ -16,6 +16,7 @@ services:
       - ./notas.js:/app/notas.js
       - ./storage.js:/app/storage.js
       - ./index.html:/app/index.html
+      - ./style.css:/app/style.css
       - ./server.js:/app/server.js
       - ./src:/app/src
       - ./uploads:/app/uploads

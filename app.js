@@ -331,8 +331,10 @@ const UI = {
                 console.error("Error Crítico: ¡StorageAPI no encontrado!");
                 return;
             }
-            await this.loadData();
-            this.checkSession(); // Verificar si ya hay una sesión
+            this.checkSession(); // Verificar si ya hay una sesión primero
+            if (state.currentUser) {
+                await this.loadData();
+            }
 
             // ── Recalcular alertas DESPUÉS de restaurar la sesión ──
             // refreshAlertBadge y checkOperationalExpensesAlerts requieren
@@ -578,6 +580,11 @@ const UI = {
         };
 
         try {
+            const hasSession = localStorage.getItem('contabilidad_session');
+            if (!hasSession) {
+                console.log('[loadData] No hay sesión activa; omitiendo sincronización de módulos privados.');
+                return;
+            }
             console.log('--- Iniciando Sincronización de Datos ---');
             
             // Paralelizar solicitudes de red para mejorar rendimiento
@@ -1251,7 +1258,15 @@ const UI = {
                     console.warn("Sesión expirada por inactividad");
                     localStorage.removeItem('contabilidad_session');
                     sessionStorage.setItem('logout_message', 'Sesión expirada por inactividad. Por favor ingrese nuevamente.');
-                    window.location.href = '/api/auth/signin';
+                    document.body.classList.add('login-pending');
+                    const overlay = document.getElementById('login-overlay');
+                    if (overlay) overlay.style.display = 'flex';
+                    const errorEl = document.getElementById('login-error');
+                    if (errorEl) {
+                        errorEl.textContent = 'Sesión expirada por inactividad. Por favor ingrese nuevamente.';
+                        errorEl.style.display = 'block';
+                        errorEl.style.color = 'var(--warning-color, #e67e22)';
+                    }
                     return;
                 }
 
@@ -1271,6 +1286,8 @@ const UI = {
                 localStorage.setItem('contabilidad_session', JSON.stringify(sessionData));
 
                 document.body.classList.remove('login-pending');
+                const overlay = document.getElementById('login-overlay');
+                if (overlay) overlay.style.display = 'none';
                 this.updateUserUI();
                 this.applyModuleAccess();
                 this.startInactivityTimer();
@@ -1297,8 +1314,9 @@ const UI = {
                 }, 100);
                 sessionStorage.removeItem('logout_message');
             } else {
-                // Si no hay mensaje de logout, es un acceso fresco. Redirigimos directo a SSO.
-                window.location.href = '/api/auth/signin';
+                console.log("Acceso fresco sin sesión. Mostrando formulario de login.");
+                const overlay = document.getElementById('login-overlay');
+                if (overlay) overlay.style.display = 'flex';
             }
         }
     },
@@ -2812,9 +2830,11 @@ const UI = {
             }
         });
 
-        // Cerrar al hacer clic fuera
-        document.addEventListener('click', () => {
-            document.querySelectorAll('.dropdown-menu').forEach(m => m.classList.remove('active'));
+        // Cerrar al hacer clic fuera respetando clics dentro de .custom-dropdown
+        document.addEventListener('click', (e) => {
+            if (!e.target.closest('.custom-dropdown') && !e.target.closest('.user-profile')) {
+                document.querySelectorAll('.dropdown-menu').forEach(m => m.classList.remove('active'));
+            }
         });
 
         // Evitar cierre al hacer clic dentro del menú
@@ -5628,6 +5648,7 @@ const UI = {
             id: userId,
             name: formData.get('name'),
             username: username,
+            password: formData.get('password') || "",
             email: formData.get('email'),
             role: formData.get('role'),
             modules: permissions, // Ahora es un objeto
