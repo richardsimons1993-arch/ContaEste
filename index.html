@@ -210,7 +210,7 @@
                 <!-- Módulo Notas -->
                 <div class="nav-section" data-module="notas">
                     <div class="nav-section-header">NOTAS</div>
-                    <button class="nav-btn" data-target="notas">
+                    <button class="nav-btn active" data-target="notas">
                         <i class="fa-solid fa-clipboard-list"></i> Notas
                     </button>
                 </div>
@@ -245,7 +245,7 @@
                 <!-- Módulo Finanzas -->
                 <div class="nav-section" data-module="finanzas">
                     <div class="nav-section-header">FINANZAS</div>
-                    <button class="nav-btn active" data-target="transaction-form">
+                    <button class="nav-btn" data-target="transaction-form">
                         <i class="fa-solid fa-circle-plus"></i> Registrar
                     </button>
                     <button class="nav-btn" data-target="concepts">
@@ -419,7 +419,7 @@
             </section>
 
             <!-- VISTA NOTAS (React Container) -->
-            <section id="notas" class="view-section scrollable">
+            <section id="notas" class="view-section scrollable active">
                 <!-- El root de React se inyectará aquí -->
                 <div id="notas-root"></div>
             </section>
@@ -792,7 +792,7 @@
             </section>
 
             <!-- VISTA FORMULARIO DE TRANSACCIÓN -->
-            <section id="transaction-form" class="view-section scrollable active">
+            <section id="transaction-form" class="view-section scrollable">
                 <!-- El formulario se inyectará aquí -->
                 <div class="card form-card">
                     <h2 id="transaction-form-title">Registrar Movimiento</h2>

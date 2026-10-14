@@ -333,6 +333,8 @@ const UI = {
             }
             this.checkSession(); // Verificar si ya hay una sesión primero
             if (state.currentUser) {
+                const isMobileDevice = document.body.classList.contains('is-mobile-device');
+                this.switchView(isMobileDevice ? 'mobile-dashboard' : 'notas');
                 await this.loadData();
             }
 
@@ -399,15 +401,8 @@ const UI = {
                 this.applyPrivileges();
                 this.applyModuleAccess();
                 
-                // Determinar vista inicial (Mobile-First Dashboard vs Notas Desktop) basado en el tipo de dispositivo real
-                const isMobileDevice = document.body.classList.contains('is-mobile-device');
-                if (isMobileDevice) {
-                    console.log("Dispositivo Móvil Detectado: Cambiando a Dashboard de Inicio móvil...");
-                    this.switchView('mobile-dashboard');
-                } else {
-                    console.log("Dispositivo Desktop Detectado: Cambiando a Notas...");
-                    this.switchView('notas');
-                }
+                // Vista inicial ya fue establecida antes de loadData para evitar parpadeo
+                console.log("Vista inicial activa sin parpadeo.");
             }
             console.log("✅ UI.init() completado con éxito");
             
