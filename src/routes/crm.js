@@ -5,6 +5,7 @@ const path = require('path');
 const axios = require('axios');
 const multer = require('multer');
 const { getDbPool, sql, getApi, deleteApi } = require('../config/db');
+const { sendEmail } = require('../services/email');
 
 const PROJECT_ROOT = path.join(__dirname, '../..');
 const UPLOADS_DIR = path.join(PROJECT_ROOT, 'uploads');
@@ -160,9 +161,6 @@ router.post('/send-emails', async (req, res) => {
     }
 
     try {
-        const accessToken = await getGraphAccessToken();
-        console.log("✅ Token de Graph obtenido con éxito");
-
         const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
         let results = [];
         let sentCount = 0;
@@ -185,21 +183,15 @@ router.post('/send-emails', async (req, res) => {
                     const filePath = path.join(UPLOADS_DIR, filename);
 
                     if (fs.existsSync(filePath)) {
-                        const fileContent = fs.readFileSync(filePath, { encoding: 'base64' });
-                        const extension = filename.split('.').pop().toLowerCase();
-                        const mimeType = `image/${extension === 'jpg' ? 'jpeg' : extension}`;
                         const contentId = `img${cidCounter++}@crm`;
 
                         processedBody = processedBody.split(src).join(`cid:${contentId}`);
                         processedImages.set(src, contentId);
 
                         inlineAttachments.push({
-                            '@odata.type': '#microsoft.graph.fileAttachment',
-                            name: filename,
-                            contentType: mimeType,
-                            contentBytes: fileContent,
-                            contentId: contentId,
-                            isInline: true
+                            filename: filename,
+                            path: filePath,
+                            cid: contentId
                         });
                         console.log(`✨ Imagen preparada CID: ${filename} → cid:${contentId}`);
                     } else {
@@ -213,30 +205,20 @@ router.post('/send-emails', async (req, res) => {
 
         for (const email of recipients) {
             try {
-                const messageBody = {
+                const sent = await sendEmail({
+                    to: email,
                     subject: subject,
-                    body: { contentType: 'HTML', content: processedBody },
-                    toRecipients: [{ emailAddress: { address: email } }]
-                };
-                if (inlineAttachments.length > 0) {
-                    messageBody.attachments = inlineAttachments;
-                }
-                const message = { message: messageBody };
+                    html: processedBody,
+                    attachments: inlineAttachments
+                });
 
-                await axios.post(
-                    `https://graph.microsoft.com/v1.0/users/${GRAPH_CONFIG.senderEmail}/sendMail`,
-                    message,
-                    {
-                        headers: {
-                            'Authorization': `Bearer ${accessToken}`,
-                            'Content-Type': 'application/json'
-                        }
-                    }
-                );
+                if (!sent) {
+                    throw new Error("Fallo en transporte SMTP");
+                }
 
                 sentCount++;
                 results.push({ email, success: true });
-                console.log(`✅ [Graph] Email enviado a: ${email} (${sentCount}/${recipients.length})`);
+                console.log(`✅ [SMTP CRM] Email enviado a: ${email} (${sentCount}/${recipients.length})`);
 
                 // Registrar en la base de datos
                 try {

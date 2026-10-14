@@ -1,27 +1,43 @@
-const msal = require('@azure/msal-node');
-const graph = require('@microsoft/microsoft-graph-client');
-require('isomorphic-fetch');
-
-const msalConfig = {
-    auth: {
-        clientId: process.env.MS_GRAPH_CLIENT_ID || '',
-        authority: `https://login.microsoftonline.com/${process.env.MS_GRAPH_TENANT_ID || ''}`,
-        clientSecret: process.env.MS_GRAPH_CLIENT_SECRET || '',
-    }
-};
-
-const cca = new msal.ConfidentialClientApplication(msalConfig);
-const mailbox = process.env.MS_GRAPH_SHARED_MAILBOX || 'soporte@simons.cl';
-
+const nodemailer = require('nodemailer');
 const { getDbPool, sql } = require('../config/db');
+
+// Configuración SMTP para Brevo Relay / Mailcow
+const SMTP_HOST = process.env.SMTP_HOST || 'smtp-relay.brevo.com';
+const SMTP_PORT = parseInt(process.env.SMTP_PORT, 10) || 587;
+const SMTP_SECURE = process.env.SMTP_SECURE === 'true';
+const SMTP_USER = process.env.SMTP_USER || 'be25dd001@smtp-brevo.com';
+const SMTP_PASS = process.env.SMTP_PASS || '
+const SMTP_FROM = process.env.SMTP_FROM || '"Simons SpA" <richard@simons.cl>';
+
+const transporter = nodemailer.createTransport({
+    host: SMTP_HOST,
+    port: SMTP_PORT,
+    secure: SMTP_SECURE,
+    auth: {
+        user: SMTP_USER,
+        pass: SMTP_PASS
+    },
+    tls: {
+        rejectUnauthorized: false
+    }
+});
+
+// Verificación inicial de transporte
+transporter.verify((err, success) => {
+    if (err) {
+        console.warn(`⚠️ Error en conexión SMTP ContaEste (${SMTP_HOST}:${SMTP_PORT}):`, err.message);
+    } else {
+        console.log(`✅ Servidor SMTP ContaEste listo en ${SMTP_HOST}:${SMTP_PORT}`);
+    }
+});
 
 async function logEmailEvent(success, to, subject, errorMsg = null) {
     try {
         const pool = await getDbPool();
         const action = success ? 'Envío Email' : 'Error Email';
         const details = success 
-            ? `Correo enviado vía Graph a: ${to} (Asunto: ${subject})`
-            : `Error enviando correo vía Graph a: ${to} (Asunto: ${subject}) - Error: ${errorMsg}`;
+            ? `Correo enviado vía SMTP a: ${to} (Asunto: ${subject})`
+            : `Error enviando correo vía SMTP a: ${to} (Asunto: ${subject}) - Error: ${errorMsg}`;
         const extraData = JSON.stringify({ to, subject, success, error: errorMsg });
 
         await pool.request()
@@ -38,45 +54,33 @@ async function logEmailEvent(success, to, subject, errorMsg = null) {
     }
 }
 
-async function sendEmail({ to, subject, html, text }) {
-    if (!process.env.MS_GRAPH_CLIENT_ID) {
-        console.warn('⚠️ Microsoft Graph API no está configurada para el envío de correos.');
-        return false;
-    }
+async function sendEmail({ to, subject, html, text, attachments }) {
     try {
-        const authResponse = await cca.acquireTokenByClientCredential({
-            scopes: ['https://graph.microsoft.com/.default'],
-        });
-        const client = graph.Client.init({
-            authProvider: (done) => done(null, authResponse.accessToken)
-        });
-        
-        const message = {
-            subject: subject,
-            body: {
-                contentType: html ? 'HTML' : 'Text',
-                content: html || text
-            },
-            toRecipients: [{ emailAddress: { address: to } }]
+        const mailOptions = {
+            from: SMTP_FROM,
+            to,
+            subject,
+            text: text || '',
+            html: html || text || ''
         };
+
+        if (attachments && Array.isArray(attachments) && attachments.length > 0) {
+            mailOptions.attachments = attachments;
+        }
+
+        const info = await transporter.sendMail(mailOptions);
+        console.log(`✉️ [SMTP] Correo enviado exitosamente a: ${to} (ID: ${info.messageId})`);
         
-        await client.api(`/users/${mailbox}/sendMail`).post({ message: message, saveToSentItems: true });
-        console.log(`✉️ Correo enviado vía Graph a: ${to} (Asunto: ${subject})`);
-        
-        // Log de éxito en la base de datos
         await logEmailEvent(true, to, subject);
-        
         return true;
     } catch (err) {
-        console.error("❌ Error enviando correo vía Graph:", err);
-        
-        // Log de error en la base de datos
+        console.error("❌ Error enviando correo vía SMTP:", err.message);
         await logEmailEvent(false, to, subject, err.message);
-        
         return false;
     }
 }
 
 module.exports = {
-    sendEmail
+    sendEmail,
+    transporter
 };
