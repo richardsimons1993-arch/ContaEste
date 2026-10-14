@@ -7,9 +7,12 @@ services:
     network_mode: "host"
     security_opt:
       - apparmor:unconfined
+    env_file:
+      - .env
     environment:
       - NODE_ENV=production
     volumes:
+      - ./.env:/app/.env
       - ./app.js:/app/app.js
       - ./cotizaciones.js:/app/cotizaciones.js
       - ./informes.js:/app/informes.js

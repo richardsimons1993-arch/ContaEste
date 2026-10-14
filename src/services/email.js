@@ -6,7 +6,7 @@ const SMTP_HOST = process.env.SMTP_HOST || 'smtp-relay.brevo.com';
 const SMTP_PORT = parseInt(process.env.SMTP_PORT, 10) || 587;
 const SMTP_SECURE = process.env.SMTP_SECURE === 'true';
 const SMTP_USER = process.env.SMTP_USER || 'be25dd001@smtp-brevo.com';
-const SMTP_PASS = process.env.SMTP_PASS || '
+const SMTP_PASS = process.env.SMTP_PASS || '';
 const SMTP_FROM = process.env.SMTP_FROM || '"Simons SpA" <richard@simons.cl>';
 
 const transporter = nodemailer.createTransport({
