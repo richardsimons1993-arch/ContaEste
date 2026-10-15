@@ -529,7 +529,7 @@ router.post('/debtors/upload-invoice', async (req, res) => {
 
                 const finalPath = `${remoteDestDir}/${fileName}`;
                 await saveInvoicePathToDB(finalPath);
-                console.log(`✅ Factura subida con éxito a OneDrive (${finalPath})`);
+                console.log(`✅ Factura subida con éxito a Seafile (${finalPath})`);
                 res.json({ success: true, filePath: finalPath });
             });
         }
@@ -551,7 +551,10 @@ router.get('/debtors/:id/download-invoice', async (req, res) => {
             return res.status(404).send('Factura no encontrada o no cargada.');
         }
 
-        const invoicePath = result.recordset[0].invoicePath;
+        let invoicePath = result.recordset[0].invoicePath;
+        if (invoicePath && typeof invoicePath === 'string') {
+            invoicePath = invoicePath.replace(/^onedrive_backup:Simons SPA\/Clientes\//i, 'seafile_simons:Simons SpA/Simons APPs/Clientes/');
+        }
         const isWindows = process.platform === 'win32';
         const fileName = path.basename(invoicePath);
 

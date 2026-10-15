@@ -141,7 +141,10 @@ router.get('/:id/download-document', async (req, res) => {
             return res.status(404).send('Documento no encontrado.');
         }
         
-        const documentPath = result.recordset[0].documentPath;
+        let documentPath = result.recordset[0].documentPath;
+        if (documentPath && typeof documentPath === 'string') {
+            documentPath = documentPath.replace(/^onedrive_backup:Simons SPA\/Clientes\//i, 'seafile_simons:Simons SpA/Simons APPs/Clientes/');
+        }
         const fileName = path.basename(documentPath);
         
         const { spawn } = require('child_process');

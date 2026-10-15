@@ -6,6 +6,10 @@ const deleteRemoteFile = (invoicePath) => {
     return new Promise((resolve) => {
         if (!invoicePath) return resolve(true);
 
+        if (typeof invoicePath === 'string') {
+            invoicePath = invoicePath.replace(/^onedrive_backup:Simons SPA\/Clientes\//i, 'seafile_simons:Simons SpA/Simons APPs/Clientes/');
+        }
+
         const isWindows = process.platform === 'win32';
         if (isWindows) {
             if (fs.existsSync(invoicePath)) {

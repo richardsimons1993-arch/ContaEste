@@ -239,7 +239,7 @@ router.post('/upload-po', async (req, res) => {
 
                 const finalPath = `${remoteDestDir}/${fileName}`;
                 await savePOPathToDB(finalPath);
-                console.log(`✅ Orden de Compra subida con éxito a OneDrive (${finalPath})`);
+                console.log(`✅ Orden de Compra subida con éxito a Seafile (${finalPath})`);
                 res.json({ success: true, filePath: finalPath });
             });
         }
@@ -261,7 +261,10 @@ router.get('/:id/download-po', async (req, res) => {
             return res.status(404).send('Orden de Compra no encontrada o no cargada.');
         }
 
-        const poPath = result.recordset[0].purchaseOrderPath;
+        let poPath = result.recordset[0].purchaseOrderPath;
+        if (poPath && typeof poPath === 'string') {
+            poPath = poPath.replace(/^onedrive_backup:Simons SPA\/Clientes\//i, 'seafile_simons:Simons SpA/Simons APPs/Clientes/');
+        }
         const isWindows = process.platform === 'win32';
         const fileName = path.basename(poPath);
 

@@ -305,7 +305,7 @@ router.post('/save-pdf', async (req, res) => {
                     return res.status(500).json({ error: `Error de subida de documento: ${error.message}` });
                 }
                 
-                console.log(`✅ PDF cotización subido con éxito a OneDrive (${remoteDestDir}/${fileName})`);
+                console.log(`✅ PDF cotización subido con éxito a Seafile (${remoteDestDir}/${fileName})`);
                 res.json({ success: true, filePath: `${remoteDestDir}/${fileName}` });
             });
         }
