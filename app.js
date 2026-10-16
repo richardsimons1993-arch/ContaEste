@@ -1877,7 +1877,21 @@ const UI = {
         }
 
         // Resetear formularios si se sale de la sección
-        if (viewName !== 'transaction-form') this.cancelTransactionEdit();
+        if (viewName !== 'transaction-form') {
+            this.cancelTransactionEdit();
+        } else {
+            const dateInput = document.getElementById('date');
+            if (dateInput) {
+                const today = getLocalISODate();
+                if (!dateInput.value) {
+                    if (dateInput._flatpickr) {
+                        dateInput._flatpickr.setDate(today, true);
+                    } else {
+                        dateInput.value = today;
+                    }
+                }
+            }
+        }
         if (viewName !== 'concepts') this.resetConceptForm();
         if (viewName !== 'clients') this.resetClientForm();
         if (viewName !== 'debts') this.resetDebtForm();
@@ -4890,7 +4904,7 @@ const UI = {
             if (dateInput) {
                 const today = getLocalISODate();
                 if (dateInput._flatpickr) {
-                    dateInput._flatpickr.setDate(today);
+                    dateInput._flatpickr.setDate(today, true);
                 } else {
                     dateInput.value = today;
                 }
@@ -7477,12 +7491,16 @@ const UI = {
 
     initDatePickers() {
         if (typeof flatpickr !== 'undefined') {
-            flatpickr('input[type="date"], .datepicker', { locale: 'es',
+            const isMobileDevice = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || ('ontouchstart' in window && window.innerWidth <= 768);
+
+            flatpickr('input[type="date"], .datepicker', {
+                disableMobile: true,
                 locale: 'es',
                 dateFormat: 'Y-m-d',
                 altInput: true,
                 altFormat: 'd-m-Y',
-                allowInput: true,
+                altInputClass: 'form-control flatpickr-custom-input',
+                allowInput: !isMobileDevice,
                 parseDate: (datestr, format) => {
                     if (!datestr) return null;
                     // Limpiar y normalizar separadores
@@ -7501,9 +7519,23 @@ const UI = {
                     return flatpickr.parseDate(datestr, format) || flatpickr.parseDate(datestr, 'd-m-Y');
                 },
                 onReady: function(selectedDates, dateStr, instance) {
-                    // Asegurar que si hay modal overlay, el calendario esté por encima
                     if (instance.calendarContainer) {
-                        instance.calendarContainer.style.zIndex = "9999";
+                        instance.calendarContainer.style.zIndex = "999999";
+                    }
+                    if (instance.altInput && instance.input && instance.input.id) {
+                        const label = document.querySelector(`label[for="${instance.input.id}"]`);
+                        if (label) {
+                            label.style.cursor = 'pointer';
+                            label.addEventListener('click', (e) => {
+                                e.preventDefault();
+                                instance.open();
+                            });
+                        }
+                    }
+                },
+                onOpen: function(selectedDates, dateStr, instance) {
+                    if (instance.calendarContainer) {
+                        instance.calendarContainer.style.zIndex = "999999";
                     }
                 }
             });
@@ -7511,7 +7543,8 @@ const UI = {
             // Month picker para filtros (Principal)
             const filterMonthEl = document.getElementById('filter-month');
             if (filterMonthEl) {
-                flatpickr(filterMonthEl, { locale: 'es',
+                flatpickr(filterMonthEl, {
+                    disableMobile: true,
                     locale: 'es',
                     altInput: true,
                     altInputClass: "form-control",
@@ -7523,6 +7556,11 @@ const UI = {
                             theme: "light"
                         })
                     ],
+                    onReady: function(selectedDates, dateStr, instance) {
+                        if (instance.calendarContainer) {
+                            instance.calendarContainer.style.zIndex = "999999";
+                        }
+                    },
                     onChange: (selectedDates, dateStr) => {
                         console.log("Month picker changed:", dateStr);
                         // Limpiar filtros específicos si se usa el mes
@@ -7543,7 +7581,8 @@ const UI = {
             // Month pickers para Historiales en Alertas
             const contractHistMonth = document.getElementById('filter-contracts-history-month');
             if (contractHistMonth) {
-                flatpickr(contractHistMonth, { locale: 'es',
+                flatpickr(contractHistMonth, {
+                    disableMobile: true,
                     locale: 'es',
                     altInput: true,
                     altInputClass: "form-control",
@@ -7551,13 +7590,19 @@ const UI = {
                     plugins: [
                         new monthSelectPlugin({ shorthand: true, dateFormat: "Y-m", altFormat: "F Y" })
                     ],
+                    onReady: function(selectedDates, dateStr, instance) {
+                        if (instance.calendarContainer) {
+                            instance.calendarContainer.style.zIndex = "999999";
+                        }
+                    },
                     onChange: () => this.checkPendingContracts()
                 });
             }
 
             const opHistMonth = document.getElementById('filter-op-history-month');
             if (opHistMonth) {
-                flatpickr(opHistMonth, { locale: 'es',
+                flatpickr(opHistMonth, {
+                    disableMobile: true,
                     locale: 'es',
                     altInput: true,
                     altInputClass: "form-control",
@@ -7565,6 +7610,11 @@ const UI = {
                     plugins: [
                         new monthSelectPlugin({ shorthand: true, dateFormat: "Y-m", altFormat: "F Y" })
                     ],
+                    onReady: function(selectedDates, dateStr, instance) {
+                        if (instance.calendarContainer) {
+                            instance.calendarContainer.style.zIndex = "999999";
+                        }
+                    },
                     onChange: () => this.checkOperationalExpensesAlerts()
                 });
             }
