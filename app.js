@@ -7981,7 +7981,23 @@ const UI = {
         cotizados.forEach(p => {
             const dateStr = p.createdAt || p.visitDate;
             if (!dateStr) return;
-            const created = new Date(dateStr);
+
+            // Parseo robusto y seguro para cualquier formato o zona horaria
+            let created = null;
+            if (dateStr instanceof Date) {
+                created = isNaN(dateStr.getTime()) ? null : new Date(dateStr.getTime());
+            } else if (typeof dateStr === 'string') {
+                const dmy = dateStr.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})/);
+                if (dmy) {
+                    created = new Date(parseInt(dmy[3], 10), parseInt(dmy[2], 10) - 1, parseInt(dmy[1], 10));
+                } else {
+                    const iso = dateStr.replace(' ', 'T');
+                    const d = new Date(iso);
+                    if (!isNaN(d.getTime())) created = d;
+                }
+            }
+
+            if (!created) return;
             created.setHours(0, 0, 0, 0);
 
             const diffTime = today - created;
@@ -7989,17 +8005,26 @@ const UI = {
 
             if (daysOld >= 14) {
                 const isOverdue = daysOld >= 30; // Día 30+: Cierre definitivo / descarte
+                const daysOverdue = isOverdue ? (daysOld - 30) : 0;
                 pipelineAlerts.push({
                     project: p,
                     daysOld,
+                    daysOverdue,
                     isOverdue,
                     alertLabel: isOverdue ? 'Día 30+: Cierre Definitivo / Descartar' : 'Día 14+: Validación y Agenda'
                 });
             }
         });
 
-        // Ordenar: primero los de mayor antigüedad
-        pipelineAlerts.sort((a, b) => b.daysOld - a.daysOld);
+        // Ordenar estrictamente de los vencidos por más tiempo a los vencidos por menos tiempo:
+        // 1. Proyectos con plazo vencido (≥ 30 días) primero, ordenados de mayor a menor tiempo vencido.
+        // 2. Proyectos en validación (14-29 días) después, también ordenados de mayor a menor antigüedad.
+        pipelineAlerts.sort((a, b) => {
+            if (a.isOverdue !== b.isOverdue) {
+                return b.isOverdue ? 1 : -1;
+            }
+            return b.daysOld - a.daysOld;
+        });
 
         if (countBadge) {
             if (pipelineAlerts.length > 0) {
@@ -8027,6 +8052,10 @@ const UI = {
             const badgeIcon = item.isOverdue ? '<i class="fa-solid fa-triangle-exclamation"></i>' : '<i class="fa-solid fa-clock"></i>';
             const rawEstimado = parseFloat(p.estimatedAmount || 0);
 
+            const overdueSubtext = item.isOverdue 
+                ? `<div style="font-size: 0.75rem; color: #ef4444; font-weight: 500; margin-top: 2px;"><i class="fa-solid fa-triangle-exclamation"></i> Vencido hace ${item.daysOverdue}d</div>`
+                : `<div style="font-size: 0.75rem; color: #f59e0b; font-weight: 500; margin-top: 2px;">En validación (día ${item.daysOld}/30)</div>`;
+
             tr.innerHTML = `
                 <td style="font-weight: 500;">
                     ${p.projectName || 'Sin nombre'}
@@ -8037,8 +8066,11 @@ const UI = {
                 <td style="font-size: 0.9rem;">
                     ${formatDate(p.createdAt || p.visitDate)}
                 </td>
-                <td style="font-weight: 600; color: ${item.isOverdue ? '#ef4444' : '#f59e0b'};">
-                    ${item.daysOld} días
+                <td>
+                    <span style="font-weight: 700; color: ${item.isOverdue ? '#ef4444' : '#f59e0b'}; font-size: 0.95rem;">
+                        ${item.daysOld} días
+                    </span>
+                    ${overdueSubtext}
                 </td>
                 <td style="font-weight: bold;">
                     ${rawEstimado > 0 ? formatCurrency(rawEstimado) : '<span class="text-muted small">-</span>'}
