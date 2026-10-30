@@ -675,17 +675,13 @@ const ReportsApp = () => {
             
             await new Promise((resolve, reject) => {
                 try {
-                    pdfDocGenerator.getBase64(async (base64) => {
+                    pdfDocGenerator.getBlob(async (blob) => {
                         try {
-                            const pdfBase64DataUri = 'data:application/pdf;base64,' + base64;
-                            
-                            // Descarga en navegador
-                            const link = document.createElement('a');
-                            link.href = pdfBase64DataUri;
-                            link.download = fileName;
-                            document.body.appendChild(link);
-                            link.click();
-                            document.body.removeChild(link);
+                            const pdfBase64 = await new Promise((resB64) => {
+                                const reader = new FileReader();
+                                reader.onloadend = () => resB64(reader.result);
+                                reader.readAsDataURL(blob);
+                            });
                             
                             // Datos del informe para BD
                             const rData = {
@@ -705,17 +701,31 @@ const ReportsApp = () => {
                                 status: 'Emitido'
                             };
                             
-                            // Guardar en la base de datos
+                            // 1. Guardar primero en la base de datos
                             await window.StorageAPI.async.saveReport(rData);
                             
-                            // Subir a OneDrive
-                            await window.StorageAPI.async.saveReportPdf({
-                                clientName: clientName,
-                                year: currentYear,
-                                reportId: displayId + versionSuffix,
-                                projectName: projectName,
-                                pdfBase64: pdfBase64DataUri
-                            });
+                            // 2. Subir copia de respaldo a la nube (Seafile)
+                            try {
+                                await window.StorageAPI.async.saveReportPdf({
+                                    clientName: clientName,
+                                    year: currentYear,
+                                    reportId: displayId + versionSuffix,
+                                    projectName: projectName,
+                                    pdfBase64: pdfBase64
+                                });
+                            } catch (cloudErr) {
+                                console.warn('Advertencia al respaldar PDF en la nube:', cloudErr);
+                            }
+                            
+                            // 3. Ya asegurados los datos en BD, descargar en el navegador usando Blob URL
+                            const blobUrl = URL.createObjectURL(blob);
+                            const link = document.createElement('a');
+                            link.href = blobUrl;
+                            link.download = fileName;
+                            document.body.appendChild(link);
+                            link.click();
+                            document.body.removeChild(link);
+                            setTimeout(() => URL.revokeObjectURL(blobUrl), 10000);
                             
                             fetchHistory();
                             if (currentVersion <= 1) setNextId(nextId + 1);
