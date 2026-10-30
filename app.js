@@ -86,6 +86,10 @@ const Store = new Proxy(rawState, {
             'projects': () => {
                 UI.renderProjects();
                 UI.renderDashboard();
+                try {
+                    UI.checkPipelineAlerts();
+                    UI.refreshAlertBadge();
+                } catch(e) {}
             },
             'availables': () => { 
                 UI.renderAvailables(); 
@@ -153,7 +157,8 @@ const MODULES_CONFIG = [
         name: 'Proyectos',
         icon: 'fa-helmet-safety',
         submodules: [
-            { id: 'projects', name: 'Gestión de Proyectos' }
+            { id: 'projects', name: 'Gestión de Proyectos' },
+            { id: 'pipeline-alerts', name: 'Alertas de Oportunidades y Pipeline' }
         ]
     },
     {
@@ -390,6 +395,9 @@ const UI = {
             try {
                 this.checkOperationalExpensesAlerts();
             } catch(e) { console.warn('checkOperationalExpensesAlerts on init:', e); }
+            try {
+                this.checkPipelineAlerts();
+            } catch(e) { console.warn('checkPipelineAlerts on init:', e); }
 
             this.populateYearSelector(); // Poblar selector de años
             
@@ -706,6 +714,7 @@ const UI = {
             try {
                 this.checkPendingContracts(); // Forzar renderizado inmediato
                 this.checkOperationalExpensesAlerts(); // Forzar verificación de gastos operacionales
+                this.checkPipelineAlerts(); // Forzar verificación de alertas de pipeline
                 this.refreshAlertBadge(); // Actualizar campana con datos frescos de BD
             } catch (e) {
                 console.error('Error al verificar alertas post-carga:', e);
@@ -721,6 +730,8 @@ const UI = {
             console.log('--- Recargando solo datos de Proyectos ---');
             const projects = await window.StorageAPI.async.getProjects();
             state.projects = projects;
+            this.refreshAlertBadge();
+            this.checkPipelineAlerts();
             console.log('--- Proyectos actualizados con éxito ---');
         } catch (err) {
             console.error("Error al recargar proyectos:", err);
@@ -907,18 +918,27 @@ const UI = {
 
         const alertTabBtns = document.querySelectorAll('.alert-tab-btn');
         alertTabBtns.forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                const targetTab = e.target.dataset.tab;
+            btn.addEventListener('click', () => {
+                const targetTab = btn.dataset.tab;
+                if (!targetTab) return;
                 document.querySelectorAll('.alert-tab-content').forEach(c => c.style.display = 'none');
                 document.querySelectorAll('.alert-tab-btn').forEach(b => {
                     b.classList.remove('active');
                     b.style.fontWeight = 'normal';
                     b.style.borderBottom = 'none';
                 });
-                document.getElementById(targetTab).style.display = 'block';
-                e.target.classList.add('active');
-                e.target.style.fontWeight = 'bold';
+                const tabEl = document.getElementById(targetTab);
+                if (tabEl) tabEl.style.display = 'block';
+                btn.classList.add('active');
+                btn.style.fontWeight = 'bold';
                 btn.style.borderBottom = '2px solid var(--primary-color)';
+                if (targetTab === 'tab-pipeline-opportunities') {
+                    UI.checkPipelineAlerts();
+                } else if (targetTab === 'tab-operational-expenses') {
+                    UI.checkOperationalExpensesAlerts();
+                } else if (targetTab === 'tab-pending-month') {
+                    UI.checkPendingContracts();
+                }
             });
         });
 
@@ -1640,6 +1660,12 @@ const UI = {
         if (mainViews.includes(target)) return true;
 
         // Checar permiso específico del submodulo
+        if (mod.sub && mod.sub[target] !== undefined) {
+            return !!mod.sub[target];
+        }
+        // Si no está explícitamente configurado (ej: usuario preexistente), hereda acceso si tiene proyectos
+        if (target === 'pipeline-alerts') return true;
+
         return !!(mod.sub && mod.sub[target]);
     },
 
@@ -1819,12 +1845,15 @@ const UI = {
             // Decidir qué pestaña mostrar por defecto basado en los accesos del usuario
             const hasVentas = this.hasAccess('ventas', 'contracts-reminder');
             const hasFinanzas = this.hasAccess('finanzas', 'operational-expenses');
+            const hasProyectos = this.hasAccess('proyectos', 'pipeline-alerts');
             
             let defaultTab = '';
             if (hasVentas) {
                 defaultTab = 'tab-pending-month';
             } else if (hasFinanzas) {
                 defaultTab = 'tab-operational-expenses';
+            } else if (hasProyectos) {
+                defaultTab = 'tab-pipeline-opportunities';
             }
 
             // Ocultar todos los contenidos de pestaña primero
@@ -1848,6 +1877,7 @@ const UI = {
                     activeContent.style.display = 'block';
                 }
             }
+            this.checkPipelineAlerts();
         }
         if (viewName === 'concepts') this.renderConcepts();
         if (viewName === 'clients') this.renderClients();
@@ -5471,7 +5501,7 @@ const UI = {
             moduleCard.className = `perm-module-card ${moduleData.view ? 'active' : ''}`;
             
             const submodulesHtml = module.submodules.map(sub => {
-                const isSubActive = !!moduleData.sub?.[sub.id];
+                const isSubActive = moduleData.sub?.[sub.id] !== undefined ? !!moduleData.sub[sub.id] : (sub.id === 'pipeline-alerts' ? !!moduleData.view : false);
                 return `
                     <li class="perm-item">
                         <div class="perm-item-label">
@@ -6894,9 +6924,31 @@ const UI = {
                 </div>
             `).join('');
 
+            let ageBadge = '';
+            if (p.status === 'Cotizado') {
+                const dateStr = p.createdAt || p.visitDate;
+                if (dateStr) {
+                    const todayDate = new Date();
+                    todayDate.setHours(0, 0, 0, 0);
+                    const created = new Date(dateStr);
+                    created.setHours(0, 0, 0, 0);
+                    const diffDays = Math.floor((todayDate - created) / (1000 * 60 * 60 * 24));
+                    if (diffDays >= 30) {
+                        ageBadge = `<span style="font-size:0.75rem; font-weight:600; color:#ef4444; background:rgba(239,68,68,0.15); border:1px solid rgba(239,68,68,0.3); border-radius:4px; padding:2px 6px; margin-left:6px; white-space:nowrap;" title="Alerta: Cierre Definitivo / Descartar (≥30 días)"><i class="fa-solid fa-triangle-exclamation"></i> ${diffDays}d</span>`;
+                    } else if (diffDays >= 14) {
+                        ageBadge = `<span style="font-size:0.75rem; font-weight:600; color:#f59e0b; background:rgba(245,158,11,0.15); border:1px solid rgba(245,158,11,0.3); border-radius:4px; padding:2px 6px; margin-left:6px; white-space:nowrap;" title="Alerta: Validación y Agenda (14-29 días)"><i class="fa-solid fa-clock"></i> ${diffDays}d</span>`;
+                    } else {
+                        ageBadge = `<span style="font-size:0.75rem; color:var(--text-muted); margin-left:6px; white-space:nowrap;" title="Cotización reciente"><i class="fa-regular fa-clock"></i> ${diffDays}d</span>`;
+                    }
+                }
+            }
+
             tr.innerHTML = `
                 <td style="font-weight: 500;">
-                    ${p.projectName || 'Sin nombre de proyecto'}
+                    <div style="display: flex; align-items: center; flex-wrap: wrap; gap: 4px;">
+                        <span>${p.projectName || 'Sin nombre de proyecto'}</span>
+                        ${ageBadge}
+                    </div>
                     <div style="font-size: 0.8rem; color: var(--text-muted); font-weight: 400; margin-top: 2px;">
                         ${clientName}
                     </div>
@@ -7911,6 +7963,164 @@ const UI = {
         this.applyPrivileges();
     },
 
+    checkPipelineAlerts() {
+        const tbody = document.getElementById('alerts-pipeline-body');
+        const countBadge = document.getElementById('pipeline-alerts-count');
+        if (!tbody) return 0;
+        tbody.innerHTML = '';
+
+        const projects = state.projects || [];
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        // Filtrar estrictamente proyectos en estado 'Cotizado'
+        const cotizados = projects.filter(p => p.status === 'Cotizado');
+
+        const pipelineAlerts = [];
+
+        cotizados.forEach(p => {
+            const dateStr = p.createdAt || p.visitDate;
+            if (!dateStr) return;
+            const created = new Date(dateStr);
+            created.setHours(0, 0, 0, 0);
+
+            const diffTime = today - created;
+            const daysOld = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+
+            if (daysOld >= 14) {
+                const isOverdue = daysOld >= 30; // Día 30+: Cierre definitivo / descarte
+                pipelineAlerts.push({
+                    project: p,
+                    daysOld,
+                    isOverdue,
+                    alertLabel: isOverdue ? 'Día 30+: Cierre Definitivo / Descartar' : 'Día 14+: Validación y Agenda'
+                });
+            }
+        });
+
+        // Ordenar: primero los de mayor antigüedad
+        pipelineAlerts.sort((a, b) => b.daysOld - a.daysOld);
+
+        if (countBadge) {
+            if (pipelineAlerts.length > 0) {
+                countBadge.style.display = 'inline-block';
+                countBadge.textContent = pipelineAlerts.length;
+            } else {
+                countBadge.style.display = 'none';
+            }
+        }
+
+        if (pipelineAlerts.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: var(--text-muted); padding: 2rem;"><i class="fa-solid fa-circle-check" style="color: #10b981; margin-right: 6px;"></i>No hay cotizaciones con alertas de seguimiento pendientes (Todas al día).</td></tr>';
+            return 0;
+        }
+
+        pipelineAlerts.forEach(item => {
+            const p = item.project;
+            const clientName = this.getClientName(p.clientId);
+            const tr = document.createElement('tr');
+            
+            const badgeStyle = item.isOverdue 
+                ? 'background: rgba(239, 68, 68, 0.15); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.3); font-weight: 600; padding: 4px 10px; border-radius: 6px; display: inline-flex; align-items: center; gap: 5px;'
+                : 'background: rgba(245, 158, 11, 0.15); color: #f59e0b; border: 1px solid rgba(245, 158, 11, 0.3); font-weight: 600; padding: 4px 10px; border-radius: 6px; display: inline-flex; align-items: center; gap: 5px;';
+            
+            const badgeIcon = item.isOverdue ? '<i class="fa-solid fa-triangle-exclamation"></i>' : '<i class="fa-solid fa-clock"></i>';
+            const rawEstimado = parseFloat(p.estimatedAmount || 0);
+
+            tr.innerHTML = `
+                <td style="font-weight: 500;">
+                    ${p.projectName || 'Sin nombre'}
+                    <div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 2px;">
+                        <i class="fa-solid fa-building" style="margin-right: 4px;"></i>${clientName}
+                    </div>
+                </td>
+                <td style="font-size: 0.9rem;">
+                    ${formatDate(p.createdAt || p.visitDate)}
+                </td>
+                <td style="font-weight: 600; color: ${item.isOverdue ? '#ef4444' : '#f59e0b'};">
+                    ${item.daysOld} días
+                </td>
+                <td style="font-weight: bold;">
+                    ${rawEstimado > 0 ? formatCurrency(rawEstimado) : '<span class="text-muted small">-</span>'}
+                </td>
+                <td>
+                    <span style="${badgeStyle}">
+                        ${badgeIcon} ${item.alertLabel}
+                    </span>
+                </td>
+                <td class="actions" style="white-space: nowrap;">
+                    <button class="btn-icon text-success" style="font-size:0.85rem; padding:4px 8px;" title="Cliente Aprobó / Avanzar Fase" onclick="UI.advancePipelineProject('${p.id}')">
+                        <i class="fa-solid fa-check-circle"></i> Aprobar
+                    </button>
+                    <button class="btn-icon text-danger" style="font-size:0.85rem; padding:4px 8px;" title="Sacar del Pipeline (Descartar)" onclick="UI.discardPipelineProject('${p.id}', ${item.daysOld})">
+                        <i class="fa-solid fa-trash-can"></i> Descartar
+                    </button>
+                    <button class="btn-icon text-primary" style="font-size:0.85rem; padding:4px 8px;" title="Editar / Ver Detalle Completo" onclick="UI.switchView('projects'); setTimeout(() => UI.editProject('${p.id}', true), 200)">
+                        <i class="fa-solid fa-arrow-up-right-from-square"></i>
+                    </button>
+                </td>
+            `;
+            tbody.appendChild(tr);
+        });
+
+        return pipelineAlerts.length;
+    },
+
+    async advancePipelineProject(id) {
+        const p = (state.projects || []).find(proj => proj.id === id);
+        if (!p) return;
+
+        if (!(await this.confirmModal(`¿Confirmar aprobación para el proyecto "${p.projectName}"?\n\nPasará a estado 'Aprobado' y la alerta comercial se desactivará.`))) return;
+
+        try {
+            const updated = { ...p, status: 'Aprobado' };
+            await window.StorageAPI.async.saveProject(updated);
+            await window.StorageAPI.async.addProjectHistory(id, {
+                previousStatus: p.status,
+                newStatus: 'Aprobado',
+                note: 'Oportunidad validada y aprobada por el cliente desde Centro de Alertas.'
+            });
+
+            this.showToast('Proyecto avanzado a Aprobado con éxito', 'success');
+            await this.loadData();
+            this.checkPipelineAlerts();
+            this.refreshAlertBadge();
+            if (document.getElementById('projects') && document.getElementById('projects').classList.contains('active')) {
+                this.renderProjects();
+            }
+        } catch (err) {
+            console.error('Error al avanzar proyecto:', err);
+            this.showToast('Error al actualizar fase del proyecto', 'error');
+        }
+    },
+
+    async discardPipelineProject(id, daysOld) {
+        const p = (state.projects || []).find(proj => proj.id === id);
+        if (!p) return;
+
+        if (!(await this.confirmModal(`¿Deseas sacar del pipeline el proyecto "${p.projectName}" (${daysOld} días sin confirmación)?\n\nEl proyecto quedará archivado como "Eliminado / Descartado" con nota histórica. La cotización emitida seguirá intacta en el historial de cotizaciones.`))) return;
+
+        try {
+            await window.StorageAPI.async.deleteProject(id);
+            await window.StorageAPI.async.addProjectHistory(id, {
+                previousStatus: p.status,
+                newStatus: 'Eliminado',
+                note: `Descartado del pipeline comercial tras ${daysOld} días sin confirmación del cliente.`
+            });
+
+            this.showToast('Proyecto retirado del pipeline', 'info');
+            await this.loadData();
+            this.checkPipelineAlerts();
+            this.refreshAlertBadge();
+            if (document.getElementById('projects') && document.getElementById('projects').classList.contains('active')) {
+                this.renderProjects();
+            }
+        } catch (err) {
+            console.error('Error al descartar proyecto:', err);
+            this.showToast('Error al descartar proyecto', 'error');
+        }
+    },
+
     checkOperationalExpensesAlerts() {
         const alertsBody = document.getElementById('alerts-operational-body');
         const historyBody = document.getElementById('alerts-operational-history-body');
@@ -8042,19 +8252,32 @@ const UI = {
             return diffDays <= 3;
         }).length : 0;
 
-        // 3. Deudas pendientes (Removido del conteo por solicitud, pero mantiene la campana visible si existen)
+        // 3. Pipeline de Oportunidades (Proyectos en 'Cotizado' con >= 14 días)
+        const pipelineCount = (state.projects || []).filter(p => {
+            if (p.status !== 'Cotizado') return false;
+            const dateStr = p.createdAt || p.visitDate;
+            if (!dateStr) return false;
+            const created = new Date(dateStr);
+            created.setHours(0, 0, 0, 0);
+            const diffDays = Math.floor((today - created) / (1000 * 60 * 60 * 24));
+            return diffDays >= 14;
+        }).length;
+
+        // 4. Deudas pendientes (Removido del conteo por solicitud, pero mantiene la campana visible si existen)
         const debtsCount = state.debts ? state.debts.length : 0;
 
         const hasVentasAccess = this.hasAccess('ventas', 'contracts-reminder');
         const hasFinanzasAccess = this.hasAccess('finanzas', 'operational-expenses');
+        const hasProyectosAccess = this.hasAccess('proyectos', 'pipeline-alerts');
 
         let totalAlerts = 0;
         if (hasVentasAccess) totalAlerts += contractsCount;
         if (hasFinanzasAccess) totalAlerts += expensesCount;
+        if (hasProyectosAccess) totalAlerts += pipelineCount;
 
-        const hasAnyAlert = totalAlerts > 0 || (hasVentasAccess && debtsCount > 0); // Las deudas corresponden a finanzas/deudas, pero mantenemos la lógica heredada
+        const hasAnyAlert = totalAlerts > 0 || (hasVentasAccess && debtsCount > 0);
 
-        if (hasAnyAlert && (hasVentasAccess || hasFinanzasAccess)) {
+        if (hasAnyAlert && (hasVentasAccess || hasFinanzasAccess || hasProyectosAccess)) {
             reminderBtn.style.display = 'inline-block';
             if (totalAlerts > 0) {
                 pendingBadge.style.display = 'inline-block';
@@ -8063,7 +8286,7 @@ const UI = {
                 pendingBadge.style.display = 'none';
             }
             // Actualizar tooltip para ser más descriptivo
-            reminderBtn.title = `${totalAlerts} alertas urgentes ${debtsCount > 0 ? `+ ${debtsCount} deudas` : ''}`;
+            reminderBtn.title = `${totalAlerts} alertas urgentes (${pipelineCount} en pipeline) ${debtsCount > 0 ? `+ ${debtsCount} deudas` : ''}`;
         } else {
             reminderBtn.style.display = 'none';
         }
