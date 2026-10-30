@@ -203,6 +203,20 @@ async function runDatabaseMigrations() {
                 ALTER TABLE Quotations ADD images VARCHAR(MAX) NULL;
             END
         `);
+
+        await pool.request().query(`
+            IF NOT EXISTS (
+                SELECT * FROM INFORMATION_SCHEMA.TABLES 
+                WHERE TABLE_NAME = 'UserPreferences'
+            )
+            BEGIN
+                CREATE TABLE UserPreferences (
+                    userId VARCHAR(50) PRIMARY KEY,
+                    pinnedMenus VARCHAR(MAX) NULL,
+                    updatedAt DATETIME DEFAULT GETDATE()
+                );
+            END
+        `);
         
         console.log('✅ Migraciones de base de datos finalizadas con éxito.');
     } catch (err) {

@@ -248,6 +248,89 @@ nav {
     box-shadow: 0 4px 12px rgba(0, 77, 77, 0.2);
 }
 
+/* Accesos Rápidos y Pines en la Barra Lateral */
+.sidebar .nav-btn {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.nav-pin-toggle {
+    margin-left: auto;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    border-radius: 4px;
+    color: var(--text-muted);
+    opacity: 0;
+    transition: opacity 0.2s ease, color 0.2s ease, transform 0.2s ease;
+    cursor: pointer;
+    font-size: 0.85rem;
+    flex-shrink: 0;
+}
+
+.sidebar .nav-btn:hover .nav-pin-toggle {
+    opacity: 0.6;
+}
+
+.sidebar .nav-btn .nav-pin-toggle:hover {
+    opacity: 1 !important;
+    color: #f59e0b !important;
+    transform: scale(1.2);
+}
+
+.nav-pin-toggle.is-pinned {
+    opacity: 1 !important;
+    color: #f59e0b !important;
+    transform: rotate(45deg);
+}
+
+.sidebar .nav-btn.active .nav-pin-toggle.is-pinned {
+    color: #ffd166 !important;
+}
+
+.sidebar .nav-btn.active .nav-pin-toggle:not(.is-pinned) {
+    color: rgba(255, 255, 255, 0.7);
+}
+
+/* Botones fijados en la sección de Accesos Rápidos */
+.nav-btn-pinned {
+    background: rgba(245, 158, 11, 0.06);
+    border: 1px dashed rgba(245, 158, 11, 0.3) !important;
+    margin-bottom: 4px;
+    font-weight: 600;
+}
+
+.nav-btn-pinned:hover {
+    background: rgba(245, 158, 11, 0.15) !important;
+    color: var(--primary-color);
+}
+
+.nav-btn-pinned.active {
+    background: var(--primary-color) !important;
+    border: 1px solid transparent !important;
+    color: var(--text-light) !important;
+}
+
+body.dark-mode .nav-btn-pinned {
+    background: rgba(245, 158, 11, 0.1);
+    border: 1px dashed rgba(245, 158, 11, 0.4) !important;
+}
+
+body.dark-mode .nav-btn-pinned:hover {
+    background: rgba(245, 158, 11, 0.2) !important;
+    color: #ffffff !important;
+}
+
+@media (hover: none) {
+    .nav-pin-toggle {
+        opacity: 0.5;
+    }
+}
+
 /* Secciones de Navegación por Módulo */
 .nav-section {
     margin-bottom: 1.5rem;

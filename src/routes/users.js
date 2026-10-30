@@ -146,4 +146,52 @@ router.post('/app-locations', async (req, res) => {
     }
 });
 
+// ==========================================
+// USER PREFERENCES ROUTES (Pinned Menus, etc.)
+// ==========================================
+router.get('/user-preferences', async (req, res) => {
+    try {
+        const userId = req.user?.id;
+        if (!userId) return res.status(401).json({ error: 'No autenticado' });
+        const pool = await getDbPool();
+        const r = await pool.request()
+            .input('userId', sql.VarChar(50), userId)
+            .query('SELECT pinnedMenus FROM UserPreferences WHERE userId = @userId');
+        
+        let pinnedMenus = [];
+        if (r.recordset.length > 0 && r.recordset[0].pinnedMenus) {
+            try {
+                pinnedMenus = JSON.parse(r.recordset[0].pinnedMenus);
+            } catch(e) { pinnedMenus = []; }
+        }
+        res.json({ pinnedMenus });
+    } catch (err) {
+        console.error('Error fetching user preferences:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+router.post('/user-preferences', async (req, res) => {
+    try {
+        const userId = req.user?.id;
+        if (!userId) return res.status(401).json({ error: 'No autenticado' });
+        const { pinnedMenus } = req.body;
+        const pool = await getDbPool();
+        const jsonStr = JSON.stringify(pinnedMenus || []);
+        await pool.request()
+            .input('userId', sql.VarChar(50), userId)
+            .input('pinnedMenus', sql.VarChar(sql.MAX), jsonStr)
+            .query(`
+                IF EXISTS (SELECT 1 FROM UserPreferences WHERE userId = @userId)
+                    UPDATE UserPreferences SET pinnedMenus = @pinnedMenus, updatedAt = GETDATE() WHERE userId = @userId
+                ELSE
+                    INSERT INTO UserPreferences (userId, pinnedMenus, updatedAt) VALUES (@userId, @pinnedMenus, GETDATE())
+            `);
+        res.json({ success: true, pinnedMenus });
+    } catch (err) {
+        console.error('Error saving user preferences:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
 module.exports = router;

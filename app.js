@@ -20,6 +20,7 @@ const rawState = {
     locations: [],
     crmProspectos: [], // Nueva propiedad para CRM
     operationalExpenses: [],
+    pinnedMenus: [],
     selectedYear: new Date().getFullYear()
 };
 
@@ -408,6 +409,7 @@ const UI = {
             if (state.currentUser) {
                 this.applyPrivileges();
                 this.applyModuleAccess();
+                this.initPinnedMenus();
                 
                 // Vista inicial ya fue establecida antes de loadData para evitar parpadeo
                 console.log("Vista inicial activa sin parpadeo.");
@@ -1305,6 +1307,7 @@ const UI = {
                 if (overlay) overlay.style.display = 'none';
                 this.updateUserUI();
                 this.applyModuleAccess();
+                this.initPinnedMenus();
                 this.startInactivityTimer();
                 console.log("Sesión validada y aplicada.");
             } catch (e) {
@@ -1694,6 +1697,11 @@ const UI = {
                 el.style.display = access ? 'flex' : 'none';
             }
         });
+
+        try {
+            this.renderPinnedMenus();
+            this.updateSidebarPinIcons();
+        } catch(e) {}
     },
 
     getFirstAvailableView(userModules) {
@@ -1730,6 +1738,256 @@ const UI = {
         } else {
             this.switchView('notas');
         }
+    },
+
+    // --- GESTIÓN DE ACCESOS RÁPIDOS / PIN DE MENÚS (POR USUARIO) ---
+
+    getUserStorageKey() {
+        if (!state.currentUser) return 'guest';
+        return state.currentUser.id || state.currentUser.username || 'user';
+    },
+
+    async initPinnedMenus() {
+        const userKey = this.getUserStorageKey();
+        
+        // 1. Cargar inmediatamente desde localStorage para evitar parpadeo visual
+        try {
+            const localSaved = localStorage.getItem(`contaeste_pinned_menus_${userKey}`);
+            if (localSaved) {
+                state.pinnedMenus = JSON.parse(localSaved);
+            } else {
+                state.pinnedMenus = [];
+            }
+        } catch (e) {
+            state.pinnedMenus = [];
+        }
+
+        // 2. Inyectar botones de pin en la barra lateral y renderizar lista de accesos rápidos
+        this.setupSidebarPins();
+        this.renderPinnedMenus();
+
+        // 3. Sincronizar en segundo plano con base de datos
+        if (state.currentUser && window.StorageAPI?.async?.getUserPreferences) {
+            try {
+                const res = await window.StorageAPI.async.getUserPreferences();
+                if (res && Array.isArray(res.pinnedMenus)) {
+                    state.pinnedMenus = res.pinnedMenus;
+                    localStorage.setItem(`contaeste_pinned_menus_${userKey}`, JSON.stringify(res.pinnedMenus));
+                    this.renderPinnedMenus();
+                    this.updateSidebarPinIcons();
+                }
+            } catch (err) {
+                console.warn('No se pudo sincronizar preferencias remotas:', err);
+            }
+        }
+    },
+
+    setupSidebarPins() {
+        const regularButtons = document.querySelectorAll('.sidebar .nav-section:not(#nav-section-pinned) .nav-btn');
+        regularButtons.forEach(btn => {
+            const target = btn.dataset.target;
+            if (!target) return;
+
+            let pinEl = btn.querySelector('.nav-pin-toggle');
+            if (!pinEl) {
+                pinEl = document.createElement('span');
+                pinEl.className = 'nav-pin-toggle';
+                pinEl.title = 'Fijar en accesos rápidos';
+                pinEl.innerHTML = '<i class="fa-solid fa-thumbtack"></i>';
+                pinEl.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    e.preventDefault();
+                    this.togglePinMenu(target);
+                });
+                btn.appendChild(pinEl);
+            }
+        });
+        this.updateSidebarPinIcons();
+    },
+
+    updateSidebarPinIcons() {
+        const pinnedList = state.pinnedMenus || [];
+        const regularButtons = document.querySelectorAll('.sidebar .nav-section:not(#nav-section-pinned) .nav-btn');
+        
+        regularButtons.forEach(btn => {
+            const target = btn.dataset.target;
+            const pinEl = btn.querySelector('.nav-pin-toggle');
+            if (!pinEl || !target) return;
+
+            const isPinned = pinnedList.includes(target);
+            if (isPinned) {
+                pinEl.classList.add('is-pinned');
+                pinEl.title = 'Desfijar de accesos rápidos';
+            } else {
+                pinEl.classList.remove('is-pinned');
+                pinEl.title = 'Fijar en accesos rápidos';
+            }
+        });
+    },
+
+    async togglePinMenu(target) {
+        if (!target) return;
+        let pinned = [...(state.pinnedMenus || [])];
+        const isCurrentlyPinned = pinned.includes(target);
+
+        const meta = this.getMenuMetadata(target);
+        const menuLabel = meta?.label || target;
+
+        if (isCurrentlyPinned) {
+            pinned = pinned.filter(t => t !== target);
+            this.showToast(`"${menuLabel}" quitado de accesos rápidos`, 'info');
+        } else {
+            pinned.push(target);
+            this.showToast(`"${menuLabel}" fijado en accesos rápidos`, 'success');
+        }
+
+        state.pinnedMenus = pinned;
+        const userKey = this.getUserStorageKey();
+
+        // 1. Persistencia local por usuario
+        try {
+            localStorage.setItem(`contaeste_pinned_menus_${userKey}`, JSON.stringify(pinned));
+        } catch (e) {
+            console.warn('Error guardando pines en localStorage:', e);
+        }
+
+        // 2. Actualización de interfaz
+        this.renderPinnedMenus();
+        this.updateSidebarPinIcons();
+
+        // 3. Persistencia en servidor
+        if (state.currentUser && window.StorageAPI?.async?.saveUserPreferences) {
+            try {
+                await window.StorageAPI.async.saveUserPreferences({ pinnedMenus: pinned });
+            } catch (err) {
+                console.error('Error al persistir preferencias en servidor:', err);
+            }
+        }
+    },
+
+    getMenuMetadata(target) {
+        const origBtn = document.querySelector(`.sidebar .nav-section:not(#nav-section-pinned) .nav-btn[data-target="${target}"]`);
+        if (origBtn) {
+            const iconEl = origBtn.querySelector('i:not(.fa-thumbtack)');
+            const iconClass = iconEl ? iconEl.className : 'fa-solid fa-circle-dot';
+            
+            const clone = origBtn.cloneNode(true);
+            clone.querySelectorAll('.nav-pin-toggle').forEach(el => el.remove());
+            const label = clone.textContent.trim();
+
+            const moduleSection = origBtn.closest('.nav-section');
+            const moduleId = moduleSection ? moduleSection.dataset.module : MODULE_VIEW_MAP[target];
+
+            return { target, label, iconClass, moduleId };
+        }
+        
+        const fallbackTitles = {
+            'notas': { label: 'Notas', icon: 'fa-solid fa-clipboard-list', mod: 'notas' },
+            'quotations': { label: 'Cotizaciones', icon: 'fa-solid fa-file-invoice-dollar', mod: 'cotizaciones' },
+            'calculator': { label: 'Calculadora IVA', icon: 'fa-solid fa-calculator', mod: 'cotizaciones' },
+            'projects': { label: 'Proyectos', icon: 'fa-solid fa-diagram-project', mod: 'proyectos' },
+            'reports': { label: 'Informes', icon: 'fa-solid fa-file-lines', mod: 'informes' },
+            'transaction-form': { label: 'Registrar', icon: 'fa-solid fa-circle-plus', mod: 'finanzas' },
+            'concepts': { label: 'Conceptos', icon: 'fa-solid fa-tags', mod: 'finanzas' },
+            'clients': { label: 'Clientes', icon: 'fa-solid fa-users', mod: 'finanzas' },
+            'suppliers': { label: 'Proveedores', icon: 'fa-solid fa-truck', mod: 'finanzas' },
+            'debts': { label: 'Deudas', icon: 'fa-solid fa-hand-holding-dollar', mod: 'finanzas' },
+            'debtors': { label: 'Deudores', icon: 'fa-solid fa-hand-holding-hand', mod: 'finanzas' },
+            'operational-expenses': { label: 'Gastos Op.', icon: 'fa-solid fa-calendar-check', mod: 'finanzas' },
+            'transactions': { label: 'Movimientos', icon: 'fa-solid fa-list-ul', mod: 'finanzas' },
+            'dashboard': { label: 'Balance', icon: 'fa-solid fa-chart-pie', mod: 'finanzas' },
+            'available-funds': { label: 'Disponible', icon: 'fa-solid fa-wallet', mod: 'finanzas' },
+            'contracts': { label: 'Contratos', icon: 'fa-solid fa-file-contract', mod: 'ventas' },
+            'inventory': { label: 'Inventario', icon: 'fa-solid fa-boxes-stacked', mod: 'inventario' },
+            'crm-leads': { label: 'Prospectos', icon: 'fa-solid fa-briefcase', mod: 'crm' },
+            'crm-emails': { label: 'Email Masivo', icon: 'fa-solid fa-mail-bulk', mod: 'crm' },
+            'users': { label: 'Usuarios', icon: 'fa-solid fa-user-gear', mod: 'usuarios' },
+            'locations': { label: 'Ubicaciones', icon: 'fa-solid fa-location-dot', mod: 'usuarios' },
+            'activity': { label: 'Actividad', icon: 'fa-solid fa-clock-rotate-left', mod: 'usuarios' },
+            'system-logs': { label: 'Logs de Sistema', icon: 'fa-solid fa-terminal', mod: 'usuarios' }
+        };
+
+        const fb = fallbackTitles[target] || { label: target, icon: 'fa-solid fa-circle', mod: null };
+        return { target, label: fb.label, iconClass: fb.icon, moduleId: fb.mod };
+    },
+
+    renderPinnedMenus() {
+        const section = document.getElementById('nav-section-pinned');
+        const list = document.getElementById('nav-pinned-list');
+        const badge = document.getElementById('pinned-count-badge');
+        if (!section || !list) return;
+
+        list.innerHTML = '';
+        const pinnedList = state.pinnedMenus || [];
+
+        // Filtrar según permisos de acceso del usuario actual
+        const authorizedPins = pinnedList.filter(target => {
+            const mId = MODULE_VIEW_MAP[target];
+            if (mId && !this.hasAccess(mId, target)) {
+                return false;
+            }
+            return true;
+        });
+
+        if (badge) {
+            badge.textContent = authorizedPins.length;
+        }
+
+        if (authorizedPins.length === 0) {
+            section.style.display = 'none';
+            return;
+        }
+
+        section.style.display = 'block';
+
+        authorizedPins.forEach(target => {
+            const meta = this.getMenuMetadata(target);
+            const btn = document.createElement('button');
+            btn.className = 'nav-btn nav-btn-pinned';
+            btn.dataset.target = target;
+            btn.title = `Acceso Rápido: ${meta.label}`;
+
+            const currentActiveSection = document.querySelector('.view-section.active');
+            if (currentActiveSection && currentActiveSection.id === target) {
+                btn.classList.add('active');
+            }
+
+            btn.innerHTML = `
+                <span class="nav-btn-label" style="display: flex; align-items: center; gap: 0.75rem; flex: 1;">
+                    <i class="${meta.iconClass}"></i>
+                    <span>${meta.label}</span>
+                </span>
+                <span class="nav-pin-toggle is-pinned" title="Desfijar de accesos rápidos" style="margin-left: auto;">
+                    <i class="fa-solid fa-thumbtack"></i>
+                </span>
+            `;
+
+            // Navegar al hacer clic en el botón fijado
+            btn.addEventListener('click', (e) => {
+                if (target === 'locations') return;
+                this.switchView(target);
+                if (window.innerWidth <= 768) {
+                    const sidebar = document.querySelector('.sidebar');
+                    const sidebarOverlay = document.getElementById('sidebar-overlay');
+                    if (sidebar && sidebarOverlay) {
+                        sidebar.classList.remove('active');
+                        sidebarOverlay.classList.remove('active');
+                    }
+                }
+            });
+
+            // Desfijar al hacer clic en el pin del botón fijado
+            const pinBtn = btn.querySelector('.nav-pin-toggle');
+            if (pinBtn) {
+                pinBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    e.preventDefault();
+                    this.togglePinMenu(target);
+                });
+            }
+
+            list.appendChild(btn);
+        });
     },
 
     switchView(viewName) {

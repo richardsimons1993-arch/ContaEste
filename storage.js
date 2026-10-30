@@ -396,7 +396,11 @@ const Storage = {
         deleteCRMProspecto: (id) => asyncRequest('DELETE', `/crm/prospectos/${id}`),
         getCRMCalls: (pid) => asyncRequest('GET', `/crm/calls/${pid}`),
         saveCRMCall: (c) => asyncRequest('POST', '/crm/calls', c),
-        sendCRMBulkEmails: (data) => asyncRequest('POST', '/crm/send-emails', data)
+        sendCRMBulkEmails: (data) => asyncRequest('POST', '/crm/send-emails', data),
+
+        // --- Preferencias de Usuario (Pines / Accesos Rápidos) ---
+        getUserPreferences: () => asyncRequest('GET', '/user-preferences'),
+        saveUserPreferences: (prefs) => asyncRequest('POST', '/user-preferences', prefs)
     }
 };
 
