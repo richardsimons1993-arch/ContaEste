@@ -842,6 +842,12 @@ textarea:focus {
     color: #00695c;
 }
 
+.status-Eliminado {
+    background: #fee2e2;
+    color: #991b1b;
+    border: 1px solid #f87171;
+}
+
 .status-Finalizado {
     background: #f5f5f5;
     color: #616161;

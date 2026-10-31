@@ -7127,12 +7127,12 @@ const UI = {
 
         let filtered = state.projects || [];
         
-        // Ocultar siempre los Eliminados.
-        // Además, si el filtro es 'all', ocultar los finalizados del pipeline principal.
-        filtered = filtered.filter(p => p.status !== 'Eliminado');
-
         if (statusFilter === 'all') {
-            filtered = filtered.filter(p => p.status !== 'Finalizado');
+            filtered = filtered.filter(p => p.status !== 'Finalizado' && p.status !== 'Eliminado');
+        } else if (statusFilter === 'Eliminado') {
+            filtered = filtered.filter(p => p.status === 'Eliminado');
+        } else if (statusFilter === 'Finalizado') {
+            filtered = filtered.filter(p => p.status === 'Finalizado');
         } else {
             filtered = filtered.filter(p => p.status === statusFilter);
         }
@@ -7182,6 +7182,7 @@ const UI = {
                 </div>
             `).join('');
 
+            const isEliminado = p.status === 'Eliminado';
             let ageBadge = '';
             if (p.status === 'Cotizado') {
                 const dateStr = p.createdAt || p.visitDate;
@@ -7199,6 +7200,8 @@ const UI = {
                         ageBadge = `<span style="font-size:0.75rem; color:var(--text-muted); margin-left:6px; white-space:nowrap;" title="Cotización reciente"><i class="fa-regular fa-clock"></i> ${diffDays}d</span>`;
                     }
                 }
+            } else if (isEliminado) {
+                ageBadge = `<span class="status-badge status-Eliminado" style="padding: 2px 6px; font-size: 0.72rem; margin-left: 6px;"><i class="fa-solid fa-ban"></i> Descartado</span>`;
             }
 
             tr.innerHTML = `
@@ -7228,6 +7231,17 @@ const UI = {
                     </div>
                 </td>
                 <td class="actions">
+                    ${isEliminado ? `
+                    <button class="btn-icon text-success" title="Recuperar Proyecto al Pipeline" onclick="UI.restoreProject('${p.id}')" style="display:inline-flex; align-items:center; gap:4px; font-weight:600; padding:4px 8px; border-radius:4px; background:rgba(16,185,129,0.1); border:1px solid rgba(16,185,129,0.3);">
+                        <i class="fa-solid fa-rotate-left"></i> Recuperar
+                    </button>
+                    <button class="btn-icon text-primary" title="Ver Historial Completo" onclick="UI.showProjectHistory('${p.id}')">
+                        <i class="fa-solid fa-eye"></i>
+                    </button>
+                    <button class="btn-icon text-primary" title="Editar / Bitácora" onclick="UI.editProject('${p.id}', true)">
+                        <i class="fa-solid fa-clock-rotate-left"></i>
+                    </button>
+                    ` : `
                     ${p.purchaseOrderPath ? `
                     <a class="btn-icon text-primary" title="Descargar OC" href="/api/projects/${p.id}/download-po?token=${state.token || JSON.parse(localStorage.getItem('contabilidad_session') || '{}').token || ''}" target="_blank">
                         <i class="fa-solid fa-file-pdf"></i>
@@ -7249,6 +7263,7 @@ const UI = {
                     <button class="btn-icon text-danger" title="Eliminar Proyecto" onclick="UI.deleteProject('${p.id}')">
                         <i class="fa-solid fa-trash"></i>
                     </button>
+                    `}
                 </td>
             `;
             tbody.appendChild(tr);
@@ -7519,28 +7534,64 @@ const UI = {
         if (!tbody) return;
         tbody.innerHTML = '';
 
-        const finished = (state.projects || []).filter(p => p.status === 'Finalizado');
-        finished.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+        const historyFilter = document.getElementById('projects-history-filter')?.value || 'all';
 
-        if (finished.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="4" class="text-center text-muted">No hay proyectos finalizados aún.</td></tr>';
+        let list = (state.projects || []).filter(p => p.status === 'Finalizado' || p.status === 'Eliminado');
+        if (historyFilter === 'Finalizado') {
+            list = list.filter(p => p.status === 'Finalizado');
+        } else if (historyFilter === 'Eliminado') {
+            list = list.filter(p => p.status === 'Eliminado');
+        }
+
+        list.sort((a, b) => {
+            const dateA = (a.history && a.history.length > 0) ? new Date(a.history[0].changeDate || 0) : new Date(a.createdAt || 0);
+            const dateB = (b.history && b.history.length > 0) ? new Date(b.history[0].changeDate || 0) : new Date(b.createdAt || 0);
+            return dateB - dateA;
+        });
+
+        if (list.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="4" class="text-center text-muted" style="padding: 1.5rem;">No hay proyectos en este historial.</td></tr>';
             return;
         }
 
-        finished.forEach(p => {
+        list.forEach(p => {
             const tr = document.createElement('tr');
             const clientName = this.getClientName(p.clientId);
-            const history = window.StorageAPI.getProjectHistory(p.id) || [];
-            
-            // Mostrar solo el último hito o un resumen
+            const history = (p.history && p.history.length > 0) ? p.history : (window.StorageAPI.getProjectHistory(p.id) || []);
             const lastHistory = history[0];
+            const isEliminado = p.status === 'Eliminado';
+
+            const badgeClass = isEliminado ? 'status-Eliminado' : 'status-Finalizado';
+            const badgeLabel = isEliminado ? 'Descartado' : 'Finalizado';
+            const defaultNote = isEliminado ? 'Descartado del pipeline' : 'Finalizado';
+
             const evolutionHtml = lastHistory ? `
                 <div class="history-evolution-card" style="margin: 0;">
-                    <span class="status-badge status-Finalizado" style="padding: 2px 8px; font-size: 0.75rem;">Finalizado</span>
+                    <span class="status-badge ${badgeClass}" style="padding: 2px 8px; font-size: 0.75rem;">${badgeLabel}</span>
                     <div class="evolution-date">${formatDate(lastHistory.changeDate)}</div>
-                    <div class="evolution-note">${lastHistory.note || 'Finalizado'}</div>
+                    <div class="evolution-note">${lastHistory.note || defaultNote}</div>
                 </div>
-            ` : '<span class="text-muted small">Sin historial</span>';
+            ` : `<span class="status-badge ${badgeClass}" style="padding: 2px 8px; font-size: 0.75rem;">${badgeLabel}</span>`;
+
+            const displayAmount = isEliminado
+                ? (p.estimatedAmount ? formatCurrency(p.estimatedAmount) : '<span class="text-muted small">-</span>')
+                : (p.finalAmount ? formatCurrency(p.finalAmount) : (p.estimatedAmount ? formatCurrency(p.estimatedAmount) : '<span class="text-muted small">-</span>'));
+
+            const actionsHtml = isEliminado ? `
+                <button class="btn-icon text-primary" title="Ver Detalle / Historial Completo" onclick="UI.showProjectHistory('${p.id}')">
+                    <i class="fa-solid fa-eye"></i>
+                </button>
+                <button class="btn-icon text-success" title="Recuperar Proyecto al Pipeline" onclick="UI.restoreProject('${p.id}')" style="display:inline-flex; align-items:center; gap:4px; font-weight:600; padding:4px 8px; border-radius:4px; background:rgba(16,185,129,0.1); border:1px solid rgba(16,185,129,0.3);">
+                    <i class="fa-solid fa-rotate-left"></i> Recuperar
+                </button>
+            ` : `
+                <button class="btn-icon text-primary" title="Ver Detalle / Historial Completo" onclick="UI.showProjectHistory('${p.id}')">
+                    <i class="fa-solid fa-eye"></i>
+                </button>
+                <button class="btn-icon text-warning" title="Re-abrir Proyecto" onclick="UI.reopenProject('${p.id}')">
+                    <i class="fa-solid fa-undo"></i> Re-abrir
+                </button>
+            `;
 
             tr.innerHTML = `
                 <td style="font-weight: 500;">
@@ -7549,19 +7600,55 @@ const UI = {
                 </td>
                 <td>${evolutionHtml}</td>
                 <td style="font-weight: bold; color: var(--text-color);">
-                    ${p.finalAmount ? formatCurrency(p.finalAmount) : '<span class="text-muted small">-</span>'}
+                    ${displayAmount}
                 </td>
                 <td class="actions">
-                    <button class="btn-icon text-primary" title="Ver Detalle / Historial Completo" onclick="UI.showProjectHistory('${p.id}')">
-                         <i class="fa-solid fa-eye"></i>
-                    </button>
-                    <button class="btn-icon text-warning" title="Re-abrir Proyecto" onclick="UI.reopenProject('${p.id}')">
-                         <i class="fa-solid fa-undo"></i>
-                    </button>
+                    ${actionsHtml}
                 </td>
             `;
             tbody.appendChild(tr);
         });
+    },
+
+    async restoreProject(id) {
+        const p = (state.projects || []).find(proj => proj.id === id);
+        if (!p) return;
+
+        // Identificar el último estado válido antes de ser descartado
+        const history = p.history || (await window.StorageAPI.async.getProjectHistory(id)) || [];
+        let targetStatus = 'Cotizado';
+        const nonEliminated = history.find(h => h.newStatus && h.newStatus !== 'Eliminado');
+        if (nonEliminated && nonEliminated.newStatus) {
+            targetStatus = nonEliminated.newStatus;
+        } else if (history.length > 0 && history[0].previousStatus && history[0].previousStatus !== 'Eliminado') {
+            targetStatus = history[0].previousStatus;
+        }
+
+        if (!(await this.confirmModal(`¿Deseas recuperar el proyecto "${p.projectName}" y reincorporarlo al pipeline comercial en estado '${targetStatus}'?`))) {
+            return;
+        }
+
+        try {
+            const updated = { ...p, status: targetStatus };
+            await window.StorageAPI.async.saveProject(updated);
+            await window.StorageAPI.async.addProjectHistory(id, {
+                previousStatus: 'Eliminado',
+                newStatus: targetStatus,
+                note: 'Proyecto recuperado y reincorporado al pipeline comercial.'
+            });
+
+            this.showToast(`Proyecto restaurado al pipeline (${targetStatus})`, 'success');
+            await this.loadData();
+            this.renderProjects();
+            if (document.getElementById('projects-history-card') && document.getElementById('projects-history-card').style.display === 'block') {
+                this.renderProjectHistory();
+            }
+            this.checkPipelineAlerts();
+            this.refreshAlertBadge();
+        } catch (err) {
+            console.error('Error al recuperar proyecto:', err);
+            this.showToast('Error al recuperar proyecto', 'error');
+        }
     },
 
     async reopenProject(id) {
@@ -7682,23 +7769,32 @@ const UI = {
 
     async deleteProject(id) {
         if (state.currentUser.role !== ROLES.ADMIN) return;
-        if (!(await this.confirmModal('¿Estás seguro de que quieres eliminar este registro de proyecto?'))) return;
+        if (!(await this.confirmModal())) return;
 
         const p = state.projects.find(proj => proj.id === id);
         if (!p) return;
 
-        // Guardar historial antes de eliminar para poder restaurar
-        const history = window.StorageAPI.getProjectHistory(id) || [];
+        try {
+            await window.StorageAPI.async.deleteProject(id);
+            this.recordActivity(
+                'Baja',
+                'Proyecto',
+                `Eliminado registro de ${this.getClientName(p?.clientId)}`,
+                { type: 'project', item: { ...p } }
+            );
 
-        window.StorageAPI.deleteProject(id);
-        state.projects = state.projects.filter(proj => proj.id !== id);
-        this.recordActivity(
-            'Baja',
-            'Proyecto',
-            `Eliminado registro de ${this.getClientName(p?.clientId)}`,
-            { type: 'project', item: { ...p }, history: history }
-        );
-        this.renderProjects();
+            this.showToast('Proyecto movido al historial de descartados', 'info');
+            await this.loadData();
+            this.renderProjects();
+            if (document.getElementById('projects-history-card') && document.getElementById('projects-history-card').style.display === 'block') {
+                this.renderProjectHistory();
+            }
+            this.checkPipelineAlerts();
+            this.refreshAlertBadge();
+        } catch (err) {
+            console.error('Error al eliminar proyecto:', err);
+            this.showToast('Error al eliminar proyecto', 'error');
+        }
     },
 
     resetProjectForm() {
@@ -8295,63 +8391,124 @@ const UI = {
 
         if (pipelineAlerts.length === 0) {
             tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: var(--text-muted); padding: 2rem;"><i class="fa-solid fa-circle-check" style="color: #10b981; margin-right: 6px;"></i>No hay cotizaciones con alertas de seguimiento pendientes (Todas al día).</td></tr>';
-            return 0;
+        } else {
+            pipelineAlerts.forEach(item => {
+                const p = item.project;
+                const clientName = this.getClientName(p.clientId);
+                const tr = document.createElement('tr');
+                
+                const badgeStyle = item.isOverdue 
+                    ? 'background: rgba(239, 68, 68, 0.15); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.3); font-weight: 600; padding: 4px 10px; border-radius: 6px; display: inline-flex; align-items: center; gap: 5px;'
+                    : 'background: rgba(245, 158, 11, 0.15); color: #f59e0b; border: 1px solid rgba(245, 158, 11, 0.3); font-weight: 600; padding: 4px 10px; border-radius: 6px; display: inline-flex; align-items: center; gap: 5px;';
+                
+                const badgeIcon = item.isOverdue ? '<i class="fa-solid fa-triangle-exclamation"></i>' : '<i class="fa-solid fa-clock"></i>';
+                const rawEstimado = parseFloat(p.estimatedAmount || 0);
+
+                const overdueSubtext = item.isOverdue 
+                    ? `<div style="font-size: 0.75rem; color: #ef4444; font-weight: 500; margin-top: 2px;"><i class="fa-solid fa-triangle-exclamation"></i> Vencido hace ${item.daysOverdue}d</div>`
+                    : `<div style="font-size: 0.75rem; color: #f59e0b; font-weight: 500; margin-top: 2px;">En validación (día ${item.daysOld}/30)</div>`;
+
+                tr.innerHTML = `
+                    <td style="font-weight: 500;">
+                        ${p.projectName || 'Sin nombre'}
+                        <div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 2px;">
+                            <i class="fa-solid fa-building" style="margin-right: 4px;"></i>${clientName}
+                        </div>
+                    </td>
+                    <td style="font-size: 0.9rem;">
+                        ${formatDate(p.createdAt || p.visitDate)}
+                    </td>
+                    <td>
+                        <span style="font-weight: 700; color: ${item.isOverdue ? '#ef4444' : '#f59e0b'}; font-size: 0.95rem;">
+                            ${item.daysOld} días
+                        </span>
+                        ${overdueSubtext}
+                    </td>
+                    <td style="font-weight: bold;">
+                        ${rawEstimado > 0 ? formatCurrency(rawEstimado) : '<span class="text-muted small">-</span>'}
+                    </td>
+                    <td>
+                        <span style="${badgeStyle}">
+                            ${badgeIcon} ${item.alertLabel}
+                        </span>
+                    </td>
+                    <td class="actions" style="white-space: nowrap;">
+                        <button class="btn-icon text-success" style="font-size:0.85rem; padding:4px 8px;" title="Cliente Aprobó / Avanzar Fase" onclick="UI.advancePipelineProject('${p.id}')">
+                            <i class="fa-solid fa-check-circle"></i> Aprobar
+                        </button>
+                        <button class="btn-icon text-danger" style="font-size:0.85rem; padding:4px 8px;" title="Sacar del Pipeline (Descartar)" onclick="UI.discardPipelineProject('${p.id}', ${item.daysOld})">
+                            <i class="fa-solid fa-trash-can"></i> Descartar
+                        </button>
+                        <button class="btn-icon text-primary" style="font-size:0.85rem; padding:4px 8px;" title="Editar / Ver Detalle Completo" onclick="UI.switchView('projects'); setTimeout(() => UI.editProject('${p.id}', true), 200)">
+                            <i class="fa-solid fa-arrow-up-right-from-square"></i>
+                        </button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
         }
 
-        pipelineAlerts.forEach(item => {
-            const p = item.project;
-            const clientName = this.getClientName(p.clientId);
-            const tr = document.createElement('tr');
-            
-            const badgeStyle = item.isOverdue 
-                ? 'background: rgba(239, 68, 68, 0.15); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.3); font-weight: 600; padding: 4px 10px; border-radius: 6px; display: inline-flex; align-items: center; gap: 5px;'
-                : 'background: rgba(245, 158, 11, 0.15); color: #f59e0b; border: 1px solid rgba(245, 158, 11, 0.3); font-weight: 600; padding: 4px 10px; border-radius: 6px; display: inline-flex; align-items: center; gap: 5px;';
-            
-            const badgeIcon = item.isOverdue ? '<i class="fa-solid fa-triangle-exclamation"></i>' : '<i class="fa-solid fa-clock"></i>';
-            const rawEstimado = parseFloat(p.estimatedAmount || 0);
+        // Renderizar Historial de Oportunidades Descartadas del Pipeline
+        const historyBody = document.getElementById('alerts-pipeline-history-body');
+        if (historyBody) {
+            historyBody.innerHTML = '';
+            const eliminados = projects.filter(p => p.status === 'Eliminado');
 
-            const overdueSubtext = item.isOverdue 
-                ? `<div style="font-size: 0.75rem; color: #ef4444; font-weight: 500; margin-top: 2px;"><i class="fa-solid fa-triangle-exclamation"></i> Vencido hace ${item.daysOverdue}d</div>`
-                : `<div style="font-size: 0.75rem; color: #f59e0b; font-weight: 500; margin-top: 2px;">En validación (día ${item.daysOld}/30)</div>`;
+            if (eliminados.length === 0) {
+                historyBody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: var(--text-muted); padding: 1.5rem;"><i class="fa-solid fa-circle-check" style="color: #10b981; margin-right: 6px;"></i>No hay cotizaciones descartadas en el historial.</td></tr>';
+            } else {
+                eliminados.sort((a, b) => {
+                    const hA = (a.history && a.history.length > 0) ? new Date(a.history[0].changeDate || 0) : new Date(a.createdAt || 0);
+                    const hB = (b.history && b.history.length > 0) ? new Date(b.history[0].changeDate || 0) : new Date(b.createdAt || 0);
+                    return hB - hA;
+                });
 
-            tr.innerHTML = `
-                <td style="font-weight: 500;">
-                    ${p.projectName || 'Sin nombre'}
-                    <div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 2px;">
-                        <i class="fa-solid fa-building" style="margin-right: 4px;"></i>${clientName}
-                    </div>
-                </td>
-                <td style="font-size: 0.9rem;">
-                    ${formatDate(p.createdAt || p.visitDate)}
-                </td>
-                <td>
-                    <span style="font-weight: 700; color: ${item.isOverdue ? '#ef4444' : '#f59e0b'}; font-size: 0.95rem;">
-                        ${item.daysOld} días
-                    </span>
-                    ${overdueSubtext}
-                </td>
-                <td style="font-weight: bold;">
-                    ${rawEstimado > 0 ? formatCurrency(rawEstimado) : '<span class="text-muted small">-</span>'}
-                </td>
-                <td>
-                    <span style="${badgeStyle}">
-                        ${badgeIcon} ${item.alertLabel}
-                    </span>
-                </td>
-                <td class="actions" style="white-space: nowrap;">
-                    <button class="btn-icon text-success" style="font-size:0.85rem; padding:4px 8px;" title="Cliente Aprobó / Avanzar Fase" onclick="UI.advancePipelineProject('${p.id}')">
-                        <i class="fa-solid fa-check-circle"></i> Aprobar
-                    </button>
-                    <button class="btn-icon text-danger" style="font-size:0.85rem; padding:4px 8px;" title="Sacar del Pipeline (Descartar)" onclick="UI.discardPipelineProject('${p.id}', ${item.daysOld})">
-                        <i class="fa-solid fa-trash-can"></i> Descartar
-                    </button>
-                    <button class="btn-icon text-primary" style="font-size:0.85rem; padding:4px 8px;" title="Editar / Ver Detalle Completo" onclick="UI.switchView('projects'); setTimeout(() => UI.editProject('${p.id}', true), 200)">
-                        <i class="fa-solid fa-arrow-up-right-from-square"></i>
-                    </button>
-                </td>
-            `;
-            tbody.appendChild(tr);
-        });
+                eliminados.forEach(p => {
+                    const clientName = this.getClientName(p.clientId);
+                    const tr = document.createElement('tr');
+                    const rawEstimado = parseFloat(p.estimatedAmount || 0);
+
+                    const discardEntry = (p.history || []).find(h => h.newStatus === 'Eliminado') || (p.history && p.history[0]);
+                    const discardDate = discardEntry ? discardEntry.changeDate : (p.updatedAt || p.createdAt);
+                    const discardNote = (discardEntry && discardEntry.note) ? discardEntry.note : 'Descartado del pipeline comercial';
+
+                    tr.innerHTML = `
+                        <td style="font-weight: 500;">
+                            <div>
+                                <span style="text-decoration: line-through; color: var(--text-muted);">${p.projectName || 'Sin nombre'}</span>
+                                <span class="status-badge status-Eliminado" style="font-size: 0.72rem; padding: 2px 6px; border-radius: 4px; margin-left: 6px;">
+                                    Descartado
+                                </span>
+                            </div>
+                            <div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 2px;">
+                                <i class="fa-solid fa-building" style="margin-right: 4px;"></i>${clientName}
+                            </div>
+                        </td>
+                        <td style="font-size: 0.85rem; color: var(--text-muted);">
+                            ${formatDate(p.createdAt || p.visitDate)}
+                        </td>
+                        <td style="font-size: 0.85rem; color: #ef4444; font-weight: 500;">
+                            <i class="fa-regular fa-calendar-xmark" style="margin-right: 4px;"></i>${formatDate(discardDate)}
+                        </td>
+                        <td style="font-weight: 600; color: var(--text-muted);">
+                            ${rawEstimado > 0 ? formatCurrency(rawEstimado) : '<span class="text-muted small">-</span>'}
+                        </td>
+                        <td style="font-size: 0.8rem; color: var(--text-muted); max-width: 250px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${(discardNote || '').replace(/"/g, '&quot;')}">
+                            ${(discardNote || '').replace(/</g, '&lt;').replace(/>/g, '&gt;')}
+                        </td>
+                        <td class="actions" style="white-space: nowrap;">
+                            <button class="btn-icon text-success" style="font-size: 0.85rem; padding: 4px 10px; border-radius: 4px; background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.3); font-weight: 600;" title="Recuperar y reincorporar al pipeline comercial" onclick="UI.restoreProject('${p.id}')">
+                                <i class="fa-solid fa-rotate-left"></i> Recuperar
+                            </button>
+                            <button class="btn-icon text-primary" style="font-size: 0.85rem; padding: 4px 8px;" title="Ver bitácora / historial" onclick="UI.showProjectHistory('${p.id}')">
+                                <i class="fa-solid fa-clock-rotate-left"></i>
+                            </button>
+                        </td>
+                    `;
+                    historyBody.appendChild(tr);
+                });
+            }
+        }
 
         return pipelineAlerts.length;
     },
@@ -8404,6 +8561,9 @@ const UI = {
             this.refreshAlertBadge();
             if (document.getElementById('projects') && document.getElementById('projects').classList.contains('active')) {
                 this.renderProjects();
+            }
+            if (document.getElementById('projects-history-card') && document.getElementById('projects-history-card').style.display === 'block') {
+                this.renderProjectHistory();
             }
         } catch (err) {
             console.error('Error al descartar proyecto:', err);
