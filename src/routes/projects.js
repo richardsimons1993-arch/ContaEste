@@ -57,6 +57,64 @@ router.delete('/:id', async (req, res) => {
     }
 });
 
+
+// POST /api/projects/:id/restore
+router.post('/:id/restore', async (req, res) => {
+    try {
+        const pool = await getDbPool();
+        const id = req.params.id;
+
+        // 1. Obtener estado legítimo previo (no-eliminado), por defecto 'Cotizado'
+        const histRes = await pool.request()
+            .input('projectId', sql.VarChar(50), id)
+            .query("SELECT * FROM ProjectHistory WHERE projectId = @projectId ORDER BY changeDate DESC, id DESC");
+        
+        const history = histRes.recordset || [];
+        const nonElim = history.find(h => h.newStatus && h.newStatus !== 'Eliminado' && !h.note?.includes('recuperado') && !h.note?.includes('Soft Delete'));
+        const targetStatus = nonElim?.newStatus || 'Cotizado';
+
+        // 2. Actualizar estado del proyecto en la tabla Projects a targetStatus
+        await pool.request()
+            .input('id', sql.VarChar(50), id)
+            .input('status', sql.VarChar(50), targetStatus)
+            .query("UPDATE Projects SET status = @status WHERE id = @id");
+
+        // 3. Limpiar del historial TODOS los registros de descarte y recuperación para este proyecto
+        await pool.request()
+            .input('projectId', sql.VarChar(50), id)
+            .query(`DELETE FROM ProjectHistory 
+                    WHERE projectId = @projectId 
+                      AND (newStatus = 'Eliminado' 
+                           OR previousStatus = 'Eliminado' 
+                           OR note LIKE '%recuperado%' 
+                           OR note LIKE '%Soft Delete%'
+                           OR note LIKE '%Descartado del pipeline%')`);
+
+        // 4. Si el proyecto se quedó sin ningún registro en ProjectHistory, crear uno limpio en targetStatus
+        const checkHist = await pool.request()
+            .input('projectId', sql.VarChar(50), id)
+            .query("SELECT COUNT(*) AS total FROM ProjectHistory WHERE projectId = @projectId");
+        
+        if (checkHist.recordset[0].total === 0) {
+            const pRes = await pool.request()
+                .input('id', sql.VarChar(50), id)
+                .query("SELECT createdAt, visitDate, observations FROM Projects WHERE id = @id");
+            const p = pRes.recordset[0] || {};
+            const cleanDate = p.createdAt || p.visitDate || new Date();
+            await pool.request()
+                .input('projectId', sql.VarChar(50), id)
+                .input('newStatus', sql.VarChar(50), targetStatus)
+                .input('changeDate', sql.DateTime, cleanDate)
+                .input('note', sql.VarChar(sql.MAX), p.observations || '')
+                .query("INSERT INTO ProjectHistory (projectId, newStatus, changeDate, note) VALUES (@projectId, @newStatus, @changeDate, @note)");
+        }
+
+        res.json({ success: true, status: targetStatus });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 // POST /api/projects
 router.post('/', async (req, res) => {
     try {

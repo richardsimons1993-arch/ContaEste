@@ -271,6 +271,11 @@ const Storage = {
         return this.getProjects();
     },
 
+    restoreProject(id) {
+        syncRequest('POST', `/projects/${id}/restore`);
+        return this.getProjects();
+    },
+
     getInventory() {
         return syncRequest('GET', '/inventory') || [];
     },
@@ -335,6 +340,7 @@ const Storage = {
         getProjects: () => asyncRequest('GET', '/projects'),
         saveProject: (p) => asyncRequest('POST', '/projects', p),
         deleteProject: (id) => asyncRequest('DELETE', `/projects/${id}`),
+        restoreProject: (id) => asyncRequest('POST', `/projects/${id}/restore`),
         getProjectHistory: (id) => asyncRequest('GET', `/projects/${id}/history`), // Bitácora de proyectos
         addProjectHistory: (id, h) => asyncRequest('POST', `/projects/${id}/history`, h),
         deleteProjectHistory: (id) => asyncRequest('DELETE', `/projects/history/${id}`),

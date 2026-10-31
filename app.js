@@ -7159,7 +7159,7 @@ const UI = {
             tr.id = `project-row-${p.id}`;
             const clientName = this.getClientName(p.clientId);
 
-            const history = p.history || [];
+            const history = (p.history || []).filter(h => h.newStatus !== 'Eliminado' && h.previousStatus !== 'Eliminado' && !h.note?.includes('recuperado') && !h.note?.includes('Soft Delete'));
             
             // Construir el contenedor horizontal de evolución
             const historyHtml = history.map(h => `
@@ -7614,30 +7614,23 @@ const UI = {
         const p = (state.projects || []).find(proj => proj.id === id);
         if (!p) return;
 
-        // Identificar el último estado válido antes de ser descartado
-        const history = p.history || (await window.StorageAPI.async.getProjectHistory(id)) || [];
-        let targetStatus = 'Cotizado';
-        const nonEliminated = history.find(h => h.newStatus && h.newStatus !== 'Eliminado');
-        if (nonEliminated && nonEliminated.newStatus) {
-            targetStatus = nonEliminated.newStatus;
-        } else if (history.length > 0 && history[0].previousStatus && history[0].previousStatus !== 'Eliminado') {
-            targetStatus = history[0].previousStatus;
-        }
-
-        if (!(await this.confirmModal(`¿Deseas recuperar el proyecto "${p.projectName}" y reincorporarlo al pipeline comercial en estado '${targetStatus}'?`))) {
+        if (!(await this.confirmModal(`¿Deseas recuperar el proyecto "${p.projectName}" y reincorporarlo al pipeline comercial en estado 'Cotizado'?`))) {
             return;
         }
 
         try {
-            const updated = { ...p, status: targetStatus };
-            await window.StorageAPI.async.saveProject(updated);
-            await window.StorageAPI.async.addProjectHistory(id, {
-                previousStatus: 'Eliminado',
-                newStatus: targetStatus,
-                note: 'Proyecto recuperado y reincorporado al pipeline comercial.'
-            });
+            if (window.StorageAPI.async?.restoreProject) {
+                await window.StorageAPI.async.restoreProject(id);
+            } else {
+                await fetch(`/api/projects/${id}/restore`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${state.token || JSON.parse(localStorage.getItem('contabilidad_session') || '{}').token || ''}`
+                    }
+                });
+            }
 
-            this.showToast(`Proyecto restaurado al pipeline (${targetStatus})`, 'success');
+            this.showToast('Proyecto restaurado al pipeline (Cotizado)', 'success');
             await this.loadData();
             this.renderProjects();
             if (document.getElementById('projects-history-card') && document.getElementById('projects-history-card').style.display === 'block') {
