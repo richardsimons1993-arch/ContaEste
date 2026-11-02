@@ -4097,7 +4097,7 @@ const UI = {
             }
             uploadBanner.innerHTML = `
                 <i class="fa-solid fa-cloud-arrow-up fa-beat" style="color:#60a5fa;font-size:18px;"></i>
-                <span>Subiendo documento… <br><small style="opacity:0.7">Puedes seguir navegando, esto ocurre en segundo plano.</small></span>
+                <span>Cargando en el servidor…</span>
             `;
 
             // Leer archivo como base64
@@ -4220,7 +4220,7 @@ const UI = {
         }
         uploadBanner.innerHTML = `
             <i class="fa-solid fa-cloud-arrow-up fa-beat" style="color:#60a5fa;font-size:18px;"></i>
-            <span>Subiendo documento… <br><small style="opacity:0.7">Puedes seguir navegando, esto ocurre en segundo plano.</small></span>
+            <span>Cargando en el servidor…</span>
         `;
 
         // Leer archivo como base64
@@ -4385,7 +4385,7 @@ const UI = {
         }
         uploadBanner.innerHTML = `
             <i class="fa-solid fa-cloud-arrow-up fa-beat" style="color:#60a5fa;font-size:18px;"></i>
-            <span>Subiendo documento… <br><small style="opacity:0.7">Puedes seguir navegando, esto ocurre en segundo plano.</small></span>
+            <span>Cargando en el servidor…</span>
         `;
 
         const reader = new FileReader();
@@ -6697,7 +6697,7 @@ const UI = {
             const formData = new FormData();
             formData.append('document', file);
 
-            this.showToast('Subiendo documento...', 'info');
+            this.showToast('Cargando en el servidor...', 'info');
 
             try {
                 const response = await fetch(`/api/contracts/${id}/upload-document`, {
@@ -6726,7 +6726,7 @@ const UI = {
     },
 
     async deleteContractDocument(id) {
-        if (!(await this.confirmModal('¿Está seguro de eliminar el documento de este contrato de OneDrive?'))) return;
+        if (!(await this.confirmModal('¿Está seguro de eliminar el documento de este contrato del servidor?'))) return;
 
         try {
             const response = await fetch(`/api/contracts/${id}/document`, {
@@ -6965,7 +6965,7 @@ const UI = {
                 }
                 uploadBanner.innerHTML = `
                     <i class="fa-solid fa-cloud-arrow-up fa-beat" style="color:#60a5fa;font-size:18px;"></i>
-                    <span>Subiendo factura de respaldo… <br><small style="opacity:0.7">Registrando en OneDrive en segundo plano.</small></span>
+                    <span>Cargando en el servidor…</span>
                 `;
 
                 const reader = new FileReader();

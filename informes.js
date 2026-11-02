@@ -650,7 +650,7 @@ const ReportsApp = () => {
         }
     };
 
-    // Guardar informe final y subir a OneDrive
+    // Guardar informe final y subir al servidor
     const handleGenerate = async () => {
         if (!window.pdfMake) {
             try { await window._loadPdfMake(); } catch(e) { await customAlert('Error cargando librería PDF. Verifique su conexión.'); return; }
@@ -733,7 +733,7 @@ const ReportsApp = () => {
                             // Limpiar formulario tras generar informe
                             handleResetToNewReport();
 
-                            await customAlert("Informe generado, descargado y guardado en tu OneDrive con éxito.", "Éxito");
+                            await customAlert("Informe generado, descargado y guardado en el servidor con éxito.", "Éxito");
                             resolve();
                         } catch (saveErr) {
                             reject(saveErr);
