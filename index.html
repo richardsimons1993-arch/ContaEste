@@ -1810,8 +1810,12 @@
                     <div class="tabs"
                         style="display: flex; gap: 1rem; border-bottom: 2px solid var(--border-color); margin-bottom: 1rem; padding-bottom: 0.5rem;">
                         <button class="btn-text alert-tab-btn active" data-tab="tab-pending-month" data-module="ventas" data-target="contracts-reminder"
-                            style="font-weight: bold; border-bottom: 2px solid var(--primary-color);">Contratos y Facturación</button>
-                        <button class="btn-text alert-tab-btn" data-tab="tab-operational-expenses" data-module="finanzas" data-target="operational-expenses">Gastos Operacionales</button>
+                            style="font-weight: bold; border-bottom: 2px solid var(--primary-color);">
+                            Contratos y Facturación <span id="contracts-alerts-count" style="display: none; background: #ea580c; color: white; border-radius: 10px; padding: 1px 7px; font-size: 0.75rem; margin-left: 4px;">0</span>
+                        </button>
+                        <button class="btn-text alert-tab-btn" data-tab="tab-operational-expenses" data-module="finanzas" data-target="operational-expenses">
+                            Gastos Operacionales <span id="expenses-alerts-count" style="display: none; background: #ea580c; color: white; border-radius: 10px; padding: 1px 7px; font-size: 0.75rem; margin-left: 4px;">0</span>
+                        </button>
                         <button class="btn-text alert-tab-btn" data-tab="tab-pipeline-opportunities" data-module="proyectos" data-target="pipeline-alerts">
                             Pipeline de Oportunidades <span id="pipeline-alerts-count" style="display: none; background: #ea580c; color: white; border-radius: 10px; padding: 1px 7px; font-size: 0.75rem; margin-left: 4px;">0</span>
                         </button>

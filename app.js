@@ -2135,7 +2135,10 @@ const UI = {
                     activeContent.style.display = 'block';
                 }
             }
+            this.checkPendingContracts();
+            this.checkOperationalExpensesAlerts();
             this.checkPipelineAlerts();
+            this.refreshAlertBadge();
         }
         if (viewName === 'concepts') this.renderConcepts();
         if (viewName === 'clients') this.renderClients();
@@ -8683,6 +8686,21 @@ const UI = {
             return new Date(year, month, day);
         };
 
+        const parseDate = (dateStr) => {
+            if (!dateStr) return null;
+            if (dateStr instanceof Date) return isNaN(dateStr.getTime()) ? null : dateStr;
+            if (typeof dateStr === 'string') {
+                const dmy = dateStr.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})/);
+                if (dmy) {
+                    return new Date(parseInt(dmy[3], 10), parseInt(dmy[2], 10) - 1, parseInt(dmy[1], 10));
+                }
+                const iso = dateStr.replace(' ', 'T');
+                const d = new Date(iso);
+                return isNaN(d.getTime()) ? null : d;
+            }
+            return null;
+        };
+
         // 1. Contratos pendientes de facturar
         const contractsCount = state.pendingContracts ? state.pendingContracts.length : 0;
 
@@ -8699,8 +8717,8 @@ const UI = {
         const pipelineCount = (state.projects || []).filter(p => {
             if (p.status !== 'Cotizado') return false;
             const dateStr = p.createdAt || p.visitDate;
-            if (!dateStr) return false;
-            const created = new Date(dateStr);
+            const created = parseDate(dateStr);
+            if (!created) return false;
             created.setHours(0, 0, 0, 0);
             const diffDays = Math.floor((today - created) / (1000 * 60 * 60 * 24));
             return diffDays >= 14;
@@ -8729,9 +8747,41 @@ const UI = {
                 pendingBadge.style.display = 'none';
             }
             // Actualizar tooltip para ser más descriptivo
-            reminderBtn.title = `${totalAlerts} alertas urgentes (${pipelineCount} en pipeline) ${debtsCount > 0 ? `+ ${debtsCount} deudas` : ''}`;
+            reminderBtn.title = `${totalAlerts} alertas urgentes (${pipelineCount} en pipeline, ${expensesCount} en gastos op, ${contractsCount} en contratos) ${debtsCount > 0 ? `+ ${debtsCount} deudas` : ''}`;
         } else {
             reminderBtn.style.display = 'none';
+        }
+
+        // Actualizar badges individuales de cada pestaña del Centro de Alertas
+        const contractsBadge = document.getElementById('contracts-alerts-count');
+        const expensesBadge = document.getElementById('expenses-alerts-count');
+        const pipelineBadge = document.getElementById('pipeline-alerts-count');
+
+        if (contractsBadge) {
+            if (hasVentasAccess && contractsCount > 0) {
+                contractsBadge.style.display = 'inline-block';
+                contractsBadge.textContent = contractsCount;
+            } else {
+                contractsBadge.style.display = 'none';
+            }
+        }
+
+        if (expensesBadge) {
+            if (hasFinanzasAccess && expensesCount > 0) {
+                expensesBadge.style.display = 'inline-block';
+                expensesBadge.textContent = expensesCount;
+            } else {
+                expensesBadge.style.display = 'none';
+            }
+        }
+
+        if (pipelineBadge) {
+            if (hasProyectosAccess && pipelineCount > 0) {
+                pipelineBadge.style.display = 'inline-block';
+                pipelineBadge.textContent = pipelineCount;
+            } else {
+                pipelineBadge.style.display = 'none';
+            }
         }
     },
     async handleOperationalSubmit(e) {
