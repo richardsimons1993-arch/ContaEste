@@ -70,6 +70,7 @@ const QuotationsApp = () => {
     const [previewUrl, setPreviewUrl] = useState(null);
     const [logoData, setLogoData] = useState({ svg: null, base64: null });
     const previewTimeoutRef = useRef(null);
+    const isExplicitIdRef = useRef(false);
 
     useEffect(() => {
         loadData();
@@ -137,19 +138,20 @@ const QuotationsApp = () => {
 
     useEffect(() => {
         if (!selectedClient) {
-            if (mode === 'new') {
+            if (mode === 'new' && !isExplicitIdRef.current) {
                 setNextId(1);
                 setCurrentVersion(1);
             }
             return;
         }
 
-        if (mode === 'edit' || mode === 'edit-draft') {
+        if (mode === 'edit' || mode === 'edit-draft' || isExplicitIdRef.current) {
             return;
         }
 
         const fetchNextIdVal = async () => {
             try {
+                if (isExplicitIdRef.current) return;
                 const activeClient = clients.find(c => c.id === selectedClient);
                 if (!activeClient) return;
 
@@ -157,8 +159,10 @@ const QuotationsApp = () => {
                 const prefix = name.replace(/[^A-Za-z\u00C0-\u017F]/g, '').substring(0, 3).toUpperCase().padEnd(3, 'X');
 
                 const idData = await window.StorageAPI.async.getNextQuotationId(prefix, currentYear);
-                setNextId(idData.nextId);
-                setCurrentVersion(1); // Default para nuevas
+                if (!isExplicitIdRef.current) {
+                    setNextId(idData.nextId);
+                    setCurrentVersion(1); // Default para nuevas
+                }
 
                 if (mode === 'new') {
                     setCurrency('CLP');
@@ -171,6 +175,7 @@ const QuotationsApp = () => {
     }, [selectedClient, currentYear, mode]);
 
     const handleResetToNewQuotation = () => {
+        isExplicitIdRef.current = false;
         setSelectedClient('');
         setProjectName('');
         setRequirements('');
@@ -925,7 +930,11 @@ const QuotationsApp = () => {
             
             await window.StorageAPI.async.saveQuotation(qData);
             
-            await customAlert(`Borrador de Cotización ${displayId} guardado con éxito.`, "Borrador Guardado");
+            // Fijar modo en borrador y bloquear ref para que este borrador mantenga su ID y versión
+            setMode('edit-draft');
+            isExplicitIdRef.current = true;
+            
+            await customAlert(`Borrador de Cotización ${displayId} (v${currentVersion}) guardado con éxito. Puedes continuar editándolo en cualquier momento desde el Historial.`, "Borrador Guardado");
             fetchHistory();
         } catch (error) {
             console.error("Error al guardar borrador:", error);
@@ -935,9 +944,16 @@ const QuotationsApp = () => {
         }
     };
 
-    const handleEditFromHistory = async (q) => {
+    const handleContinueDraft = (q) => {
         try {
-            // Cargar datos
+            isExplicitIdRef.current = true;
+            setMode('edit-draft');
+            
+            // Cargar datos exactos del borrador SIN alterar correlativo ni versión
+            setNextId(q.correlative);
+            setCurrentYear(q.year);
+            setCurrentVersion(q.version || 1);
+
             setSelectedClient(q.clientId);
             setProjectName(q.projectName || '');
             setRequirements(q.requirements || '');
@@ -948,31 +964,59 @@ const QuotationsApp = () => {
             setOptionals(JSON.parse(q.itemsOptional || '[]'));
             setCurrency(q.currency || 'CLP');
             
-            // No cambiar el correlativo visual ni el año
+            setActiveTab('generator');
+            customAlert(`Abriendo Borrador ${q.id} (v${q.version || 1}). Puedes continuar modificándolo y guardarlo o emitirlo cuando esté listo.`, "Continuando Borrador");
+        } catch (err) {
+            console.error("Error al cargar borrador:", err);
+            customAlert("Error al cargar el borrador para continuar su edición.");
+        }
+    };
+
+    const handleCreateNewVersion = async (q) => {
+        try {
+            const vData = await window.StorageAPI.async.getQuotationNextVersion(q.id);
+            const confirmed = await customConfirm(
+                `¿Desea crear una nueva versión (v${vData.nextVersion}) para la Cotización ${q.id}?\n\nLa versión actual (v${q.version}) se mantendrá intacta en el historial.`,
+                "Crear Nueva Versión"
+            );
+            if (!confirmed) return;
+
+            isExplicitIdRef.current = true;
+            setMode('edit');
+            
             setNextId(q.correlative);
             setCurrentYear(q.year);
+            setCurrentVersion(vData.nextVersion);
 
-            if (q.status === 'Borrador') {
-                setMode('edit-draft');
-                setCurrentVersion(q.version || 1);
-                setActiveTab('generator');
-                await customAlert(`Editando Borrador de Cotización ${q.id}.`, "Edición de Borrador");
-            } else {
-                setMode('edit');
-                // Calcular siguiente versión para este ID exacto
-                const vData = await window.StorageAPI.async.getQuotationNextVersion(q.id);
-                setCurrentVersion(vData.nextVersion);
-                setActiveTab('generator');
-                await customAlert(`Editando Cotización ${q.id}. Se guardará como versión ${vData.nextVersion}.`, "Edición Iniciada");
-            }
+            setSelectedClient(q.clientId);
+            setProjectName(q.projectName || '');
+            setRequirements(q.requirements || '');
+            setTechConditions(q.technicalConditions || '');
+            setCommercialConditions(q.commercialConditions || '');
+            setImages(q.images ? (typeof q.images === 'string' ? JSON.parse(q.images || '[]') : q.images) : []);
+            setItems(JSON.parse(q.items1 || '[]'));
+            setOptionals(JSON.parse(q.itemsOptional || '[]'));
+            setCurrency(q.currency || 'CLP');
+            
+            setActiveTab('generator');
+            await customAlert(`Editando Cotización ${q.id}. Se guardará como nueva versión ${vData.nextVersion}.`, "Nueva Versión Iniciada");
         } catch (err) {
-            await customAlert("Error al cargar para edición.");
+            console.error("Error al crear nueva versión:", err);
+            await customAlert("Error al preparar la nueva versión de la cotización.");
+        }
+    };
+
+    const handleEditFromHistory = async (q) => {
+        if (q.status === 'Borrador') {
+            handleContinueDraft(q);
+        } else {
+            await handleCreateNewVersion(q);
         }
     };
 
     const handleCopyFromHistory = async (q) => {
         try {
-            // Cargar contenido de la cotización
+            isExplicitIdRef.current = false;
             setMode('copy');
             setSelectedClient(''); // Limpiar el cliente para forzar selección y evitar confusiones
             setProjectName(q.projectName || '');
@@ -989,19 +1033,24 @@ const QuotationsApp = () => {
             setNextId(1);
             
             setActiveTab('generator');
-            await customAlert(`Contenido de Cotización ${q.id} copiado. Seleccione un cliente para asignarle esta nueva cotización.`, "Copia Realizada");
+            await customAlert(`Contenido de Cotización ${q.id} copiado. Seleccione un cliente para asignarle el nuevo correlativo automáticamente.`, "Copia Realizada");
         } catch (err) {
             await customAlert("Error al copiar la cotización.");
         }
     };
 
-    const handleDeleteFromHistory = async (id, version) => {
-        if (!await customConfirm(`¿Está seguro de eliminar la versión ${version} de la cotización ${id}?`, "Eliminar Cotización")) return;
+    const handleDeleteFromHistory = async (id, version, status) => {
+        const isDraft = status === 'Borrador';
+        const msg = isDraft 
+            ? `¿Está seguro de eliminar el borrador de la cotización ${id}? Esta acción no se puede deshacer.`
+            : `¿Está seguro de eliminar la versión ${version} de la cotización ${id}?`;
+        if (!await customConfirm(msg, isDraft ? "Eliminar Borrador" : "Eliminar Cotización")) return;
         try {
             await window.StorageAPI.async.deleteQuotation(id, version);
+            await customAlert(isDraft ? "Borrador eliminado correctamente." : "Cotización eliminada correctamente.");
             fetchHistory();
         } catch (err) {
-            await customAlert("Error al eliminar.");
+            await customAlert("Error al eliminar la cotización.");
         }
     };
 
@@ -1111,15 +1160,23 @@ const QuotationsApp = () => {
                                     Generador de Cotizaciones
                                 </h2>
                                 <div className="tw-text-right">
-                                    <span className="tw-px-4 tw-py-2 tw-bg-indigo-100 tw-text-indigo-800 tw-rounded-lg tw-text-sm tw-font-bold tw-shadow-sm">
-                                        N° {displayId}
+                                    <span className={`tw-px-4 tw-py-2 tw-rounded-lg tw-text-sm tw-font-bold tw-shadow-sm ${mode === 'edit-draft' ? 'tw-bg-amber-100 tw-text-amber-800 tw-border tw-border-amber-300' : 'tw-bg-indigo-100 tw-text-indigo-800'}`}>
+                                        N° {displayId} {mode === 'edit-draft' && '(Borrador)'}
                                     </span>
-                                    {currentVersion > 1 && (
+                                    {mode === 'edit-draft' ? (
+                                        <div className="tw-text-xs tw-font-bold tw-text-amber-600 tw-mt-2 tw-flex tw-items-center tw-justify-end tw-gap-1">
+                                            <i className="fa-solid fa-pen-nib"></i> CONTINUANDO BORRADOR {currentVersion > 1 ? `(v${currentVersion})` : ''}
+                                        </div>
+                                    ) : mode === 'edit' ? (
+                                        <div className="tw-text-xs tw-font-bold tw-text-indigo-600 tw-mt-2 tw-flex tw-items-center tw-justify-end tw-gap-1">
+                                            <i className="fa-solid fa-code-branch"></i> NUEVA VERSIÓN {currentVersion}
+                                        </div>
+                                    ) : currentVersion > 1 ? (
                                         <div className="tw-text-xs tw-font-bold tw-text-indigo-600 tw-mt-2">VERSION {currentVersion}</div>
-                                    )}
+                                    ) : null}
                                 </div>
                             </div>
-                            <div className="tw-mt-4 tw-flex tw-gap-3">
+                            <div className="tw-mt-4 tw-flex tw-gap-3 tw-flex-wrap">
                                 <button 
                                     onClick={() => setActiveTab('history')}
                                     className="tw-bg-white tw-border tw-border-slate-300 tw-text-googleBlue tw-px-4 tw-py-2 tw-rounded-lg tw-text-xs tw-font-bold hover:tw-bg-slate-50 hover:tw-text-blue-700 tw-transition-all tw-flex tw-items-center tw-shadow-sm"
@@ -1127,7 +1184,20 @@ const QuotationsApp = () => {
                                     <i className="fa-solid fa-clock-rotate-left tw-mr-2"></i>VER HISTORIAL DE COTIZACIONES
                                 </button>
                                 
-                                {(selectedClient || projectName || requirements || techConditions || (items.length > 1 || items[0]?.price > 0 || items[0]?.desc) || optionals.length > 0 || currency !== 'CLP' || mode !== 'new') && (
+                                {mode !== 'new' && (
+                                    <button 
+                                        onClick={async () => {
+                                            if (await customConfirm("¿Desea salir de esta edición y crear una nueva cotización en blanco?", "Nueva Cotización")) {
+                                                handleResetToNewQuotation();
+                                            }
+                                        }}
+                                        className="tw-bg-white tw-border tw-border-indigo-300 tw-text-indigo-600 tw-px-4 tw-py-2 tw-rounded-lg tw-text-xs tw-font-bold hover:tw-bg-indigo-50 hover:tw-text-indigo-800 tw-transition-all tw-flex tw-items-center tw-shadow-sm"
+                                    >
+                                        <i className="fa-solid fa-plus tw-mr-2"></i>NUEVA COTIZACIÓN
+                                    </button>
+                                )}
+                                
+                                {(selectedClient || projectName || requirements || techConditions || (items.length > 1 || items[0]?.price > 0 || items[0]?.desc) || optionals.length > 0 || currency !== 'CLP') && (
                                     <button 
                                         onClick={async () => {
                                             if (await customConfirm("¿Está seguro de limpiar todos los campos del formulario?", "Limpiar Formulario")) {
@@ -1369,16 +1439,34 @@ const QuotationsApp = () => {
                                     <button 
                                         onClick={handleSaveDraft}
                                         disabled={isGenerating || isSavingDraft}
-                                        className={`tw-w-full tw-py-4 tw-rounded-xl tw-text-lg tw-font-bold tw-text-slate-700 tw-border tw-border-slate-300 tw-bg-white hover:tw-bg-slate-50 hover:-tw-translate-y-1 tw-shadow-md tw-transition-all ${(isGenerating || isSavingDraft) ? 'tw-opacity-50 tw-cursor-not-allowed' : ''}`}
+                                        className={`tw-w-full tw-py-4 tw-rounded-xl tw-text-lg tw-font-bold tw-border tw-shadow-md tw-transition-all ${(isGenerating || isSavingDraft) ? 'tw-opacity-50 tw-cursor-not-allowed' : ''} ${
+                                            mode === 'edit-draft'
+                                                ? 'tw-border-amber-400 tw-bg-amber-50 tw-text-amber-800 hover:tw-bg-amber-100 hover:-tw-translate-y-0.5'
+                                                : 'tw-text-slate-700 tw-border-slate-300 tw-bg-white hover:tw-bg-slate-50 hover:-tw-translate-y-0.5'
+                                        }`}
                                     >
-                                        {isSavingDraft ? <span><i className="fa-solid fa-spinner fa-spin tw-mr-3"></i> Guardando...</span> : <span><i className="fa-solid fa-floppy-disk tw-mr-3"></i> Guardar Borrador</span>}
+                                        {isSavingDraft ? (
+                                            <span><i className="fa-solid fa-spinner fa-spin tw-mr-3"></i> Guardando...</span>
+                                        ) : (
+                                            <span>
+                                                <i className={`fa-solid ${mode === 'edit-draft' ? 'fa-floppy-disk' : 'fa-bookmark'} tw-mr-3`}></i> 
+                                                {mode === 'edit-draft' ? 'Guardar Cambios en Borrador' : 'Guardar Borrador'}
+                                            </span>
+                                        )}
                                     </button>
                                     <button 
                                         onClick={handleGenerate}
                                         disabled={isGenerating || isSavingDraft}
-                                        className={`tw-w-full tw-py-4 tw-rounded-xl tw-text-lg tw-font-bold tw-text-white tw-shadow-lg tw-transition-all ${(isGenerating || isSavingDraft) ? 'tw-bg-slate-400 tw-cursor-not-allowed' : 'tw-bg-googleBlue hover:tw-bg-blue-700 hover:-tw-translate-y-1 hover:tw-shadow-xl'}`}
+                                        className={`tw-w-full tw-py-4 tw-rounded-xl tw-text-lg tw-font-bold tw-text-white tw-shadow-lg tw-transition-all ${(isGenerating || isSavingDraft) ? 'tw-bg-slate-400 tw-cursor-not-allowed' : 'tw-bg-googleBlue hover:tw-bg-blue-700 hover:-tw-translate-y-0.5 hover:tw-shadow-xl'}`}
                                     >
-                                        {isGenerating ? <span><i className="fa-solid fa-circle-notch fa-spin tw-mr-3"></i> Generando PDF...</span> : <span><i className="fa-solid fa-file-pdf tw-mr-3"></i> Generar y Descargar Cotización PDF</span>}
+                                        {isGenerating ? (
+                                            <span><i className="fa-solid fa-circle-notch fa-spin tw-mr-3"></i> Generando PDF...</span>
+                                        ) : (
+                                            <span>
+                                                <i className="fa-solid fa-file-pdf tw-mr-3"></i> 
+                                                {mode === 'edit-draft' ? 'Emitir y Descargar Cotización PDF' : mode === 'edit' ? `Emitir Versión ${currentVersion} y Descargar PDF` : 'Generar y Descargar Cotización PDF'}
+                                            </span>
+                                        )}
                                     </button>
                                 </div>
                             </div>
@@ -1596,36 +1684,63 @@ const QuotationsApp = () => {
                                                     </td>
                                                     <td className="tw-px-2 lg:tw-px-3 xl:tw-px-4 tw-py-3 tw-font-semibold tw-text-[#004d4d] tw-whitespace-nowrap">{formatMoney(q.total || 0, q.currency)}</td>
                                                     <td className="tw-px-2 lg:tw-px-3 xl:tw-px-4 tw-py-3 tw-text-right">
-                                                        <div className="tw-flex tw-justify-end tw-gap-1">
-                                                            <button 
-                                                                onClick={() => handleDownloadFromHistory(q)}
-                                                                className="tw-p-1.5 tw-text-teal-600 hover:tw-bg-teal-50 tw-rounded-lg tw-transition-colors"
-                                                                title="Descargar PDF"
-                                                            >
-                                                                <i className="fa-solid fa-download"></i>
-                                                            </button>
-                                                            <button 
-                                                                onClick={() => handleEditFromHistory(q)}
-                                                                className="tw-p-1.5 tw-text-googleBlue hover:tw-bg-blue-50 tw-rounded-lg tw-transition-colors"
-                                                                title="Editar (Generar nueva versión)"
-                                                            >
-                                                                <i className="fa-solid fa-pen-to-square"></i>
-                                                            </button>
-                                                            <button 
-                                                                onClick={() => handleCopyFromHistory(q)}
-                                                                className="tw-p-1.5 tw-text-emerald-600 hover:tw-bg-emerald-50 tw-rounded-lg tw-transition-colors"
-                                                                title="Copiar (Crear nueva cotización)"
-                                                            >
-                                                                <i className="fa-solid fa-copy"></i>
-                                                            </button>
-                                                            <button 
-                                                                onClick={() => handleDeleteFromHistory(q.id, q.version)}
-                                                                className="tw-p-1.5 tw-text-red-500 hover:tw-bg-red-50 tw-rounded-lg tw-transition-colors"
-                                                                title="Eliminar de la BD"
-                                                            >
-                                                                <i className="fa-solid fa-trash"></i>
-                                                            </button>
-                                                        </div>
+                                                        {q.status === 'Borrador' ? (
+                                                            <div className="tw-flex tw-justify-end tw-items-center tw-gap-1.5">
+                                                                <button 
+                                                                    onClick={() => handleContinueDraft(q)}
+                                                                    className="tw-px-3 tw-py-1.5 tw-bg-amber-500 hover:tw-bg-amber-600 tw-text-white tw-rounded-lg tw-text-xs tw-font-bold tw-flex tw-items-center tw-gap-1.5 tw-shadow-sm tw-transition-all hover:tw-shadow active:tw-scale-95"
+                                                                    title="Continuar editando este borrador"
+                                                                >
+                                                                    <i className="fa-solid fa-play"></i>
+                                                                    <span>Continuar Borrador</span>
+                                                                </button>
+                                                                <button 
+                                                                    onClick={() => handleCopyFromHistory(q)}
+                                                                    className="tw-p-1.5 tw-text-emerald-600 hover:tw-bg-emerald-50 tw-rounded-lg tw-transition-colors"
+                                                                    title="Copiar contenido (Nueva cotización)"
+                                                                >
+                                                                    <i className="fa-solid fa-copy"></i>
+                                                                </button>
+                                                                <button 
+                                                                    onClick={() => handleDeleteFromHistory(q.id, q.version, q.status)}
+                                                                    className="tw-p-1.5 tw-text-red-500 hover:tw-bg-red-50 tw-rounded-lg tw-transition-colors"
+                                                                    title="Eliminar borrador"
+                                                                >
+                                                                    <i className="fa-solid fa-trash"></i>
+                                                                </button>
+                                                            </div>
+                                                        ) : (
+                                                            <div className="tw-flex tw-justify-end tw-items-center tw-gap-1">
+                                                                <button 
+                                                                    onClick={() => handleDownloadFromHistory(q)}
+                                                                    className="tw-p-1.5 tw-text-teal-600 hover:tw-bg-teal-50 tw-rounded-lg tw-transition-colors"
+                                                                    title="Descargar PDF"
+                                                                >
+                                                                    <i className="fa-solid fa-download"></i>
+                                                                </button>
+                                                                <button 
+                                                                    onClick={() => handleCreateNewVersion(q)}
+                                                                    className="tw-p-1.5 tw-text-googleBlue hover:tw-bg-blue-50 tw-rounded-lg tw-transition-colors"
+                                                                    title="Crear nueva versión de esta cotización"
+                                                                >
+                                                                    <i className="fa-solid fa-code-branch"></i>
+                                                                </button>
+                                                                <button 
+                                                                    onClick={() => handleCopyFromHistory(q)}
+                                                                    className="tw-p-1.5 tw-text-emerald-600 hover:tw-bg-emerald-50 tw-rounded-lg tw-transition-colors"
+                                                                    title="Copiar (Crear nueva cotización)"
+                                                                >
+                                                                    <i className="fa-solid fa-copy"></i>
+                                                                </button>
+                                                                <button 
+                                                                    onClick={() => handleDeleteFromHistory(q.id, q.version, q.status)}
+                                                                    className="tw-p-1.5 tw-text-red-500 hover:tw-bg-red-50 tw-rounded-lg tw-transition-colors"
+                                                                    title="Eliminar de la BD"
+                                                                >
+                                                                    <i className="fa-solid fa-trash"></i>
+                                                                </button>
+                                                            </div>
+                                                        )}
                                                     </td>
                                                 </tr>
                                             ))}

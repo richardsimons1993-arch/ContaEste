@@ -115,7 +115,7 @@ router.get('/next-version/:id', async (req, res) => {
         const pool = await getDbPool();
         const result = await pool.request()
             .input('id', sql.VarChar(50), req.params.id)
-            .query('SELECT ISNULL(MAX(version), 0) + 1 AS nextVersion FROM Quotations WHERE id = @id');
+            .query("SELECT ISNULL(MAX(version), 0) + 1 AS nextVersion FROM Quotations WHERE id = @id AND status != 'Borrador'");
         res.json({ nextVersion: result.recordset[0].nextVersion });
     } catch (err) {
         res.status(500).json({ error: err.message });
