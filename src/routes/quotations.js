@@ -163,10 +163,11 @@ router.post('/', async (req, res) => {
                     VALUES (@id, @correlative, @year, @version, @clientId, @clientName, @projectName, @requirements, @technicalConditions, @commercialConditions, @items1, @itemsOptional, @images, @subtotal, @iva, @total, @currency, @status, GETDATE());
             `);
 
-        if (q.status === 'Emitida') {
+        if ((q.status || 'Emitida') === 'Emitida') {
             try {
                 const projectId = 'PROJ-' + q.id;
-                const versionSuffix = (q.version && q.version > 1) ? ' v' + q.version : '';
+                const quoteVersion = q.version || 1;
+                const versionSuffix = (quoteVersion > 1) ? ' v' + quoteVersion : '';
                 const finalProjectName = (q.projectName || 'Proyecto sin nombre') + versionSuffix;
                 const projectStatus = 'Cotizado';
 
@@ -187,9 +188,14 @@ router.post('/', async (req, res) => {
                 }
                 estimatedAmountClp = Math.round(estimatedAmountClp);
 
+                const baseObservation = 'Creado automáticamente desde Cotización N° ' + q.id + conversionNote;
+                const historyNote = 'Creado automáticamente desde Cotización N° ' + q.id + versionSuffix + conversionNote;
+
                 const projectCheck = await pool.request()
                     .input('id', sql.VarChar(50), projectId)
                     .query('SELECT id, status FROM Projects WHERE id = @id');
+
+                let shouldRecordHistory = false;
 
                 if (projectCheck.recordset.length === 0) {
                     await pool.request()
@@ -197,23 +203,56 @@ router.post('/', async (req, res) => {
                         .input('projectName', sql.VarChar(255), finalProjectName)
                         .input('clientId', sql.VarChar(50), q.clientId)
                         .input('status', sql.VarChar(50), projectStatus)
-                        .input('observations', sql.VarChar(sql.MAX), 'Creado automáticamente desde Cotización N° ' + q.id + conversionNote)
+                        .input('observations', sql.VarChar(sql.MAX), baseObservation)
                         .input('estimatedAmount', sql.Decimal(18, 2), estimatedAmountClp)
                         .query(`
                             INSERT INTO Projects (id, projectName, clientId, status, observations, estimatedAmount, visitDate) 
                             VALUES (@id, @projectName, @clientId, @status, @observations, @estimatedAmount, GETDATE())
                         `);
-
+                    shouldRecordHistory = true;
+                } else if (projectCheck.recordset[0].status === 'Eliminado') {
+                    // Reactivar proyecto descartado (p.ej. correlativo reutilizado tras eliminación histórica o re-emisión)
                     await pool.request()
-                        .input('projectId', sql.VarChar(50), projectId)
-                        .input('newStatus', sql.VarChar(50), projectStatus)
-                        .input('note', sql.VarChar(sql.MAX), 'Creado automáticamente desde Cotización N° ' + q.id + versionSuffix + conversionNote)
+                        .input('id', sql.VarChar(50), projectId)
+                        .input('projectName', sql.VarChar(255), finalProjectName)
+                        .input('clientId', sql.VarChar(50), q.clientId)
+                        .input('status', sql.VarChar(50), projectStatus)
+                        .input('observations', sql.VarChar(sql.MAX), baseObservation)
+                        .input('estimatedAmount', sql.Decimal(18, 2), estimatedAmountClp)
                         .query(`
-                            INSERT INTO ProjectHistory (projectId, previousStatus, newStatus, note, changeDate) 
-                            VALUES (@projectId, NULL, @newStatus, @note, GETDATE())
+                            UPDATE Projects 
+                            SET projectName = @projectName,
+                                clientId = @clientId,
+                                status = @status,
+                                observations = @observations,
+                                estimatedAmount = @estimatedAmount,
+                                visitDate = GETDATE(),
+                                createdAt = GETDATE(),
+                                executionDate = NULL,
+                                finalAmount = NULL,
+                                purchaseOrderPath = NULL
+                            WHERE id = @id
                         `);
+
+                    if (quoteVersion === 1) {
+                        await pool.request()
+                            .input('projectId', sql.VarChar(50), projectId)
+                            .query('DELETE FROM ProjectHistory WHERE projectId = @projectId');
+                    } else {
+                        await pool.request()
+                            .input('projectId', sql.VarChar(50), projectId)
+                            .query(`
+                                DELETE FROM ProjectHistory 
+                                WHERE projectId = @projectId 
+                                  AND (newStatus = 'Eliminado' 
+                                       OR previousStatus = 'Eliminado' 
+                                       OR note LIKE '%recuperado%' 
+                                       OR note LIKE '%Soft Delete%'
+                                       OR note LIKE '%Descartado del pipeline%')
+                            `);
+                    }
+                    shouldRecordHistory = true;
                 } else {
-                    const currentStatus = projectCheck.recordset[0].status;
                     await pool.request()
                         .input('id', sql.VarChar(50), projectId)
                         .input('projectName', sql.VarChar(255), finalProjectName)
@@ -222,6 +261,17 @@ router.post('/', async (req, res) => {
                             UPDATE Projects 
                             SET projectName = @projectName, estimatedAmount = @estimatedAmount 
                             WHERE id = @id
+                        `);
+                }
+
+                if (shouldRecordHistory) {
+                    await pool.request()
+                        .input('projectId', sql.VarChar(50), projectId)
+                        .input('newStatus', sql.VarChar(50), projectStatus)
+                        .input('note', sql.VarChar(sql.MAX), historyNote)
+                        .query(`
+                            INSERT INTO ProjectHistory (projectId, previousStatus, newStatus, note, changeDate) 
+                            VALUES (@projectId, NULL, @newStatus, @note, GETDATE())
                         `);
                 }
             } catch (projErr) {

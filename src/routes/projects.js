@@ -397,7 +397,7 @@ async function syncQuotationsToProjects() {
     console.log('--- Iniciando Sincronización de Cotizaciones a Proyectos ---');
     try {
         const pool = await getDbPool();
-        const quotationsRes = await pool.request().query('SELECT * FROM Quotations');
+        const quotationsRes = await pool.request().query("SELECT * FROM Quotations WHERE ISNULL(status, 'Emitida') != 'Borrador'");
         const quotations = quotationsRes.recordset;
 
         // Optimización N+1: Consultar todos los proyectos de una sola vez
